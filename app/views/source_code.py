@@ -2,13 +2,13 @@ import os
 
 from flask import jsonify, make_response, send_from_directory, Blueprint
 
-from app.model.Task_model import query_task
+from app.model.Task_model import Task_model
 
 source_code_bp = Blueprint('app', __name__)
 
 @source_code_bp.route("/get_source_code/<task_id>",methods=["GET"])
 def return_code(task_id):
-    task_info = query_task(task_id)
+    task_info = Task_model.query.filter_by(task_id=task_id).first()
     print(task_info)
     if not task_info or len(task_info)<7:
         return jsonify({"code": 500, "message": "Maybe task {} is not running, you can rerun your code to generate it.".format(task_id)})

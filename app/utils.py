@@ -2,7 +2,7 @@ import os
 import random
 
 import threading
-from app.config import USER_DIR_PREFIX
+from app.config import USER_DIR_PATH
 
 mutex = threading.Lock()
 

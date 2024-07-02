@@ -2,14 +2,14 @@ import os
 
 from flask import jsonify, make_response, send_from_directory, Blueprint
 
-from app.model.Task_model import query_task
+from app.model.Task_model import Task_model
 
 
 log_bp = Blueprint('log', __name__)
 
 @log_bp.route("/get_log/<task_id>",methods=["GET"])
 def return_log(task_id):
-    task_info = query_task(task_id)
+    task_info = Task_model.query.filter_by(task_id=task_id).first()
     if not task_info:
         return jsonify({"code": 500, "message": "Maybe task {} is not running, you can rerun your code to generate it.".format(task_id)})
     cca_name = task_info[5]

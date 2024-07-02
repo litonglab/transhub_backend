@@ -1,10 +1,12 @@
+from datetime import datetime
+
 from flask import Flask
 from flask_cors import CORS
 
-from app.extensions import redis_client, rq
+from app.extensions import redis_client, rq, db
 
-from app.models import create_task_table
-from app.model.User_model import create_user_table
+from app.model import User_model, Task_model
+from flask_sqlalchemy import SQLAlchemy
 
 
 def create_app():
@@ -13,9 +15,20 @@ def create_app():
     app.config.from_object('app.config')
     redis_client.init_app(app)
     rq.init_app(app)
-    create_task_table()
-    create_user_table()
+
+    # 使用当前时间做hash，作为session的key
+    app.secret_key = str(hash(str(datetime.now())))
+    app.config[
+        'SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:1160234413@172.20.240.1:3306/transhub_base?charset=utf8'
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
+    db.init_app(app)
     with app.app_context():
+        try:
+            db.create_all()
+            print('create all tables')
+        except Exception as e:
+            print(e)
+
         # Register blueprints
         from .views.user import user_bp
         from .views.task import task_bp

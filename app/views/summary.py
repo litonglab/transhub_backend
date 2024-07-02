@@ -1,8 +1,8 @@
 from flask import Blueprint, request, send_file, jsonify
 import PyPDF2
 
-from app.config import ALL_SUMMARY_DIR
-from app.model.User_model import query_real_info
+from app.config import ALL_SUMMARY_DIR_PATH, ALL_CLASS
+from app.model.User_model import User_model
 from app.models import *
 
 
@@ -13,16 +13,16 @@ summary_bp = Blueprint('summary', __name__)
 def return_summary(user_id):
     if not user_id:
         return {"code": 400, "message": "Bad request!"}
-    real_info = query_real_info(user_id)
+    real_info = User_model.query.get(user_id)
     if not real_info:
         return {"code": 400, "message": "Real info need be completed!"}
     temp_class = real_info[1]
     if temp_class == ALL_CLASS[0]:
-        temp_dir = ALL_SUMMARY_DIR[0]
+        temp_dir = ALL_SUMMARY_DIR_PATH[0]
     elif temp_class == ALL_CLASS[1]:
-        temp_dir = ALL_SUMMARY_DIR[1]
+        temp_dir = ALL_SUMMARY_DIR_PATH[1]
     else:
-        temp_dir = ALL_SUMMARY_DIR[2]
+        temp_dir = ALL_SUMMARY_DIR_PATH[2]
     print(temp_dir)
     pdf_filenames = [f"{temp_dir}/src/experiments/data/pantheon_summary.pdf",
                      f"{temp_dir}/src/experiments/data_p/pantheon_summary.pdf"]
