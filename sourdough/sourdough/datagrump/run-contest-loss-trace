@@ -1,0 +1,59 @@
+#!/usr/bin/perl -w
+
+use strict;
+use LWP::UserAgent;
+use HTTP::Request::Common;
+
+my $username = $ARGV[ 0 ];
+if ( not defined $username ) {
+  die "Usage: $0 USERNAME PORT\n";
+}
+
+my $receive_port = $ARGV[ 1 ];
+if ( not defined $receive_port ) {
+  die "Usage: $0 USERNAME PORT\n";
+}
+
+my $receiver_pid = fork;
+
+if ( $receiver_pid < 0 ) {
+  die qq{$!};
+} elsif ( $receiver_pid == 0 ) {
+  # child
+  exec qq{./receiver $receive_port} or die qq{$!};
+}
+
+chomp( my $prefix = qx{dirname `which mm-link`} );
+my $tracedir = $prefix . q{/../share/mahimahi/traces};
+
+# run the sender inside a linkshell and a delayshell and a loss shell
+my @command = qw{mm-delay 100 mm-loss uplink 0.03 mm-link UPLINK DOWNLINK};
+
+# display livegraphs if we seem to be running under X
+#if ( defined $ENV{ 'DISPLAY' } ) {
+#  push @command, qw{--meter-uplink --meter-uplink-delay};
+#}
+
+push @command, qw{--once --uplink-queue=droptail --uplink-queue-args="bytes=16000" --uplink-log=./contest_uplink_loss_log -- bash -c};
+
+push @command, "./sender \$MAHIMAHI_BASE $receive_port";
+
+# for the contest, we will send data over Verizon's downlink
+# (datagrump sender's uplink)
+die unless $command[ 6 ] eq "UPLINK";
+$command[ 6 ] = qq{$tracedir/test7.up};
+
+die unless $command[ 7 ] eq "DOWNLINK";
+$command[ 7 ] = qq{$tracedir/test7.down};
+
+system @command;
+
+# kill the receiver
+kill 'INT', $receiver_pid;
+
+print "\n";
+
+print qq{ done.\n\n};
+
+
+print "\n";
