@@ -1,16 +1,18 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint
 
-from app.models import query_history_records
+# from app.model.User_model import User_model
+from app.model.Task_model import Task_model
+from app.security.safe_check import check_user_state
+from app.vo.response import myResponse
 
 history_bp = Blueprint('history', __name__)
 
 
 @history_bp.route("/get_history_records/<user_id>", methods=["GET"])
 def return_history_records(user_id):
-    history_records = query_history_records(user_id)
-    if not history_records:
-        return jsonify({"code": 500, "message": "Maybe you never submit a record, you can submit your code now!"})
-    history_info = [{"task_id": record[0], "user_id": record[1], "task_status": record[2], "task_score": record[3],
-                     "running_port": record[4], "cca_name": record[5], "created_time": record[6],
-                     "score_without_loss": record[7], "score_with_loss": record[8]} for record in history_records]
-    return jsonify({"code": 200, "history_records": history_info})
+    if not check_user_state(user_id):
+        return myResponse(400, "Please login firstly.")
+    history_records = Task_model.query.filter_by(user_id=user_id).all()
+    records = [r.to_dict() for r in history_records]
+
+    return myResponse(400, "Success", history=records)

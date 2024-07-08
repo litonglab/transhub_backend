@@ -57,6 +57,19 @@ def user_register():
         print("register occur error: {}".format(e))
         return myResponse(500, "Register failed.")
 
+@user_bp.route("/paticipate_competition", methods=['POST'])
+def paticipate_competition():
+    user_id = request.json['user_id']
+    cname = request.json['cname']
+    if not check_user_state(user_id):
+        return myResponse(400, "Please login firstly.")
+    user = User_model.query.filter_by(user_id=user_id).first()
+    if not user:
+        return myResponse(400, "User not found.")
+    if not user.paticapate_competition(cname):
+        return myResponse(400, "Paticipate competition failed.")
+    return myResponse(200, "Paticipate competition success.")
+
 
 @user_bp.route("/change_password", methods=['POST'])
 def change_password():
@@ -100,5 +113,7 @@ def change_real_info():
         return myResponse(400, "Real info need to be provided completely.")
     user.update_real_info(real_name, sno)
     return myResponse(200, "Set real info success.")
+
+
 
 
