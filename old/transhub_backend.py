@@ -33,11 +33,11 @@ mutex = threading.Lock()
 
 
 
-#  app/views/utils.py
+#  app_backend/views/utils.py
 def path_remake(path):
     return path.replace(' ', '\ ').replace('(', '\(').replace(')', '\)').replace('&', '\&')
 
-# app/views/utils.py
+# app_backend/views/utils.py
 def get_available_port():
     pscmd = "netstat -nul |grep -v Active| grep -v Proto|awk '{print $4}'|awk -F: '{print $NF}'"  # 定义netstat命令的字符串
     tt= random.randint(20000,50000)
@@ -65,11 +65,11 @@ ALL_SUMMARY_DIR = ["/home/liuwei/Transhub_data/pantheon-ics",
                    "/home/liuwei/Transhub_data/pantheon-competition",
                    "/home/liuwei/pantheon"] # default
 
-# @app.route("/")
+# @app_backend.route("/")
 # def index():
 #     return redirect(url_for('user_login'))
 
-#  app/views/user.py
+#  app_backend/views/user.py
 @app.route('/user_login',methods=['POST'])
 def user_login():
     request_data = request.json or request.form
@@ -88,7 +88,7 @@ def user_login():
         login_massage = "温馨提示：用户尚未注册，请点击注册"
         return {"code": 400, "message": login_massage}
 
-#  app/views/user.py
+#  app_backend/views/user.py
 @app.route('/user_register',methods=['POST'])
 def user_register():
     try:
@@ -116,7 +116,7 @@ def user_register():
         print("register occur error: {}".format(e))
         return {"code": 500, "message": "Register occur ERROR!"}
 
-#  app/views/user.py
+#  app_backend/views/user.py
 @app.route("/change_password",methods=['POST'])
 def change_password():
     request_data = request.json or request.form
@@ -126,7 +126,7 @@ def change_password():
     message = "修改密码成功！"
     return {"code": 200, "message": message}
 
-#  app/views/task.py
+#  app_backend/views/task.py
 @app.route("/upload",methods=["POST"])
 def save_file():
     request_data = request.json or request.form
@@ -194,17 +194,17 @@ def save_file():
     update_task_status(task_id, 'queued')
     return {"code": 200, "message": "Upload Success. Task is running.", "filename": newfilename, "task_id": task_id}
 
-# app/views/help.py
+# app_backend/views/help.py
 @app.route("/get_help/cca_guide", methods=["GET"])
 def return_cca_file():
     return send_from_directory("/home/liuwei/Transhub/help/", 'cca_guide.docx', as_attachment=True)
 
-# app/views/help.py
+# app_backend/views/help.py
 @app.route("/get_help/user_guide", methods=["GET"])
 def return_guide_file():
     return send_from_directory("/home/liuwei/Transhub/help/", 'user_guide.docx', as_attachment=True)
 
-# app/views/summary.py
+# app_backend/views/summary.py
 @app.route("/get_ranks",methods=["GET"])
 def return_ranks():
     user_id = request.args.get("user_id")
@@ -224,7 +224,7 @@ def return_ranks():
     return jsonify({"code": 200, "rank_list": ranks_info})
 
 
-# app/views/history.py
+# app_backend/views/history.py
 @app.route("/get_history_records/<user_id>",methods=["GET"])
 def return_history_records(user_id):
     history_records = query_history_records(user_id)
@@ -233,7 +233,7 @@ def return_history_records(user_id):
     history_info = [{"task_id": record[0], "user_id": record[1], "task_status": record[2], "task_score": record[3], "running_port": record[4], "cca_name": record[5], "created_time": record[6], "score_without_loss": record[7], "score_with_loss": record[8]} for record in history_records]
     return jsonify({"code": 200, "history_records": history_info})
 
-# app/views/user.py
+# app_backend/views/user.py
 @app.route("/get_real_info/<user_id>",methods=["GET"])
 def return_real_info(user_id):
     real_record = query_real_info(user_id)
@@ -243,7 +243,7 @@ def return_real_info(user_id):
     real_info = {"real_name":real_record[0], "myclass":real_record[1], "sno":real_record[2]}
     return jsonify({"code":200, "real_info":real_info})
 
-# app/views/user.py
+# app_backend/views/user.py
 @app.route("/set_real_info/<user_id>",methods=["GET"])
 def change_real_info(user_id):
     new_real_record = request.args
@@ -257,7 +257,7 @@ def change_real_info(user_id):
     update_real_info(user_id, new_real_record.get("real_name"), new_real_record.get("myclass"), new_real_record.get("sno"))
     return jsonify({"code":200, "message": "Update real info success."})
 
-# app/views/source_code.py
+# app_backend/views/source_code.py
 @app.route("/get_source_code/<task_id>",methods=["GET"])
 def return_code(task_id):
     task_info = query_task(task_id)
@@ -279,7 +279,7 @@ def return_code(task_id):
     except Exception as e:
         return jsonify({"code": 404, "message": "{}".format(e)})
 
-# app/views/log.py
+# app_backend/views/log.py
 @app.route("/get_log/<task_id>",methods=["GET"])
 def return_log(task_id):
     task_info = query_task(task_id)
@@ -301,7 +301,7 @@ def return_log(task_id):
     except Exception as e:
         return jsonify({"code": 404, "message": "{}".format(e)})
 
-# app/views/task.py
+# app_backend/views/task.py
 @app.route("/get_task_info/<task_id>",methods=["GET"])
 def return_task(task_id):
     task_info = query_task(task_id)
@@ -310,7 +310,7 @@ def return_task(task_id):
     task_res = {"task_id": task_info[0], "user_id": task_info[1], "task_status": task_info[2], "task_score": task_info[3], "running_port": task_info[4], "cca_name": task_info[5], "score_without_loss": task_info[6], "score_with_loss": task_info[7]}
     return jsonify({"code": 200, "task_info": task_res})
 
-# app/views/user.py
+# app_backend/views/user.py
 @app.route("/get_old_pwd/<user_id>",methods=["GET"])
 def return_old_pwd(user_id):
     old_pwd = query_pwd(user_id)
@@ -319,7 +319,7 @@ def return_old_pwd(user_id):
     data = old_pwd[0]
     return jsonify({"code": 200, "data": data})
 
-# app/views/graph.py
+# app_backend/views/graph.py
 @app.route("/get_loss_throughput_graph/<task_id>",methods=["GET"])
 def return_loss_throughput_graph(task_id):
     directory = "/home/liuwei/Transhub_data/cc_training/{}/sourdough/datagrump/result/".format(task_id)
@@ -329,7 +329,7 @@ def return_loss_throughput_graph(task_id):
     except Exception as e:
         return jsonify({"code": 500, "message": "{} Maybe you algorithm is still running or its result was wrong. You can rerun your code to generate graph.".format(e)})
 
-# app/views/graph.py
+# app_backend/views/graph.py
 @app.route("/get_loss_delay_graph/<task_id>",methods=["GET"])
 def return_loss_delay_graph(task_id):
     directory = "/home/liuwei/Transhub_data/cc_training/{}/sourdough/datagrump/result/".format(task_id)
@@ -339,7 +339,7 @@ def return_loss_delay_graph(task_id):
     except Exception as e:
         return jsonify({"code": 500, "message": "{} Maybe you algorithm is still running or its result was wrong. You can rerun your code to generate graph.".format(e)})
 
-# app/views/graph.py
+# app_backend/views/graph.py
 @app.route("/get_throughput_graph/<task_id>",methods=["GET"])
 def return_throughput_graph(task_id):
     directory = "/home/liuwei/Transhub_data/cc_training/{}/sourdough/datagrump/result/".format(task_id)
@@ -350,7 +350,7 @@ def return_throughput_graph(task_id):
         return jsonify({"code": 500, "message": "{} Maybe you algorithm is still running or its result was wrong. You can rerun your code to generate graph.".format(e)})
 
 
-# app/views/graph.py
+# app_backend/views/graph.py
 @app.route("/get_delay_graph/<task_id>",methods=["GET"])
 def return_delay_graph(task_id):
     directory = "/home/liuwei/Transhub_data/cc_training/{}/sourdough/datagrump/result/".format(task_id)
@@ -360,28 +360,28 @@ def return_delay_graph(task_id):
     except Exception as e:
         return jsonify({"code": 500, "message": "{} Maybe you algorithm is still running or its result was wrong. You can rerun your code to generate graph.".format(e)})
 
-# app/views/summary.py
+# app_backend/views/summary.py
 @app.route("/get_loss_summary_svg", methods=["GET"])
 def return_loss_summary_svg():
     return send_file("/home/liuwei/pantheon/src/experiments/data_p/pantheon_summary.svg", cache_timeout=0, as_attachment=True)
 
-# app/views/summary.py
+# app_backend/views/summary.py
 @app.route("/get_loss_summary_pdf", methods=["GET"])
 def return_loss_summary():
     return send_file("/home/liuwei/pantheon/src/experiments/data_p/pantheon_summary.pdf", cache_timeout=0, as_attachment=True)
 
-# app/views/help.py
+# app_backend/views/help.py
 @app.route("/get_zhinan", methods=["GET"])
 def return_zhinan():
     return send_file("/home/liuwei/zhinan.pdf", cache_timeout=0, as_attachment=True)
 
-# app/views/summary.py
+# app_backend/views/summary.py
 @app.route("/get_summary_svg", methods=["GET"])
 def return_summary_svg():
     return send_file("/home/liuwei/pantheon/src/experiments/data/pantheon_summary.svg", cache_timeout=0, as_attachment=True)
 
 
-# app/views/summary.py
+# app_backend/views/summary.py
 @app.route("/get_summary_pdf/<user_id>", methods=["GET"])
 def return_summary(user_id):
     if not user_id:
@@ -404,7 +404,7 @@ def return_summary(user_id):
     merger.write(f"{temp_dir}/merged_summary.pdf")
     return send_file(f"{temp_dir}/merged_summary.pdf", cache_timeout=0, as_attachment=True)
 
-# app/views/config.py
+# app_backend/views/config.py
 def set_config_yaml(config_content):
     p = redis_client.pipeline()
     p.set(YAML_KEY, str(config_content))
@@ -413,7 +413,7 @@ def set_config_yaml(config_content):
         with open(f"{temp_dir}/src/config.yml", "w") as f:
             yaml.dump(config_content, f, default_flow_style=False)
 
-# app/views/config.py
+# app_backend/views/config.py
 def get_config_yaml():
     data = redis_client.get(YAML_KEY)
     if data:
@@ -424,7 +424,7 @@ def get_config_yaml():
             set_config_yaml(c_content)
             return c_content
 
-# app/views/config.py
+# app_backend/views/config.py
 def set_config_json(json_content):
     p = redis_client.pipeline()
     p.set(JSON_KEY, json.dumps(json_content))
@@ -437,7 +437,7 @@ def set_config_json(json_content):
             print(f"write json to {temp_dir}/src/experiments/data_p/pantheon_metadata.json")
             json.dump(json_content, f, indent=4)
 
-# app/views/config.py
+# app_backend/views/config.py
 def get_config_json():
     data = redis_client.get(JSON_KEY)
     if data:
@@ -448,7 +448,7 @@ def get_config_json():
             set_config_json(jsoncontent)
             return jsoncontent
 
-# app/views/task.py
+# app_backend/views/task.py
 @rq.job(timeout='1h')
 def run_task(arg1, task_id, temp_dir):
     # config yaml
