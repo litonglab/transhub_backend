@@ -3,7 +3,7 @@ from app_backend import db
 
 class Rank_model(db.Model):
     __tablename__ = 'rank'
-    task_id = db.Column(db.String(36), primary_key=False)  # their newest task's task_id
+    upload_id = db.Column(db.String(36), primary_key=False)  # their newest upload's upload_id
     user_id = db.Column(db.String(36), primary_key=True)
     task_score = db.Column(db.Float, nullable=False)
     algorithm = db.Column(db.String(50), nullable=False)
@@ -25,7 +25,7 @@ class Rank_model(db.Model):
 
     def to_dict(self):
         return {
-            'task_id': self.task_id,
+            'upload_id': self.upload_id,
             'user_id': self.user_id,
             'task_score': self.task_score,
             'algorithm': self.algorithm,

@@ -59,7 +59,7 @@ def user_register():
         print("register occur error: {}".format(e))
         return myResponse(500, "Register failed.")
 
-@user_bp.route("/paticipate_competition", methods=['POST'])
+@user_bp.route("/user_paticipate_competition", methods=['POST'])
 def paticipate_competition():
     user_id = request.json['user_id']
     cname = request.json['cname']
@@ -73,7 +73,7 @@ def paticipate_competition():
     return myResponse(200, "Paticipate competition success.")
 
 
-@user_bp.route("/change_password", methods=['POST'])
+@user_bp.route("/user_change_password", methods=['POST'])
 def change_password():
     request_data = request.json or request.form
     user_id = request_data['user_id']
@@ -89,7 +89,7 @@ def change_password():
 
 
 # app_backend/views/user.py
-@user_bp.route("/get_real_info", methods=["POST"])
+@user_bp.route("/user_get_real_info", methods=["POST"])
 def return_real_info():
     user_id= request.json.get('user_id')
     if not check_user_state(user_id):
@@ -100,7 +100,7 @@ def return_real_info():
 
 
 # app_backend/views/user.py
-@user_bp.route("/set_real_info", methods=["POST"])
+@user_bp.route("/user_set_real_info", methods=["POST"])
 def change_real_info():
 
     user_id = request.json['user_id']

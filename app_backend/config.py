@@ -18,12 +18,13 @@ MYSQL_DBNAME = 'transhub_base'
 
 class cctraining_config:
     cname = "计算机网络"
-    loss_rate = 0.1
-    uplink_file = ALL_CLASS_PATH[cname] + "/test_data/Verizon-LTE-short.up"
-    downlink_file = ALL_CLASS_PATH[cname] + "/test_data/Verizon-LTE-short.down"
+    loss_rate = [0.0, 0.1]
+    # uplink_file = ALL_CLASS_PATH[cname] + "/test_data/Verizon-LTE-short.up"
+    # downlink_file = ALL_CLASS_PATH[cname] + "/test_data/Verizon-LTE-short.down"
     zhinan_path = ALL_CLASS_PATH[cname] + "/help/zhinan.pdf"
     downlink_dir =ALL_CLASS_PATH[cname]+ "/test_data/downlink"
     uplink_dir = ALL_CLASS_PATH[cname]+"/test_data/uplink"
+    trace_num = 1
     cca_guide_path = ALL_CLASS_PATH[cname] + "/help/cca_guide.docx"
     user_guide_path = ALL_CLASS_PATH[cname] + "/help/user_guide.docx"
 

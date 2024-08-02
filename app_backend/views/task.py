@@ -1,3 +1,5 @@
+import os
+
 from flask import Blueprint, request
 import uuid
 from datetime import datetime
@@ -7,11 +9,10 @@ from app_backend.model.User_model import User_model
 from app_backend.model.Task_model import Task_model
 from app_backend.vo.response import myResponse
 
-from app_backend.jobs.cctraing_job import enqueue_cc_task
+from app_backend.jobs.cctraining_job import enqueue_cc_task
 
-# from .utils.py import get_available_port
 import time
-# from app_backend.views.config import get_config_yaml, set_config_yaml, get_config_json, set_config_json
+from app_backend.config import cctraining_config
 
 from app_backend.security.safe_check import check_user_state, check_task_auth
 
@@ -29,7 +30,7 @@ def check_illegal(file) -> (bool, dict):
     return True, {}
 
 
-@task_bp.route("/upload", methods=["POST"])
+@task_bp.route("/task_upload", methods=["POST"])
 def upload_project_file():
     ddl_time = time.mktime(time.strptime(DDLTIME, "%Y-%m-%d-%H-%M-%S"))
     if time.time() > ddl_time:
@@ -65,23 +66,29 @@ def upload_project_file():
     now = datetime.now()
     user.save_file_to_user_dir(file, cname, now.strftime("%Y-%m-%d-%H-%M-%S"))
     temp_dir = user.get_user_dir(cname) + "/" + now.strftime("%Y-%m-%d-%H-%M-%S")
+    upload_id = str(uuid.uuid1())
+    # 构建task,按trace和env构建多个task
+    task_ids = []
+    uplink_dir = cctraining_config.uplink_dir
+    for trace_file in os.listdir(uplink_dir):
+        trace_name = trace_file[:-3]
+        for loss in cctraining_config.loss_rate:
+            task_id = str(uuid.uuid1())
+            task = Task_model(task_id=task_id, user_id=user_id, task_status='queued', task_score=0,
+                              created_time=now.strftime("%Y-%m-%d-%H-%M-%S"), cname=cname, task_dir=temp_dir+"/" + trace_name+"_"+str(loss),
+                              algorithm=filename[:-3], trace_name=trace_name, upload_id=upload_id, loss_rate=loss)
 
-    # 构建task
-    task_id = str(uuid.uuid1())
-    task = Task_model(task_id=task_id, user_id=user_id, task_status='queued', running_port=0, task_score=0,
-                      created_time=now.strftime("%Y-%m-%d-%H-%M-%S"), cname=cname, task_dir=temp_dir,
-                      algorithm=filename[:-3])
-
-    # task = executor.submit(run_task, newfilename[:-3])
-    # task = run_task.queue()
-    # update_task_status(task_id, 'queued')
-    task.save()
-    enqueue_cc_task(task_id)
+            # task = executor.submit(run_task, newfilename[:-3])
+            # task = run_task.queue()
+            # update_task_status(task_id, 'queued')
+            task.save()
+            task_ids.append(task_id)
+            enqueue_cc_task(task_id)
     # return {"code": 200, "message": "Upload Success. Task is running.", "filename": filename, "task_id": task_id}
-    return myResponse(200, "Upload Success. Task is running.", filename=filename, task_id=task_id)
+    return myResponse(200, "Upload Success. Task is running.", filename=filename, tasks=task_ids)
 
 
-@task_bp.route("/get_task_info", methods=["POST"])
+@task_bp.route("/task_get_task_info", methods=["POST"])
 def return_task():
     task_id = request.json.get('task_id')
     user_id = request.json.get('user_id')

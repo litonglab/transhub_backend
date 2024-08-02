@@ -5,7 +5,7 @@ from app_backend.vo.response import myResponse
 help_bp = Blueprint('help', __name__)
 
 
-@help_bp.route("/get_cca_guide", methods=["POST"])
+@help_bp.route("/help_get_cca_guide", methods=["POST"])
 def return_cca_file():
     cname = request.json['cname']
     if cname == cctraining_config.cname:
@@ -22,7 +22,7 @@ def return_guide_file():
     else:
         return myResponse(400, "No user guide found.")
 
-@help_bp.route("/get_zhinan", methods=["POST"])
+@help_bp.route("/help_get_tutorial", methods=["POST"])
 def return_zhinan():
     cname = request.json['cname']
     if cname == cctraining_config.cname:

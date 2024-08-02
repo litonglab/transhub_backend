@@ -6,10 +6,13 @@ from app_backend import db
 class Task_model(db.Model):
     __tablename__ = 'task'
     task_id = db.Column(db.String(36), primary_key=True)
+    upload_id = db.Column(db.String(36), nullable=False)  # 标识是哪次提交
+    loss_rate = db.Column(db.Float, nullable=False)  # 标识运行的环境,loss_rate
+    trace_name = db.Column(db.String(50), nullable=False)  # 标识运行的trace
     user_id = db.Column(db.String(36), nullable=False)
     task_status = db.Column(db.String(10), nullable=False)
     created_time = db.Column(db.DateTime, nullable=False)
-    running_port = db.Column(db.Integer)
+    # running_port = db.Column(db.Integer)
     task_score = db.Column(db.Float)
     cname = db.Column(db.String(50))  # 任务类型，可以表示是哪个比赛的任务
     task_dir = db.Column(db.String(256))  # 任务的文件夹, 用于存放用户上传的文件
@@ -37,64 +40,87 @@ class Task_model(db.Model):
         db.session.commit()
 
     def to_detail_dict(self):
-        trace2score = {}
-        from app_backend.jobs.cctraing_job import evaluate_score
-        from app_backend.config import cctraining_config
-        score_dir = self.task_dir
-        trace_dir = cctraining_config.uplink_dir
-        total_trace = 0
-        total_score = 0
-
-        for trace_file in os.listdir(trace_dir):
-            total_trace += 1
-            trace_score_file_path = score_dir + "/" + trace_file + ".score"
-            if os.path.exists(trace_score_file_path):
-                score = evaluate_score(self, trace_score_file_path)
-                total_score += score
-                # 获取trace名字
-                trace_name = trace_file.split('.')[0]
-                trace2score[trace_name] = score
-
-        # 逻辑是读取所有的
 
         if self.task_status == 'finished':
             res = {
                 'user_id': self.user_id,
                 'task_id': self.task_id,
+                'upload_id': self.upload_id,
+                'loss_rate': self.loss_rate,
+                'trace_name': self.trace_name,
                 'task_status': self.task_status,
                 'created_time': self.created_time.strftime("%Y-%m-%d %H:%M:%S"),
-                'running_port': self.running_port,
-                'task_score': total_score,
+                'task_score': self.task_score,
                 'cname': self.cname,
                 'algorithm': self.algorithm,
-                'trace_score': trace2score
             }
-            if self.task_score == 0:
-                self.update(task_score=total_score)
             return res
 
         elif self.task_status == 'running':
             res = {
                 'user_id': self.user_id,
                 'task_id': self.task_id,
+                'upload_id': self.upload_id,
+                'loss_rate': self.loss_rate,
+                'trace_name': self.trace_name,
                 'task_status': self.task_status,
                 'created_time': self.created_time.strftime("%Y-%m-%d %H:%M:%S"),
-                'running_port': self.running_port,
+                'task_score': 0,
                 'cname': self.cname,
-                'algorithm': self.algorithm,
-                'trace_score': trace2score
+                'algorithm': self.algorithm
             }
-            self.update(task_score=total_score)
             return res
 
-    def to_history_dict(self):
-        res = {
-            'user_id': self.user_id,
-            'task_id': self.task_id,
-            'task_status': self.task_status,
-            'created_time': self.created_time.strftime("%Y-%m-%d %H:%M:%S"),
-            'cname': self.cname,
-            'algorithm': self.algorithm,
-            'score':self.task_score
-        }
-        return res
+
+def to_history_dict(tasks: list):
+    #将tasks按upload_id聚合,score求和。如果status有一个是error，则整体status是error，score是0，如果有一个是running，则整体是running，score是当前的score，否则是finished，score是求和的score
+    # history:{cname,algorithm,created_time,status,score}
+    # res = []
+    # upload_id_set = set()
+    # for task in tasks:
+    #     if task.upload_id not in upload_id_set:
+    #         upload_id_set.add(task.upload_id)
+    #         history={
+    #             "cname":task.cname,
+    #             "algorithm":task.algorithm,
+    #             "created_time":task.created_time,
+    #             "status":task.task_status,
+    #             "score":task.task_score,
+    #             "upload_id":task.upload_id
+    #         }
+    #         res.append(history)
+    #     else:
+    #         for r in res:
+    #             if r['upload_id'] == task.upload_id:
+    #                 r['task_score'] += task.task_score
+    #                 r['status'] = task.task_status
+
+    res = []
+    upload_id_set = set()
+
+    for task in tasks:
+        if task.upload_id not in upload_id_set:
+            upload_id_set.add(task.upload_id)
+            history = {
+                "cname": task.cname,
+                "algorithm": task.algorithm,
+                "created_time": task.created_time,
+                "status": task.task_status,
+                "score": task.task_score,
+                "upload_id": task.upload_id
+            }
+            res.append(history)
+        else:
+            for r in res:
+                if r['upload_id'] == task.upload_id:
+                    if task.task_status == 'error':
+                        r['status'] = 'error'
+                        r['score'] = 0
+                    elif task.task_status == 'running' and r['status'] != 'error':
+                        r['status'] = 'running'
+                        r['score'] = task.task_score
+                    elif r['status'] not in ['error', 'running']:
+                        r['score'] += task.task_score
+
+    return res
+

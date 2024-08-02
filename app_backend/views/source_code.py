@@ -8,9 +8,9 @@ from app_backend.vo.response import myResponse
 source_code_bp = Blueprint('app_backend', __name__)
 
 
-@source_code_bp.route("/get_source_code", methods=["POST"])
+@source_code_bp.route("/src_get_code", methods=["POST"])
 def return_code():
-    task_id = request.json.get('task_id')
+    task_id = request.json.get('upload_id')
     user_id = request.json.get('user_id')
     if (not check_task_auth(user_id, task_id)) or (not check_user_state(user_id)):
         return myResponse(400, "Please login firstly!")
