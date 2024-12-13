@@ -97,9 +97,14 @@ def run_cc_training_task(task_id):
             receiver_path = task.task_dir + "/receiver"
             # os.system( f'cd {target_dir} && {program_script} {running_port} {loss_rate} {uplink_file} {
             # downlink_file} {result_path}')
-            if not run_cmd(
+            retry_limit = 10
+            retry_times = 0
+            while not run_cmd(
                     f"cd {target_dir} && {program_script} {running_port} {loss_rate} {uplink_file} {downlink_file} {result_path} {sender_path} {receiver_path} {task.buffer_size}",
-                    f'{task.task_dir}/error.log', task):
+                    f'{task.task_dir}/error.log', task) and retry_time < retry_limit:
+                retry_time+=1
+                task.update(task_status='retrying')
+            if retry_times == retry_limit:
                 task.update(task_status='error')
                 return
             # 4. 解析结果
