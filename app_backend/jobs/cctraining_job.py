@@ -98,7 +98,7 @@ def run_cc_training_task(task_id):
             # os.system( f'cd {target_dir} && {program_script} {running_port} {loss_rate} {uplink_file} {
             # downlink_file} {result_path}')
             if not run_cmd(
-                    f"su - pengc -c 'cd {target_dir} && {program_script} {running_port} {loss_rate} {uplink_file} {downlink_file} {result_path} {sender_path} {receiver_path} {task.buffer_size}'",
+                    f"cd {target_dir} && {program_script} {running_port} {loss_rate} {uplink_file} {downlink_file} {result_path} {sender_path} {receiver_path} {task.buffer_size}",
                     f'{task.task_dir}/error.log', task):
                 task.update(task_status='error')
                 return
