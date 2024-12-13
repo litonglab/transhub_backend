@@ -1,6 +1,6 @@
 # Transhub Backend
 本仓库是Transhub的后端代码仓库，使用Flask框架开发，用flask rq实现任务队列及多进程  
-前端链接：[Transhub Frontend](https://github.com)
+前端链接：[Transhub Frontend](https://github.com/litonglab/transhub_frontend)
 ## 1.  部署
 - 依赖软件：Mysql，Redis，Linux，Python 3.8+
 - 安装python依赖
