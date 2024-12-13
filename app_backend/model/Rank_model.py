@@ -8,6 +8,8 @@ class Rank_model(db.Model):
     task_score = db.Column(db.Float, nullable=False)
     algorithm = db.Column(db.String(50), nullable=False)
     upload_time = db.Column(db.DateTime, nullable=False)
+    cname = db.Column(db.String(50), nullable=False)
+    user_name = db.Column(db.String(50), nullable=False)
 
     def update(self, **kwargs):
         try:
@@ -26,7 +28,7 @@ class Rank_model(db.Model):
     def to_dict(self):
         return {
             'upload_id': self.upload_id,
-            'user_id': self.user_id,
+            'user_name': self.user_name,
             'task_score': self.task_score,
             'algorithm': self.algorithm,
             'upload_time': self.upload_time

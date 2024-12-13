@@ -70,6 +70,7 @@ def create_app():
         from app_backend.views.history import history_bp
         from app_backend.views.summary import summary_bp
         from app_backend.views.source_code import source_code_bp
+        from app_backend.views.graph import graph_bp
 
         app.register_blueprint(user_bp)
         app.register_blueprint(history_bp)
@@ -77,6 +78,7 @@ def create_app():
         app.register_blueprint(help_bp)
         app.register_blueprint(summary_bp)
         app.register_blueprint(source_code_bp)
+        app.register_blueprint(graph_bp)
         end_time = time.time()
         print(f"App context loaded in {end_time- start_time} seconds")
 

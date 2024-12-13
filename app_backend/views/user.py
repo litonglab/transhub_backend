@@ -1,6 +1,6 @@
 import uuid
 
-from flask import Blueprint, request, jsonify, session
+from flask import Blueprint, request,  session
 
 from app_backend.model.User_model import User_model
 from app_backend.vo.response import myResponse
@@ -35,7 +35,7 @@ def user_logout():
 @user_bp.route('/user_register', methods=['POST'])
 def user_register():
     try:
-        request_data = request.json
+        request_data = request.form
         if not request_data:
             request_data = request.form
         username = request_data['username']
@@ -95,7 +95,8 @@ def return_real_info():
     if not check_user_state(user_id):
         return myResponse(400, "Please login firstly.", real_info=None)
     user = User_model.query.filter_by(user_id=user_id).first()
-    real_info = {"real_name": user.real_name, "sno": user.sno}
+    real_info = {"real_name": user.real_name,
+                 "sno": user.sno}
     return myResponse(200, "Get real info success.", real_info=real_info)
 
 
@@ -106,7 +107,7 @@ def change_real_info():
     user_id = request.json['user_id']
     real_name = request.json['real_name']
     sno = request.json['sno']
-
+    #password = request.json['password']
     if not check_user_state(user_id):
         return myResponse(400, "Please login firstly.")
     user = User_model.query.filter_by(user_id=user_id).first()

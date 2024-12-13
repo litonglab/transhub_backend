@@ -1,2 +1,7 @@
-/old/
-/sourdough/
+old/
+sourdough/
+.idea/
+__pycache__/
+.trunk/
+packages/
+transhub/

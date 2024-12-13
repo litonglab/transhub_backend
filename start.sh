@@ -7,9 +7,5 @@ export FLASK_DEBUG=0
 flask run & echo $! > flask_app.pid
 
 # 启动 16 个 RQ worker 并将 PID 保存到 rq_worker_<num>.pid 文件
-for i in {1..16}
-do
-  flask rq worker & echo $! > rq_worker_$i.pid
-done
-
+dramatiq -processes 16 app_backend.jobs.cctraining_job & echo $! > rq_worker_1.pid
 echo "Flask 应用和 16 个 RQ worker 已启动，并将 PID 保存到相应的文件中。"

@@ -12,7 +12,7 @@ from app_backend.vo.response import myResponse
 from app_backend.jobs.cctraining_job import enqueue_cc_task
 
 import time
-from app_backend.config import cctraining_config
+from app_backend.config import get_config_by_cname
 
 from app_backend.security.safe_check import check_user_state, check_task_auth
 
@@ -45,7 +45,9 @@ def upload_project_file():
     file = request.files.get('file')
     user_id = request_data['user_id']  # 用户id
     cname = request_data['cname']  # 参赛的比赛名称
-
+    config = get_config_by_cname(cname)
+    if not config:
+        return myResponse(400, "No such competition.")
     if file is None:
         return myResponse(400, "No file received.")
 
@@ -69,21 +71,23 @@ def upload_project_file():
     upload_id = str(uuid.uuid1())
     # 构建task,按trace和env构建多个task
     task_ids = []
-    uplink_dir = cctraining_config.uplink_dir
+
+    uplink_dir = config.uplink_dir
     for trace_file in os.listdir(uplink_dir):
         trace_name = trace_file[:-3]
-        for loss in cctraining_config.loss_rate:
-            task_id = str(uuid.uuid1())
-            task = Task_model(task_id=task_id, user_id=user_id, task_status='queued', task_score=0,
-                              created_time=now.strftime("%Y-%m-%d-%H-%M-%S"), cname=cname, task_dir=temp_dir+"/" + trace_name+"_"+str(loss),
-                              algorithm=filename[:-3], trace_name=trace_name, upload_id=upload_id, loss_rate=loss)
+        for loss in config.loss_rate:
+            for buffer_size in config.buffer_size:
+                task_id = str(uuid.uuid1())
+                task = Task_model(task_id=task_id, user_id=user_id, task_status='queued', task_score=0,
+                                  created_time=now.strftime("%Y-%m-%d-%H-%M-%S"), cname=cname, task_dir=temp_dir+"/" + trace_name+"_"+str(loss)+"_"+str(buffer_size),
+                                  algorithm=filename[:-3], trace_name=trace_name, upload_id=upload_id, loss_rate=loss,buffer_size=buffer_size)
 
-            # task = executor.submit(run_task, newfilename[:-3])
-            # task = run_task.queue()
-            # update_task_status(task_id, 'queued')
-            task.save()
-            task_ids.append(task_id)
-            enqueue_cc_task(task_id)
+                # task = executor.submit(run_task, newfilename[:-3])
+                # task = run_task.queue()
+                # update_task_status(task_id, 'queued')
+                task.save()
+                task_ids.append(task_id)
+                enqueue_cc_task(task_id)
     # return {"code": 200, "message": "Upload Success. Task is running.", "filename": filename, "task_id": task_id}
     return myResponse(200, "Upload Success. Task is running.", filename=filename, tasks=task_ids)
 

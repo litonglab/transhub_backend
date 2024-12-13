@@ -1,83 +1,37 @@
-from flask import send_file, jsonify, Blueprint, request
+import os
 
+from flask import send_file,  Blueprint, request,abort
 from app_backend.model.graph_model import graph_model
-from app_backend.security.safe_check import check_task_auth, check_user_state
+
 
 graph_bp = Blueprint('graph', __name__)
 
 
-@graph_bp.route("/get_graph", methods=["POST"])
+@graph_bp.route("/graph_get_graph", methods=["POST"])
 def get_graph():
-    data = request.get_json()
+    data = request.json
     task_id = data.get("task_id")
     graph_type = data.get("graph_type")
     user_id = data.get("user_id")
 
-    if not check_user_state(user_id):
-        return jsonify({"code": 400, "message": "User is not login."})
-
-    if not check_task_auth(task_id, user_id):
-        return jsonify({"code": 400, "message": "User is not authorized to access this task."})
-
+    # if not check_user_state(user_id):
+    #     return abort(400, "Please login firstly.")
+    #
+    # if not check_task_auth(user_id, task_id):
+    #     return abort(400, "User is not authorized to access this task.")
     graph = graph_model.query.filter_by(task_id=task_id, graph_type=graph_type).first()
+    if not graph:
+        return abort(400, "No such graph.")
+    if not os.path.exists(graph.graph_path):
+        print("path无效")
     if graph:
         try:
-            response = send_file(graph.graph_path, as_attachment=True)
-            return response
+            print(graph.graph_path)
+            return send_file(graph.graph_path, mimetype='image/png', as_attachment=True)
         except Exception as e:
-            return jsonify({"code": 500,
-                            "message": "{} Maybe you algorithm is still running or its result was wrong. You can "
-                                       "rerun your code to generate graph.".format(
-                                e)})
+            return abort(500,
+                              f"Maybe your algorithm is still running or its result was wrong. You can rerun your code to generate the graph. Error: {e}")
     else:
-        return jsonify({"code": 404, "message": "No such graph."})
+        return abort(400, "No such graph.")
 
 
-
-
-# @graph_bp.route("/get_loss_throughput_graph/<task_id>", methods=["GET"])
-# def return_loss_throughput_graph(task_id):
-#     directory = "/home/liuwei/Transhub_data/cc_training/{}/sourdough/datagrump/result/".format(task_id)
-#     try:
-#         response = send_file(directory + "throughput_loss_trace.png", cache_timeout=0, as_attachment=True)
-#         return response
-#     except Exception as e:
-#         return jsonify({"code": 500,
-#                         "message": "{} Maybe you algorithm is still running or its result was wrong. You can rerun your code to generate graph.".format(
-#                             e)})
-#
-#
-# @graph_bp.route("/get_loss_delay_graph/<task_id>", methods=["GET"])
-# def return_loss_delay_graph(task_id):
-#     directory = "/home/liuwei/Transhub_data/cc_training/{}/sourdough/datagrump/result/".format(task_id)
-#     try:
-#         response = send_file(directory + "delay_loss_trace.png", cache_timeout=0, as_attachment=True)
-#         return response
-#     except Exception as e:
-#         return jsonify({"code": 500,
-#                         "message": "{} Maybe you algorithm is still running or its result was wrong. You can rerun your code to generate graph.".format(
-#                             e)})
-#
-#
-# @graph_bp.route("/get_throughput_graph/<task_id>", methods=["GET"])
-# def return_throughput_graph(task_id):
-#     directory = "/home/liuwei/Transhub_data/cc_training/{}/sourdough/datagrump/result/".format(task_id)
-#     try:
-#         response = send_file(directory + "throughput.png", cache_timeout=0, as_attachment=True)
-#         return response
-#     except Exception as e:
-#         return jsonify({"code": 500,
-#                         "message": "{} Maybe you algorithm is still running or its result was wrong. You can rerun your code to generate graph.".format(
-#                             e)})
-#
-#
-# @graph_bp.route("/get_delay_graph/<task_id>", methods=["GET"])
-# def return_delay_graph(task_id):
-#     directory = "/home/liuwei/Transhub_data/cc_training/{}/sourdough/datagrump/result/".format(task_id)
-#     try:
-#         response = send_file(directory + "delay.png", cache_timeout=0, as_attachment=True)
-#         return response
-#     except Exception as e:
-#         return jsonify({"code": 500,
-#                         "message": "{} Maybe you algorithm is still running or its result was wrong. You can rerun your code to generate graph.".format(
-#                             e)})

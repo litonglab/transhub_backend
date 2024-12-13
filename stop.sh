@@ -9,7 +9,7 @@ else
   echo "Flask 应用的 PID 文件不存在。"
 fi
 
-# 关闭 16 个 RQ worker
+# 关闭 16 个 dramatiq 进程
 for i in {1..16}
 do
   if [ -f rq_worker_$i.pid ]; then

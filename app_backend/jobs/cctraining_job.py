@@ -8,8 +8,8 @@ from app_backend.model.User_model import User_model
 from app_backend.model.Rank_model import Rank_model
 from app_backend.model.graph_model import graph_model
 from app_backend.analysis.tunnel_graph import TunnelGraph
-from app_backend.utils import get_available_port
-from app_backend.config import cctraining_config
+from app_backend.utils import get_available_port, release_port
+from app_backend.config import get_config_by_cname
 from app_backend import get_app
 import subprocess
 
@@ -51,6 +51,8 @@ def run_cc_training_task(task_id):
                 os.remove(target_dir + "/controller.cc")
             # 将用户上传的文件拷贝到target_dir中
             parent_dir = os.path.dirname(task.task_dir)
+            if not os.path.exists(task.task_dir):
+                os.mkdir(task.task_dir)
             #os.system(f'cp {parent_dir}/{task.algorithm}.cc {target_dir}')
             if not run_cmd(f'cp {parent_dir}/{task.algorithm}.cc {target_dir}', f'{task.task_dir}/error.log', task):
                 return
@@ -82,20 +84,23 @@ def run_cc_training_task(task_id):
             running_port = get_available_port()
             print("select port {} for running {}".format(running_port, task.task_id))
             task.update(task_status='running')
-
+            config = get_config_by_cname(task.cname)
             loss_rate = task.loss_rate
-            uplink_dir = cctraining_config.uplink_dir
-            downlink_dir = cctraining_config.downlink_dir
+            uplink_dir = config.uplink_dir
+            downlink_dir = config.downlink_dir
 
             # 遍历所有的trace文件，执行
             uplink_file = uplink_dir + "/" + task.trace_name + ".up"
             downlink_file = downlink_dir + "/" + task.trace_name + ".down"
             result_path = task.task_dir + "/" + task.trace_name + ".log"
+            sender_path = task.task_dir + "/sender"
+            receiver_path = task.task_dir + "/receiver"
             # os.system( f'cd {target_dir} && {program_script} {running_port} {loss_rate} {uplink_file} {
             # downlink_file} {result_path}')
             if not run_cmd(
-                    f"su - pengc -c 'cd {target_dir} && {program_script} {running_port} {loss_rate} {uplink_file} {downlink_file} {result_path}'",
+                    f"su - pengc -c 'cd {target_dir} && {program_script} {running_port} {loss_rate} {uplink_file} {downlink_file} {result_path} {sender_path} {receiver_path} {task.buffer_size}'",
                     f'{task.task_dir}/error.log', task):
+                task.update(task_status='error')
                 return
             # 4. 解析结果
             extract_program = "mm-throughput-stat"
@@ -117,9 +122,9 @@ def run_cc_training_task(task_id):
             graph_id1 = uuid.uuid4().hex
             graph_id2 = uuid.uuid4().hex
             graph_model(task_id=task_id, graph_id=str(graph_id1), graph_type='throughput',
-                        graph_path=task.task_dir + "/" + task.trace_name + "/throughput.png").insert()
+                        graph_path=task.task_dir + "/" + task.trace_name + ".throughput.png").insert()
             graph_model(task_id=task_id, graph_id=str(graph_id2), graph_type='delay',
-                        graph_path=task.task_dir + "/" + task.trace_name + "/delay.png").insert()
+                        graph_path=task.task_dir + "/" + task.trace_name + ".delay.png").insert()
 
             # uplink_file = cctraining_config.uplink_file
             # downlink_file = cctraining_config.downlink_file
@@ -140,7 +145,7 @@ def run_cc_training_task(task_id):
             else:
                 # Step 3: Record does not exist, create and add it
                 Rank_model(user_id=task.user_id, upload_id=task.upload_id, task_score=total_score, algorithm=task.algorithm,
-                           upload_time=task.created_time).insert()
+                           upload_time=task.created_time,cname = task.cname,user_name = user.username).insert()
             print("task {} finished".format(task_id))
         except Exception as e:
             # 失败后的回调
@@ -148,16 +153,22 @@ def run_cc_training_task(task_id):
             with open(f'{task.task_dir}/error.log', 'w') as f:
                 f.write(str(e))
             task.update(task_status='error')
+        finally:
+            # 释放端口
+            release_port(running_port)
 
 
 def run_cmd(cmd, error_file, task):
     result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE)
+    with open(error_file, 'a') as f:
+        f.write(cmd)
+        f.write(result.stdout.decode('utf-8'))
+        f.write(result.stderr.decode('utf-8'))
+        f.write('\n\n')
     if result.returncode != 0:
         task.update(task_status='error')
         # 将错误信息写入task_dir/error.log
-        with open(error_file, 'w') as f:
-            f.write(result.stderr.decode('utf-8'))
         return False
     return True
 

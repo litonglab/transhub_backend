@@ -3,7 +3,7 @@ from flask import session
 
 from app_backend.model.Task_model import Task_model
 
-from app_backend.model.User_model import User_model
+
 
 
 def check_user_state(user_id):

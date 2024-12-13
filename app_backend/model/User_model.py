@@ -12,7 +12,6 @@ class User_model(db.Model):
     password = db.Column(db.String(64), nullable=False)
     real_name = db.Column(db.String(50), nullable=False)
     sno = db.Column(db.String(20), nullable=False)
-    is_locked = db.Column(db.Boolean, default=False)  # 编译时使用，保证编译安全
 
     def save(self):
         db.session.add(self)

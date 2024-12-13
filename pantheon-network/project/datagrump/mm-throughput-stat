@@ -170,10 +170,10 @@ for ( my $ts = $signal_delay_samples[ -1 ]; $ts >= $signal_delay_samples[ 0 ]; $
 my @signal_delays = sort { $a <=> $b } values %signal_delay;
 my $pp95s = $signal_delays[ 0.95 * scalar @signal_delays ];
 
-printf STDERR qq{Average capacity: %.2f Mbits/s\n}, $average_capacity;
-printf STDERR qq{Average throughput: %.2f Mbits/s (%.1f%% utilization)\n}, $average_throughput, 100.0 * $average_throughput / $average_capacity;
-printf STDERR qq{95th percentile per-packet queueing delay: %.0f ms\n}, $pp95;
-printf STDERR qq{95th percentile signal delay: %.0f ms\n}, $pp95s;
+printf STDOUT qq{Average capacity: %.2f Mbits/s\n}, $average_capacity;
+printf STDOUT qq{Average throughput: %.2f Mbits/s (%.1f%% utilization)\n}, $average_throughput, 100.0 * $average_throughput / $average_capacity;
+printf STDOUT qq{95th percentile per-packet queueing delay: %.0f ms\n}, $pp95;
+printf STDOUT qq{95th percentile signal delay: %.0f ms\n}, $pp95s;
 
 sub default {
   return defined $_[ 0 ] ? $_[ 0 ] : 0;
