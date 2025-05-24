@@ -5,3 +5,5 @@ __pycache__/
 .trunk/
 packages/
 transhub/
+/app_frontend_dist/dist/
+/project/
