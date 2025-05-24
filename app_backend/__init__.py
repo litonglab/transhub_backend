@@ -40,7 +40,7 @@ def get_app():
 
     app.secret_key = str(hash(str(datetime.now())))
     app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://' + app.config['MYSQL_USERNAME'] + ':' + app.config[
-        'MYSQL_PASSWORD'] + '@' + app.config['MYSQL_ADDRESS'] + '/' + app.config['MYSQL_DBNAME']
+            'MYSQL_PASSWORD'] + '@' + app.config['MYSQL_ADDRESS'] + '/' + app.config['MYSQL_DBNAME']
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
     db.init_app(app)
     et = time.time()

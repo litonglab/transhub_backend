@@ -40,9 +40,16 @@ def user_register():
             request_data = request.form
         username = request_data['username']
         password = request_data['password']
+        if len(username) < 4 or len(username) > 16:
+            return myResponse(400, "Username must be 4-16 characters long.")
+        if len(password) < 6 or len(password) > 18:
+            return myResponse(400, "Password must be 6-18 characters long.")
         real_name = request_data['real_name']
         sno = request_data['sno']
         # 检测username，real_name,sno是否已经存在
+        user = User_model.query.filter_by(real_name=real_name, sno=sno).first()
+        if user:
+            return myResponse(400, "User already exists.")
         user = User_model(username=username, password=password, real_name=real_name, sno=sno)
         if user.is_exist():
             return myResponse(400, "User already exists.")
@@ -77,11 +84,16 @@ def paticipate_competition():
 def change_password():
     request_data = request.json or request.form
     user_id = request_data['user_id']
+    old_pwd = request_data['oldpwd']
     new_pwd = request_data['new_pwd']
     if not check_user_state(user_id):
         return myResponse(400, "Please login firstly.")
+    if len(new_pwd) < 6 or len(new_pwd) > 18:
+        return myResponse(400, "New passward must be 6-18 characters long.")
+    user = User_model.query.filter_by(user_id=user_id, password=old_pwd).first()
+    if not user:
+        return myResponse(400, "Password error.")
 
-    user = User_model.query.filter_by(user_id=user_id).first()
     user.password = new_pwd
     user.save()
     return myResponse(200, "Change password success.")
@@ -101,22 +113,22 @@ def return_real_info():
 
 
 # app_backend/views/user.py
-@user_bp.route("/user_set_real_info", methods=["POST"])
-def change_real_info():
+# @user_bp.route("/user_set_real_info", methods=["POST"])
+# def change_real_info():
 
-    user_id = request.json['user_id']
-    real_name = request.json['real_name']
-    sno = request.json['sno']
-    #password = request.json['password']
-    if not check_user_state(user_id):
-        return myResponse(400, "Please login firstly.")
-    user = User_model.query.filter_by(user_id=user_id).first()
-    if not user:
-        return myResponse(400, "User not found.")
-    if not real_name or not sno:
-        return myResponse(400, "Real info need to be provided completely.")
-    user.update_real_info(real_name, sno)
-    return myResponse(200, "Set real info success.")
+#     user_id = request.json['user_id']
+#     real_name = request.json['real_name']
+#     sno = request.json['sno']
+#     #password = request.json['password']
+#     if not check_user_state(user_id):
+#         return myResponse(400, "Please login firstly.")
+#     user = User_model.query.filter_by(user_id=user_id).first()
+#     if not user:
+#         return myResponse(400, "User not found.")
+#     if not real_name or not sno:
+#         return myResponse(400, "Real info need to be provided completely.")
+#     user.update_real_info(real_name, sno)
+#     return myResponse(200, "Set real info success.")
 
 
 

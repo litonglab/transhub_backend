@@ -28,7 +28,8 @@ def return_zhinan():
     cname = request.json['cname']
     config = get_config_by_cname(cname)
     if config:
-        return send_file(config.zhinan_path, as_attachment=True,)
+        return send_file(config.zhinan_path, as_attachment=True)
+        # return send_file(config.zhinan_path, mimetype="application/pdf")
     else:
         return myResponse(400, "No guide found.")
 

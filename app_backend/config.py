@@ -1,4 +1,4 @@
-BASEDIR = "/mnt/f/linux/project/Transhub_data"
+BASEDIR = "/home/liuwei/transhub_2025/transhub_data"
 
 ALL_CLASS = {"计算机系统基础II": "pantheon-ics", "计算机网络": "pantheon-network",
              "校内赛计算机网络赛道": "pantheon-competition"}
@@ -7,20 +7,20 @@ ALL_CLASS = {"计算机系统基础II": "pantheon-ics", "计算机网络": "pant
 ALL_CLASS_PATH = {cname: BASEDIR + "/" + ALL_CLASS[cname] for cname in ALL_CLASS.keys()}
 
 USER_DIR_PATH = BASEDIR + "/user_data"
-DDLTIME = '2099-06-19-23-01-00'
+DDLTIME = '2025-06-02-21-00-00'
 
 MYSQL_USERNAME = 'root'
-MYSQL_PASSWORD = '0'
-MYSQL_ADDRESS = 'localhost:3307'
-MYSQL_DBNAME = 'transhub_base'
+MYSQL_PASSWORD = 'Litonglablw_1'
+MYSQL_ADDRESS = 'localhost:3306'
+MYSQL_DBNAME = 'network_class_2025'
 
 
 class PantheonNetworkConfig:
     cname = "计算机网络"
     loss_rate = [0.0]
-    buffer_size = [150, 250]
+    buffer_size = [20, 250]
 
-    zhinan_path = ALL_CLASS_PATH[cname] + "/help/竞赛指南.md"
+    zhinan_path = ALL_CLASS_PATH[cname] + "/help/zhinan.md"
     downlink_dir = ALL_CLASS_PATH[cname] + "/test_data/downlink"
     uplink_dir = ALL_CLASS_PATH[cname] + "/test_data/uplink"
     cca_guide_path = ALL_CLASS_PATH[cname] + "/help/cca_guide.docx"
@@ -30,9 +30,9 @@ class PantheonNetworkConfig:
 class PantheonICSConfig:
     cname = "计算机系统基础II"
     loss_rate = [0.0]
-    buffer_size = [150, 250]
+    buffer_size = [20, 250]
 
-    zhinan_path = ALL_CLASS_PATH[cname] + "/help/竞赛指南.md"
+    zhinan_path = ALL_CLASS_PATH[cname] + "/help/zhinan.md"
     downlink_dir = ALL_CLASS_PATH[cname] + "/test_data/downlink"
     uplink_dir = ALL_CLASS_PATH[cname] + "/test_data/uplink"
     cca_guide_path = ALL_CLASS_PATH[cname] + "/help/cca_guide.docx"

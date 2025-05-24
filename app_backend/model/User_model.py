@@ -1,16 +1,18 @@
 from app_backend.config import USER_DIR_PATH, ALL_CLASS_PATH, ALL_CLASS
 from app_backend import db
 import os
-
+from sqlalchemy.dialects.mysql import VARCHAR
 from app_backend.model.Competition_model import Competition_model
 
 
 class User_model(db.Model):
     __tablename__ = 'student'
     user_id = db.Column(db.String(36), primary_key=True)
-    username = db.Column(db.String(30), nullable=False)
+    #username = db.Column(db.String(30), nullable=False)
+    username = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)
     password = db.Column(db.String(64), nullable=False)
-    real_name = db.Column(db.String(50), nullable=False)
+    #real_name = db.Column(db.String(50), nullable=False)
+    real_name = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False) 
     sno = db.Column(db.String(20), nullable=False)
 
     def save(self):

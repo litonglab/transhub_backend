@@ -1,5 +1,5 @@
-DBUtils==3.1.0
 Flask==3.0.3
+DBUtils==3.1.0
 Flask_Cors==4.0.1
 Flask_RQ2==18.3
 flask_sqlalchemy==3.1.1

@@ -1,7 +1,7 @@
 import os
 
 from app_backend import db
-
+from sqlalchemy.dialects.mysql import VARCHAR
 
 class Task_model(db.Model):
     __tablename__ = 'task'
@@ -15,7 +15,8 @@ class Task_model(db.Model):
     created_time = db.Column(db.DateTime, nullable=False)
     # running_port = db.Column(db.Integer)
     task_score = db.Column(db.Float)
-    cname = db.Column(db.String(50))  # 任务类型，可以表示是哪个比赛的任务
+    cname = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)
+    # cname = db.Column(db.String(50))  # 任务类型，可以表示是哪个比赛的任务
     task_dir = db.Column(db.String(256))  # 任务的文件夹, 用于存放用户上传的文件
     algorithm = db.Column(db.String(50))  # 算法名称
 

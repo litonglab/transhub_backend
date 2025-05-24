@@ -25,7 +25,7 @@ dramatiq.set_broker(redis_broker)
 
 # 待续
 
-@dramatiq.actor(time_limit=1200000)
+@dramatiq.actor(time_limit=1200000, max_retries=0) 
 def run_cc_training_task(task_id):
     app = get_app()
     with app.app_context():
@@ -34,6 +34,7 @@ def run_cc_training_task(task_id):
         task = Task_model.query.filter_by(task_id=task_id).first()
         if not task:
             print(f"task {task_id} not found")
+            return
         # 1. 将用户目录下的文件拷贝到用户目录对应的cc-training目录下
         user = User_model.query.filter_by(user_id=task.user_id).first()
         lock_name = user.user_id
@@ -98,38 +99,46 @@ def run_cc_training_task(task_id):
             # os.system( f'cd {target_dir} && {program_script} {running_port} {loss_rate} {uplink_file} {
             # downlink_file} {result_path}')
             retry_limit = 10
-            retry_times = 0
+            retry_time = 0
             while not run_cmd(
                     f"cd {target_dir} && {program_script} {running_port} {loss_rate} {uplink_file} {downlink_file} {result_path} {sender_path} {receiver_path} {task.buffer_size}",
                     f'{task.task_dir}/error.log', task) and retry_time < retry_limit:
                 retry_time+=1
                 task.update(task_status='retrying')
-            if retry_times == retry_limit:
+            if retry_time == retry_limit:
                 task.update(task_status='error')
                 return
             # 4. 解析结果
-            extract_program = "mm-throughput-stat"
+            extract_program = "mm-throughput-graph"
 
             if not run_cmd(
-                    f'{target_dir}/{extract_program} 500 {result_path} > {task.task_dir}/{task.trace_name}.score',
+                    f'{extract_program} 500 {result_path} 2> {task.task_dir}/{task.trace_name}.score > /dev/null',
                     f'{task.task_dir}/error.log', task):
                 return
             total_score = evaluate_score(task, f'{task.task_dir}/{task.trace_name}.score')
-
+            total_score = round(total_score, 4)
             # 5. 画图
-            tunnel_graph = TunnelGraph(
-                tunnel_log=result_path,
-                throughput_graph=task.task_dir + "/" + task.trace_name + ".throughput.png",
-                delay_graph=task.task_dir + "/" + task.trace_name + ".delay.png",
-                ms_per_bin=500)
-            tunnel_graph.run()
+            # tunnel_graph = TunnelGraph(
+            #     tunnel_log=result_path,
+            #     throughput_graph=task.task_dir + "/" + task.trace_name + ".throughput.png",
+            #     delay_graph=task.task_dir + "/" + task.trace_name + ".delay.png",
+            #     ms_per_bin=500)
+            # tunnel_graph.run()
+            if not run_cmd(
+                    f'mm-throughput-graph 500 {result_path} > ' +  task.task_dir + "/" + task.trace_name + ".throughput.svg",
+                    f'{task.task_dir}/error.log', task):
+                return
+            if not run_cmd(
+                    f'mm-delay-graph {result_path} > ' +  task.task_dir + "/" + task.trace_name + ".delay.svg",
+                    f'{task.task_dir}/error.log', task):
+                return
             # 6. 保存图
             graph_id1 = uuid.uuid4().hex
             graph_id2 = uuid.uuid4().hex
             graph_model(task_id=task_id, graph_id=str(graph_id1), graph_type='throughput',
-                        graph_path=task.task_dir + "/" + task.trace_name + ".throughput.png").insert()
+                        graph_path=task.task_dir + "/" + task.trace_name + ".throughput.svg").insert()
             graph_model(task_id=task_id, graph_id=str(graph_id2), graph_type='delay',
-                        graph_path=task.task_dir + "/" + task.trace_name + ".delay.png").insert()
+                        graph_path=task.task_dir + "/" + task.trace_name + ".delay.svg").insert()
 
             # uplink_file = cctraining_config.uplink_file
             # downlink_file = cctraining_config.downlink_file
@@ -144,13 +153,17 @@ def run_cc_training_task(task_id):
             if rank_record:
                 if rank_record.upload_id == task.upload_id:
                     rank_record.update(task_score=total_score+rank_record.task_score)
+                    #print('Record exist ', rank_record.upload_id, ' ', task.upload_id, ' ' ,  rank_record.task_score)
                 # Step 2: Record exists, update it
-                rank_record.update(upload_id=task.upload_id, task_score=total_score, algorithm=task.algorithm,
+                else:
+                    rank_record.update(upload_id=task.upload_id, task_score=total_score, algorithm=task.algorithm,
                                    upload_time=task.created_time)
+                
             else:
+                print('Record does not exist ', task.upload_id)
                 # Step 3: Record does not exist, create and add it
                 Rank_model(user_id=task.user_id, upload_id=task.upload_id, task_score=total_score, algorithm=task.algorithm,
-                           upload_time=task.created_time,cname = task.cname,user_name = user.username).insert()
+                           upload_time=task.created_time,cname = task.cname,username = user.username).insert()
             print("task {} finished".format(task_id))
         except Exception as e:
             # 失败后的回调
@@ -161,6 +174,8 @@ def run_cc_training_task(task_id):
         finally:
             # 释放端口
             release_port(running_port)
+            # 关闭数据库连接
+            db.session.remove()
 
 
 def run_cmd(cmd, error_file, task):

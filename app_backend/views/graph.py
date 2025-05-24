@@ -27,7 +27,7 @@ def get_graph():
     if graph:
         try:
             print(graph.graph_path)
-            return send_file(graph.graph_path, mimetype='image/png', as_attachment=True)
+            return send_file(graph.graph_path, mimetype='image/svg+xml', as_attachment=True)
         except Exception as e:
             return abort(500,
                               f"Maybe your algorithm is still running or its result was wrong. You can rerun your code to generate the graph. Error: {e}")
