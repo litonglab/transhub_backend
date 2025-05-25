@@ -20,14 +20,10 @@ task_bp = Blueprint('task', __name__)
 
 
 def check_illegal(file) -> (bool, dict):
-    for line in file.stream.readlines():
-        if 'fstream' in line:
-            return False, {"code": 400, "message": "Illegal Operation!"}
-        elif 'fopen' in line:
-            return False, {"code": 400, "message": "Illegal Operation!"}
-        elif 'open' in line:
-            return False, {"code": 400, "message": "Illegal Operation!"}
-    return True, {}
+    content = file.stream.read().decode(errors='ignore')
+    if 'fstream' in content or 'fopen' in content or 'open' in content:
+        return False
+    return True
 
 
 @task_bp.route("/task_upload", methods=["POST"])
@@ -57,6 +53,12 @@ def upload_project_file():
 
     if filename == 'log.cc':
         return myResponse(400, "Illegal name:log.cc")
+
+    # 检查代码是否合法
+    is_legal = check_illegal(file)
+    if not is_legal:
+        return myResponse(400, '文件存在高危操作，请删除后重新上传')
+    file.stream.seek(0)  # 检查后重置文件流指针
 
     # security check
     if not check_user_state(user_id):
