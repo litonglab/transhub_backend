@@ -95,3 +95,6 @@ class User_model(db.Model):
     def unlock(self):
         self.is_locked = False
         db.session.commit()
+
+    def get_id(self):
+        return self.user_id

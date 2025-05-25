@@ -99,6 +99,33 @@ def create_app():
         app.register_blueprint(summary_bp)
         app.register_blueprint(source_code_bp)
         app.register_blueprint(graph_bp)
+        
+        # 初始化认证
+        from app_backend.security.auth import init_auth
+        init_auth(app)
+
+        # 全局错误处理，统一json返回
+        from flask import jsonify
+        from werkzeug.exceptions import HTTPException
+        
+        def handle_http_exception(e):
+            response = e.get_response()
+            response.data = jsonify({
+                "code": e.code,
+                "message": e.description
+            }).data
+            response.content_type = "application/json"
+            return response
+        
+        def handle_exception(e):
+            return jsonify({
+                "code": 500,
+                "message": str(e)
+            }), 500
+        
+        app.register_error_handler(HTTPException, handle_http_exception)
+        app.register_error_handler(Exception, handle_exception)
+        
         end_time = time.time()
         print(f"App context loaded in {end_time - start_time} seconds")
 

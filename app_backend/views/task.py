@@ -5,6 +5,8 @@ from flask import Blueprint, request
 import uuid
 from datetime import datetime
 
+from flask_jwt_extended import jwt_required, get_jwt_identity
+
 from app_backend.config import DDLTIME
 from app_backend.model.User_model import User_model
 from app_backend.model.Task_model import Task_model
@@ -15,7 +17,7 @@ from app_backend.jobs.cctraining_job import enqueue_cc_task
 import time
 from app_backend.config import get_config_by_cname
 
-from app_backend.security.safe_check import check_user_state, check_task_auth
+from app_backend.security.safe_check import check_task_auth
 
 task_bp = Blueprint('task', __name__)
 
@@ -60,6 +62,7 @@ def check_illegal(file) -> bool:
 
 
 @task_bp.route("/task_upload", methods=["POST"])
+@jwt_required()
 def upload_project_file():
     ddl_time = time.mktime(time.strptime(DDLTIME, "%Y-%m-%d-%H-%M-%S"))
     if time.time() > ddl_time:
@@ -68,11 +71,9 @@ def upload_project_file():
     request_data = request.form
     if not request_data:
         return myResponse(400, "No body params, please login firstly.")
-    if not request_data.get('user_id'):
-        return myResponse(400, "Please login firstly.")
 
     file = request.files.get('file')
-    user_id = request_data['user_id']  # 用户id
+    user_id = get_jwt_identity()  # 用户id
     cname = request_data['cname']  # 参赛的比赛名称
     config = get_config_by_cname(cname)
     if not config:
