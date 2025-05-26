@@ -1,4 +1,5 @@
 import os
+import re
 
 from flask import Blueprint, request
 import uuid
@@ -19,10 +20,42 @@ from app_backend.security.safe_check import check_user_state, check_task_auth
 task_bp = Blueprint('task', __name__)
 
 
-def check_illegal(file) -> (bool, dict):
-    content = file.stream.read().decode(errors='ignore')
-    if 'fstream' in content or 'fopen' in content or 'open' in content:
-        return False
+def check_illegal(file) -> bool:
+    dangerous_functions = [
+        # 文件系统操作
+        "fopen", "open", "creat", "remove", "unlink", "rename",
+        "mkdir", "rmdir", "chmod", "chown", "symlink", "link",
+        # 进程/系统命令
+        "system", "execve", "execv", "execl", "execle", "execlp",
+        "execvp", "execvpe", "popen", "fork", "vfork",
+        # 动态代码加载
+        "dlopen", "dlsym", "dlclose", "dlerror",
+        # 网络操作
+        "socket", "connect", "bind", "listen", "accept",
+        "send", "sendto", "recv", "recvfrom",
+        # 内存/指针操作 (可能用于漏洞利用)
+        "gets", "strcpy", "strcat", "sprintf", "vsprintf",
+        "scanf", "sscanf",
+        # "malloc", "free",  # 需结合上下文分析
+        # 系统资源操作
+        "ioctl", "syscall",  # 直接系统调用
+        "mmap", "munmap", "mprotect",  # 内存映射
+        # 环境/权限相关
+        "setuid", "setgid", "seteuid", "setegid",
+        "putenv", "clearenv", "getenv",
+        # 信号处理 (可能干扰沙箱)
+        "signal", "sigaction", "raise",
+        # Windows API (如果跨平台需检测)
+        "WinExec", "CreateProcess", "ShellExecute",
+        # 多线程相关
+        "pthread_create",
+        # 其他危险函数
+        "abort", "exit", "_exit"  # 可能用于强制终止监控进程
+    ]
+    code = file.stream.read().decode(errors='ignore')
+    for func in dangerous_functions:
+        if re.search(rf'\b{func}\s*\(', code):
+            return False
     return True
 
 
@@ -81,8 +114,10 @@ def upload_project_file():
             for buffer_size in config.buffer_size:
                 task_id = str(uuid.uuid1())
                 task = Task_model(task_id=task_id, user_id=user_id, task_status='queued', task_score=0,
-                                  created_time=now.strftime("%Y-%m-%d-%H-%M-%S"), cname=cname, task_dir=temp_dir+"/" + trace_name+"_"+str(loss)+"_"+str(buffer_size),
-                                  algorithm=filename[:-3], trace_name=trace_name, upload_id=upload_id, loss_rate=loss,buffer_size=buffer_size)
+                                  created_time=now.strftime("%Y-%m-%d-%H-%M-%S"), cname=cname,
+                                  task_dir=temp_dir + "/" + trace_name + "_" + str(loss) + "_" + str(buffer_size),
+                                  algorithm=filename[:-3], trace_name=trace_name, upload_id=upload_id, loss_rate=loss,
+                                  buffer_size=buffer_size)
 
                 # task = executor.submit(run_task, newfilename[:-3])
                 # task = run_task.queue()
