@@ -40,7 +40,9 @@ def run_cc_training_task(task_id):
                 with open('run.log', 'a') as logf:
                     logf.write(f"[ERROR] Task {task_id} not found\n")
                 return
-            log_path = f"{task.task_dir}/run.log"
+
+            parent_dir = os.path.dirname(task.task_dir)
+            log_path = f"{parent_dir}/run.log"
             def log(msg):
                 with open(log_path, 'a') as logf:
                     logf.write(msg + '\n')
