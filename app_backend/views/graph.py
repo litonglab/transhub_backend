@@ -1,9 +1,9 @@
 import os
 
-from flask import send_file, Blueprint, request
+from flask import send_file, Blueprint
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
-from app_backend.decorators.validators import validate_request
+from app_backend.decorators.validators import validate_request, get_validated_data
 from app_backend.model.graph_model import graph_model
 from app_backend.validators.schemas import GraphSchema
 from app_backend.vo import HttpResponse
@@ -15,7 +15,7 @@ graph_bp = Blueprint('graph', __name__)
 @jwt_required()
 @validate_request(GraphSchema)
 def get_graph():
-    data = request.validated_data
+    data = get_validated_data(GraphSchema)
     task_id = data.task_id
     graph_type = data.graph_type
     user_id = get_jwt_identity()

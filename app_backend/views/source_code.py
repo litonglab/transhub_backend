@@ -1,9 +1,9 @@
 import os
 
-from flask import Blueprint, request, send_file
+from flask import Blueprint, send_file
 from flask_jwt_extended import get_jwt_identity, jwt_required
 
-from app_backend.decorators.validators import validate_request
+from app_backend.decorators.validators import validate_request, get_validated_data
 from app_backend.model.Task_model import Task_model
 from app_backend.validators.schemas import SourceCodeSchema
 from app_backend.vo import HttpResponse
@@ -15,7 +15,7 @@ source_code_bp = Blueprint('app_backend', __name__)
 @jwt_required()
 @validate_request(SourceCodeSchema)
 def return_code():
-    data = request.validated_data
+    data = get_validated_data(SourceCodeSchema)
     upload_id = data.upload_id
     user_id = get_jwt_identity()
     # Check if the user is authorized to access the task

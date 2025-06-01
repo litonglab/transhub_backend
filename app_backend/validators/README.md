@@ -45,7 +45,7 @@ from app_backend.validators.schemas import UserLoginSchema
 @user_bp.route('/user_login', methods=['POST'])
 @validate_request(UserLoginSchema)
 def user_login():
-    data = request.validated_data
+    data = get_validated_data(UserLoginSchema)
     username = data.username
     password = data.password
     cname = data.cname
@@ -54,10 +54,10 @@ def user_login():
 
 ### 3. 获取验证后的数据
 
-通过 `request.validated_data` 获取验证后的数据：
+通过 `get_validated_data` 获取验证后的数据：
 
 ```python
-data = request.validated_data
+data = get_validated_data(Schema)
 # 直接访问验证后的字段
 username = data.username
 password = data.password
@@ -144,7 +144,7 @@ class ExampleSchema(BaseModel):
 @user_bp.route('/user_register', methods=['POST'])
 @validate_request(UserRegisterSchema)
 def user_register():
-    data = request.validated_data
+    data = get_validated_data(UserRegisterSchema)
     username = data.username
     password = data.password
     real_name = data.real_name
@@ -164,7 +164,7 @@ def user_register():
 @jwt_required()
 @validate_request(TaskInfoSchema)
 def return_task():
-    data = request.validated_data
+    data = get_validated_data(TaskInfoSchema)
     task_id = data.task_id
     user_id = get_jwt_identity()
 

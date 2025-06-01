@@ -92,6 +92,17 @@ class ChangePasswordSchema(BaseModel):
         return v
 
 
+class UserChangeRealInfoSchema(BaseModel):
+    """用户注册请求参数验证"""
+    real_name: str = Field(..., min_length=1, max_length=50, description="真实姓名")
+
+    @field_validator('real_name')
+    def validate_real_name(cls, v):
+        if not v.strip():
+            raise ValueError('真实姓名不能为空')
+        return v.strip()
+
+
 class TaskInfoSchema(BaseModel):
     """获取任务信息请求参数验证"""
     task_id: str = Field(..., description="任务ID")

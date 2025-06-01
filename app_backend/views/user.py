@@ -22,7 +22,7 @@ user_bp = Blueprint('user', __name__)
 @user_bp.route('/user_login', methods=['POST'])
 @validate_request(UserLoginSchema)
 def user_login():
-    data = request.validated_data
+    data = get_validated_data(UserLoginSchema)
     username = data.username
     password = data.password
     cname = data.cname
@@ -68,7 +68,7 @@ def user_logout():
 @validate_request(UserRegisterSchema)
 def user_register():
     try:
-        data = request.validated_data
+        data = get_validated_data(UserRegisterSchema)
         username = data.username
         password = data.password
         real_name = data.real_name
@@ -97,7 +97,7 @@ def user_register():
 @jwt_required()
 @validate_request(ChangePasswordSchema)
 def change_password():
-    data = request.validated_data
+    data = get_validated_data(ChangePasswordSchema)
     user_id = data.user_id
     old_pwd = data.oldpwd
     new_pwd = data.new_pwd
@@ -133,7 +133,6 @@ def check_login():
 @validate_request(UserChangeRealInfoSchema)
 def change_real_info():
     user_id = get_jwt_identity()
-    # data: UserChangeRealInfoSchema = request.validated_data
     data = get_validated_data(UserChangeRealInfoSchema)
     real_name = data.real_name
     user = User_model.query.filter_by(user_id=user_id).first()

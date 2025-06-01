@@ -1,7 +1,7 @@
-from flask import Blueprint, request
+from flask import Blueprint
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 
-from app_backend.decorators.validators import validate_request
+from app_backend.decorators.validators import validate_request, get_validated_data
 # from app_backend.model.User_model import User_model
 from app_backend.model.Task_model import Task_model, to_history_dict
 from app_backend.validators.schemas import HistoryDetailSchema
@@ -24,7 +24,7 @@ def return_history_records():
 @jwt_required()
 @validate_request(HistoryDetailSchema)
 def get_record_detail():
-    data = request.validated_data
+    data = get_validated_data(HistoryDetailSchema)
     upload_id = data.upload_id
     cname = get_jwt().get('cname')
     # if not check_upload_auth(upload_id,user_id):

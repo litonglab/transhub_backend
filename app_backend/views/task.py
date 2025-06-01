@@ -3,12 +3,12 @@ import time
 import uuid
 from datetime import datetime
 
-from flask import Blueprint, request
+from flask import Blueprint
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 
 from app_backend.config import DDLTIME
 from app_backend.config import get_config_by_cname
-from app_backend.decorators.validators import validate_request
+from app_backend.decorators.validators import validate_request, get_validated_data
 from app_backend.jobs.cctraining_job import enqueue_cc_task
 from app_backend.model.Task_model import Task_model
 from app_backend.model.User_model import User_model
@@ -32,7 +32,7 @@ def upload_project_file():
         return HttpResponse.fail("The competition has ended.")
 
     # 获取验证后的数据
-    data = request.validated_data
+    data = get_validated_data(FileUploadSchema)
     file = data.file
     user_id = get_jwt_identity()  # 用户id
     # 从token中获取cname
@@ -80,7 +80,7 @@ def upload_project_file():
 @jwt_required()
 @validate_request(TaskInfoSchema)
 def return_task():
-    data = request.validated_data
+    data = get_validated_data(TaskInfoSchema)
     task_id = data.task_id
     user_id = get_jwt_identity()
 
