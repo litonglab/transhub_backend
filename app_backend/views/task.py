@@ -12,7 +12,6 @@ from app_backend.decorators.validators import validate_request, get_validated_da
 from app_backend.jobs.cctraining_job import enqueue_cc_task
 from app_backend.model.Task_model import Task_model
 from app_backend.model.User_model import User_model
-from app_backend.security.safe_check import check_task_auth
 from app_backend.validators.schemas import TaskInfoSchema, FileUploadSchema
 from app_backend.vo import HttpResponse
 
@@ -83,11 +82,8 @@ def return_task():
     task_id = data.task_id
     user_id = get_jwt_identity()
 
-    # security check
-    if not check_task_auth(user_id, task_id):
-        return HttpResponse.fail('Illegal state or role, please DO NOT try to HACK the system.')
-
-    task_info = Task_model.query.filter_by(task_id=task_id).first()
+    # 保证只能查询自己的任务
+    task_info = Task_model.query.filter_by(task_id=task_id, user_id=user_id).first()
     print(task_info)
     if not task_info:
         return HttpResponse.fail("Task not found.")
