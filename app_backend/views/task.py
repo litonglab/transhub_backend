@@ -15,7 +15,6 @@ from app_backend.model.User_model import User_model
 from app_backend.security.safe_check import check_task_auth
 from app_backend.validators.schemas import TaskInfoSchema, FileUploadSchema
 from app_backend.vo import HttpResponse
-from app_backend.vo.HttpResponse import _my_response
 
 task_bp = Blueprint('task', __name__)
 
@@ -101,7 +100,7 @@ def return_task():
         try:
             with open(f'{task_info.task_dir}/error.log', 'r') as f:
                 error_info = f.read()
-            return _my_response(200, "Task error", error_info=error_info)
+            return HttpResponse.ok("Task error", error_info=error_info)
         except Exception as e:
             with open(f'{task_info.task_dir}/error.log', 'r') as f:
                 error_info = str(e)
