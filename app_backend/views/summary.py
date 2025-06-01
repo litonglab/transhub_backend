@@ -2,7 +2,6 @@ from flask import Blueprint, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from app_backend.model.Rank_model import Rank_model
-from app_backend.security.safe_check import check_user_state
 from app_backend.vo.response import myResponse
 
 summary_bp = Blueprint('summary', __name__)

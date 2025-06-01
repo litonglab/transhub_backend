@@ -1,9 +1,8 @@
 import uuid
 
-from flask import Blueprint, request, make_response, jsonify
+from flask import Blueprint, request, make_response
 from flask_jwt_extended import create_access_token, set_access_cookies, unset_jwt_cookies, jwt_required, \
-    get_jwt_identity, get_jwt, JWTManager
-from flask_jwt_extended.exceptions import NoAuthorizationError, InvalidHeaderError
+    get_jwt_identity, get_jwt
 
 from app_backend.model.User_model import User_model
 from app_backend.vo.response import myResponse
@@ -91,8 +90,6 @@ def change_password():
     user_id = request_data['user_id']
     old_pwd = request_data['oldpwd']
     new_pwd = request_data['new_pwd']
-    if not check_user_state(user_id):
-        return myResponse(400, "Please login firstly.")
     if len(new_pwd) < 6 or len(new_pwd) > 18:
         return myResponse(400, "New passward must be 6-18 characters long.")
     user = User_model.query.filter_by(user_id=user_id, password=old_pwd).first()
@@ -112,7 +109,6 @@ def return_real_info():
     real_info = {"real_name": user.real_name,
                  "sno": user.sno}
     return myResponse(200, "Get real info success.", real_info=real_info)
-
 
 # @user_bp.route("/user_set_real_info", methods=["POST"])
 # @jwt_required()

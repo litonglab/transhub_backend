@@ -1,23 +1,19 @@
 import os
 import re
-
-from flask import Blueprint, request
+import time
 import uuid
 from datetime import datetime
 
+from flask import Blueprint, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from app_backend.config import DDLTIME
-from app_backend.model.User_model import User_model
-from app_backend.model.Task_model import Task_model
-from app_backend.vo.response import myResponse
-
-from app_backend.jobs.cctraining_job import enqueue_cc_task
-
-import time
 from app_backend.config import get_config_by_cname
-
+from app_backend.jobs.cctraining_job import enqueue_cc_task
+from app_backend.model.Task_model import Task_model
+from app_backend.model.User_model import User_model
 from app_backend.security.safe_check import check_task_auth
+from app_backend.vo.response import myResponse
 
 task_bp = Blueprint('task', __name__)
 
@@ -131,11 +127,12 @@ def upload_project_file():
 
 
 @task_bp.route("/task_get_task_info", methods=["POST"])
+@jwt_required()
 def return_task():
     task_id = request.json.get('task_id')
-    user_id = request.json.get('user_id')
+    user_id = get_jwt_identity()
     # security check
-    if not (check_user_state(user_id)) or (not check_task_auth(user_id, task_id)):
+    if not check_task_auth(user_id, task_id):
         return myResponse(400, 'Illegal state or role, please DO NOT try to HACK the system.')
 
     task_info = Task_model.query.filter_by(task_id=task_id).first()

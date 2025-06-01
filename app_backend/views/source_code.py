@@ -1,7 +1,8 @@
 import os
 
 from flask import Blueprint, request, send_file
-from app_backend.security.safe_check import check_user_state, check_upload_auth
+from flask_jwt_extended import get_jwt_identity, jwt_required
+
 from app_backend.model.Task_model import Task_model
 from app_backend.vo.response import myResponse
 
@@ -9,14 +10,15 @@ source_code_bp = Blueprint('app_backend', __name__)
 
 
 @source_code_bp.route("/src_get_code", methods=["POST"])
+@jwt_required()
 def return_code():
     upload_id = request.json.get('upload_id')
-    user_id = request.json.get('user_id')
-    if (not check_upload_auth(upload_id, user_id)) or (not check_user_state(user_id)):
-        return myResponse(400, "Please login firstly!")
-    task_info = Task_model.query.filter_by(upload_id=upload_id).first()
+    user_id = get_jwt_identity()
+    # Check if the user is authorized to access the task
+    # 保证用户只能查询自己的任务
+    task_info = Task_model.query.filter_by(upload_id=upload_id, user_id=user_id).first()
 
     file_path = task_info.task_dir + "/../" + task_info.algorithm + ".cc"
     if not os.path.exists(file_path):
         return myResponse(400, "File not found")
-    return send_file(file_path, as_attachment=True,download_name=task_info.algorithm + ".cc")
+    return send_file(file_path, as_attachment=True, download_name=task_info.algorithm + ".cc")
