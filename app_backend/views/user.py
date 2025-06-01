@@ -6,8 +6,10 @@ from flask_jwt_extended import create_access_token, set_access_cookies, unset_jw
     get_jwt_identity
 
 from app_backend.config import cname_list
+from app_backend.decorators.validators import validate_request
 from app_backend.model.Competition_model import Competition_model
 from app_backend.model.User_model import User_model
+from app_backend.validators.schemas import UserLoginSchema, UserRegisterSchema, ChangePasswordSchema
 from app_backend.vo.response import myResponse
 
 # 创建线程池执行器
@@ -17,11 +19,13 @@ user_bp = Blueprint('user', __name__)
 
 
 @user_bp.route('/user_login', methods=['POST'])
+@validate_request(UserLoginSchema)
 def user_login():
-    request_data = request.json or request.form
-    username = request_data['username']
-    password = request_data['password']
-    cname = request_data.get('cname')  # 假设前端传了cname
+    data = request.validated_data
+    username = data.username
+    password = data.password
+    cname = data.cname
+
     user = User_model.query.filter_by(username=username, password=password).first()
     if not user:
         return myResponse(400, "User not found or Username error or Password error.")
@@ -52,7 +56,7 @@ def user_login():
         return myResponse(201, message)
 
 
-@user_bp.route('/user_logout', methods=['POST'])
+@user_bp.route('/user_logout', methods=['GET'])
 def user_logout():
     resp = make_response(myResponse(200, "Logout success."))
     unset_jwt_cookies(resp)
@@ -60,17 +64,15 @@ def user_logout():
 
 
 @user_bp.route('/user_register', methods=['POST'])
+@validate_request(UserRegisterSchema)
 def user_register():
     try:
-        request_data = request.json
-        username = request_data['username']
-        password = request_data['password']
-        if len(username) < 4 or len(username) > 16:
-            return myResponse(400, "Username must be 4-16 characters long.")
-        if len(password) < 6 or len(password) > 18:
-            return myResponse(400, "Password must be 6-18 characters long.")
-        real_name = request_data['real_name']
-        sno = request_data['sno']
+        data = request.validated_data
+        username = data.username
+        password = data.password
+        real_name = data.real_name
+        sno = data.sno
+
         # 检测username，real_name,sno是否已经存在
         user = User_model.query.filter_by(real_name=real_name, sno=sno).first()
         if user:
@@ -80,8 +82,6 @@ def user_register():
             return myResponse(400, "User already exists.")
         elif user.is_null_info():
             return myResponse(400, "Information is not complete.")
-        elif not str(sno).isdecimal() or len(sno) != 10:
-            return myResponse(400, "Please input correct student number(10 numbers)!")
         else:
             user_id = str(uuid.uuid1())
             user.user_id = user_id
@@ -94,14 +94,13 @@ def user_register():
 
 @user_bp.route("/user_change_password", methods=['POST'])
 @jwt_required()
+@validate_request(ChangePasswordSchema)
 def change_password():
-    user_id = get_jwt_identity()
-    request_data = request.json or request.form
-    user_id = request_data['user_id']
-    old_pwd = request_data['oldpwd']
-    new_pwd = request_data['new_pwd']
-    if len(new_pwd) < 6 or len(new_pwd) > 18:
-        return myResponse(400, "New passward must be 6-18 characters long.")
+    data = request.validated_data
+    user_id = data.user_id
+    old_pwd = data.oldpwd
+    new_pwd = data.new_pwd
+
     user = User_model.query.filter_by(user_id=user_id, password=old_pwd).first()
     if not user:
         return myResponse(400, "Password error.")

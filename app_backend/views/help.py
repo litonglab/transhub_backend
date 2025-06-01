@@ -1,5 +1,5 @@
-from flask import send_file, Blueprint, request
-from flask_jwt_extended import jwt_required
+from flask import send_file, Blueprint
+from flask_jwt_extended import jwt_required, get_jwt
 
 from app_backend.config import get_config_by_cname, cname_list
 from app_backend.vo.response import myResponse
@@ -25,10 +25,10 @@ help_bp = Blueprint('help', __name__)
 #         return myResponse(400, "No user guide found.")
 
 
-@help_bp.route("/help_get_tutorial", methods=["POST"])
+@help_bp.route("/help_get_tutorial", methods=["GET"])
 @jwt_required()
 def return_zhinan():
-    cname = request.json['cname']
+    cname = get_jwt().get('cname')
     config = get_config_by_cname(cname)
     if config:
         return send_file(config.zhinan_path, as_attachment=True)
@@ -37,6 +37,6 @@ def return_zhinan():
         return myResponse(400, "No guide found.")
 
 
-@help_bp.route('/help_get_pantheon', methods=["POST"])
+@help_bp.route('/help_get_pantheon', methods=["GET"])
 def return_pantheon():
     return myResponse(200, "success", pantheon=cname_list)

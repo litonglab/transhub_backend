@@ -9,10 +9,12 @@ from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 
 from app_backend.config import DDLTIME
 from app_backend.config import get_config_by_cname
+from app_backend.decorators.validators import validate_request
 from app_backend.jobs.cctraining_job import enqueue_cc_task
 from app_backend.model.Task_model import Task_model
 from app_backend.model.User_model import User_model
 from app_backend.security.safe_check import check_task_auth
+from app_backend.validators.schemas import TaskInfoSchema
 from app_backend.vo.response import myResponse
 
 task_bp = Blueprint('task', __name__)
@@ -64,17 +66,10 @@ def upload_project_file():
     if time.time() > ddl_time:
         return myResponse(400, "The competition has ended.")
 
-    request_data = request.form
-    if not request_data:
-        return myResponse(400, "No body params, please login firstly.")
-
     file = request.files.get('file')
     user_id = get_jwt_identity()  # 用户id
-    # cname = request_data['cname']  # 参赛的比赛名称
     # 从token中获取cname
-    claims = get_jwt()
-    # 访问cname声明
-    cname = claims.get('cname')
+    cname = get_jwt().get('cname')
     config = get_config_by_cname(cname)
     if not config:
         return myResponse(400, "No such competition.")
@@ -93,10 +88,6 @@ def upload_project_file():
     if not is_legal:
         return myResponse(400, '文件存在高危操作，请删除后重新上传')
     file.stream.seek(0)  # 检查后重置文件流指针
-
-    # security check
-    if not check_user_state(user_id):
-        return myResponse(400, 'Illegal state or role, please DO NOT try to HACK the system.')
 
     user = User_model.query.get(user_id)
     if not user:
@@ -132,9 +123,12 @@ def upload_project_file():
 
 @task_bp.route("/task_get_task_info", methods=["POST"])
 @jwt_required()
+@validate_request(TaskInfoSchema)
 def return_task():
-    task_id = request.json.get('task_id')
+    data = request.validated_data
+    task_id = data.task_id
     user_id = get_jwt_identity()
+
     # security check
     if not check_task_auth(user_id, task_id):
         return myResponse(400, 'Illegal state or role, please DO NOT try to HACK the system.')

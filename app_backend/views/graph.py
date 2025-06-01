@@ -3,17 +3,20 @@ import os
 from flask import send_file, Blueprint, request, abort
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
+from app_backend.decorators.validators import validate_request
 from app_backend.model.graph_model import graph_model
+from app_backend.validators.schemas import GraphSchema
 
 graph_bp = Blueprint('graph', __name__)
 
 
 @graph_bp.route("/graph_get_graph", methods=["POST"])
 @jwt_required()
+@validate_request(GraphSchema)
 def get_graph():
-    data = request.json
-    task_id = data.get("task_id")
-    graph_type = data.get("graph_type")
+    data = request.validated_data
+    task_id = data.task_id
+    graph_type = data.graph_type
     user_id = get_jwt_identity()
 
     # if not check_user_state(user_id):
