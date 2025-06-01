@@ -26,8 +26,17 @@ def validate_request(schema_class):
                 else:
                     data = request.form.to_dict()
 
+                # 检查是否有文件上传
+                files = {}
+                if request.files:
+                    for key, file in request.files.items():
+                        files[key] = file
+
+                # 合并表单数据和文件数据
+                all_data = {**data, **files}
+
                 # 验证数据
-                validated_data = schema_class(**data)
+                validated_data = schema_class(**all_data)
 
                 # 将验证后的数据添加到请求对象中
                 request.validated_data = validated_data

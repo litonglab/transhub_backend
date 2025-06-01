@@ -147,3 +147,127 @@ class GraphSchema(BaseModel):
         if v not in allowed_types:
             raise ValueError(f'图表类型必须是以下之一: {", ".join(allowed_types)}')
         return v
+
+
+class FileUploadSchema(BaseModel):
+    """文件上传请求参数验证"""
+    file: Optional[object] = Field(None, description="上传的文件")
+
+    class Config:
+        # 允许任意类型，因为我们需要处理FileStorage对象
+        arbitrary_types_allowed = True
+
+    @field_validator('file')
+    def validate_file(cls, file):
+        """验证上传的文件"""
+        if not file:
+            raise ValueError("未接收到文件")
+
+        if not hasattr(file, 'filename') or not file.filename:
+            raise ValueError("文件名为空")
+
+        filename = file.filename
+
+        # 验证文件后缀名
+        allowed_extensions = ['.c', '.cc', '.cpp']
+        file_extension = None
+        for ext in allowed_extensions:
+            if filename.lower().endswith(ext):
+                file_extension = ext
+                break
+
+        if not file_extension:
+            raise ValueError("文件必须是C程序(.c)或C++程序(.cc, .cpp)")
+
+        # 验证文件名
+        if filename == 'log.cc':
+            raise ValueError("非法文件名: log.cc")
+
+        # 验证文件名格式（只允许字母、数字、下划线、点号）
+        if not re.match(r'^[a-zA-Z0-9_.-]+$', filename):
+            raise ValueError("文件名只能包含字母、数字、下划线、点号和连字符")
+
+        # 验证文件大小（例如限制为2MB）
+        max_size = 2 * 1024 * 1024  # 2MB
+        if hasattr(file, 'content_length') and file.content_length:
+            if file.content_length > max_size:
+                raise ValueError(f"文件大小不能超过{max_size // (1024 * 1024)}MB")
+
+        # 如果文件有stream属性，检查实际内容大小
+        if hasattr(file, 'stream'):
+            current_pos = file.stream.tell()
+            file.stream.seek(0, 2)  # 移动到文件末尾
+            file_size = file.stream.tell()
+            file.stream.seek(current_pos)  # 恢复原位置
+
+            if file_size > max_size:
+                raise ValueError(f"文件大小不能超过{max_size // (1024 * 1024)}MB")
+
+            if file_size == 0:
+                raise ValueError("文件内容为空")
+
+        # 验证文件内容安全性
+        cls._validate_file_content_safety(file)
+
+        return file
+
+    @classmethod
+    def _validate_file_content_safety(cls, file):
+        """
+        验证文件内容安全性
+        检查是否包含危险函数调用
+        """
+        dangerous_functions = [
+            # 文件系统操作
+            "fopen", "open", "creat", "remove", "unlink", "rename",
+            "mkdir", "rmdir", "chmod", "chown", "symlink", "link",
+            # 进程/系统命令
+            "system", "execve", "execv", "execl", "execle", "execlp",
+            "execvp", "execvpe", "popen", "fork", "vfork",
+            # 动态代码加载
+            "dlopen", "dlsym", "dlclose", "dlerror",
+            # 网络操作
+            # "socket", "connect", "bind", "listen", "accept",
+            # "send", "sendto", "recv", "recvfrom",
+            # 内存/指针操作 (可能用于漏洞利用)
+            # "gets", "strcpy", "strcat", "sprintf", "vsprintf",
+            # "scanf", "sscanf",
+            # "malloc", "free",  # 需结合上下文分析
+            # 系统资源操作
+            "ioctl", "syscall",  # 直接系统调用
+            "mmap", "munmap", "mprotect",  # 内存映射
+            # 环境/权限相关
+            "setuid", "setgid", "seteuid", "setegid",
+            "putenv", "clearenv", "getenv",
+            # 信号处理 (可能干扰沙箱)
+            "signal", "sigaction", "raise",
+            # Windows API (如果跨平台需检测)
+            "WinExec", "CreateProcess", "ShellExecute",
+            # 多线程相关
+            "pthread_create",
+            # 其他危险函数
+            "abort", "exit", "_exit"  # 可能用于强制终止监控进程
+        ]
+
+        try:
+            # 保存当前位置
+            current_pos = file.stream.tell()
+            file.stream.seek(0)
+
+            # 读取文件内容
+            code = file.stream.read().decode(errors='ignore')
+
+            # 恢复文件流位置
+            file.stream.seek(current_pos)
+
+            # 检查危险函数
+            for func in dangerous_functions:
+                if re.search(rf'\b{func}\s*\(', code):
+                    raise ValueError(f"文件包含危险函数调用: {func}")
+
+        except UnicodeDecodeError:
+            raise ValueError("文件内容无法解码，可能不是有效的文本文件")
+        except Exception as e:
+            if "危险函数调用" in str(e):
+                raise e  # 重新抛出危险函数错误
+            raise ValueError(f"文件内容检查失败: {str(e)}")

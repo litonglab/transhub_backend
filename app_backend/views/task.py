@@ -1,5 +1,4 @@
 import os
-import re
 import time
 import uuid
 from datetime import datetime
@@ -14,80 +13,35 @@ from app_backend.jobs.cctraining_job import enqueue_cc_task
 from app_backend.model.Task_model import Task_model
 from app_backend.model.User_model import User_model
 from app_backend.security.safe_check import check_task_auth
-from app_backend.validators.schemas import TaskInfoSchema
+from app_backend.validators.schemas import TaskInfoSchema, FileUploadSchema
 from app_backend.vo.response import myResponse
 
 task_bp = Blueprint('task', __name__)
 
 
-def check_illegal(file) -> bool:
-    dangerous_functions = [
-        # 文件系统操作
-        "fopen", "open", "creat", "remove", "unlink", "rename",
-        "mkdir", "rmdir", "chmod", "chown", "symlink", "link",
-        # 进程/系统命令
-        "system", "execve", "execv", "execl", "execle", "execlp",
-        "execvp", "execvpe", "popen", "fork", "vfork",
-        # 动态代码加载
-        "dlopen", "dlsym", "dlclose", "dlerror",
-        # 网络操作
-        # "socket", "connect", "bind", "listen", "accept",
-        # "send", "sendto", "recv", "recvfrom",
-        # 内存/指针操作 (可能用于漏洞利用)
-        # "gets", "strcpy", "strcat", "sprintf", "vsprintf",
-        # "scanf", "sscanf",
-        # "malloc", "free",  # 需结合上下文分析
-        # 系统资源操作
-        "ioctl", "syscall",  # 直接系统调用
-        "mmap", "munmap", "mprotect",  # 内存映射
-        # 环境/权限相关
-        "setuid", "setgid", "seteuid", "setegid",
-        "putenv", "clearenv", "getenv",
-        # 信号处理 (可能干扰沙箱)
-        "signal", "sigaction", "raise",
-        # Windows API (如果跨平台需检测)
-        "WinExec", "CreateProcess", "ShellExecute",
-        # 多线程相关
-        "pthread_create",
-        # 其他危险函数
-        "abort", "exit", "_exit"  # 可能用于强制终止监控进程
-    ]
-    code = file.stream.read().decode(errors='ignore')
-    for func in dangerous_functions:
-        if re.search(rf'\b{func}\s*\(', code):
-            return False
-    return True
+# check_illegal 函数已移动到 FileUploadSchema.validate_file_content_safety 中
 
 
 @task_bp.route("/task_upload", methods=["POST"])
 @jwt_required()
+@validate_request(FileUploadSchema)
 def upload_project_file():
     ddl_time = time.mktime(time.strptime(DDLTIME, "%Y-%m-%d-%H-%M-%S"))
     if time.time() > ddl_time:
         return myResponse(400, "The competition has ended.")
 
-    file = request.files.get('file')
+    # 获取验证后的数据
+    data = request.validated_data
+    file = data.file
     user_id = get_jwt_identity()  # 用户id
     # 从token中获取cname
     cname = get_jwt().get('cname')
     config = get_config_by_cname(cname)
     if not config:
         return myResponse(400, "No such competition.")
-    if file is None:
-        return myResponse(400, "No file received.")
 
+    # 文件已经通过 Pydantic 验证，直接获取文件信息
     filename = file.filename
-    if filename[-3:] != ".cc" and filename[-2:] != ".c":
-        return myResponse(400, "File should be c program or c++ program!")
-
-    if filename == 'log.cc':
-        return myResponse(400, "Illegal name:log.cc")
-
-    # 检查代码是否合法
-    is_legal = check_illegal(file)
-    if not is_legal:
-        return myResponse(400, '文件存在高危操作，请删除后重新上传')
-    file.stream.seek(0)  # 检查后重置文件流指针
 
     user = User_model.query.get(user_id)
     if not user:
