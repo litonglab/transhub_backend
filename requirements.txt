@@ -11,3 +11,5 @@ mysqlclient~=2.2.4
 numpy~=1.26.4
 matplotlib~=3.5.1
 dramatiq~=1.17.0
+SQLAlchemy~=2.0.41
+Flask-JWT-Extended~=4.7.1

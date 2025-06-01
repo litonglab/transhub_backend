@@ -1,18 +1,19 @@
-BASEDIR = "/home/liuwei/transhub_2025/transhub_data"
+BASEDIR = "/mnt/mac/Users/zjx/Documents/workspace/transhub_backend/project/Transhub_data"
 
 ALL_CLASS = {"计算机系统基础II": "pantheon-ics", "计算机网络": "pantheon-network",
              "校内赛计算机网络赛道": "pantheon-competition"}
 
 # 构建规则：{cname: BASEDIR+ALL_CLASS[cname]}
 ALL_CLASS_PATH = {cname: BASEDIR + "/" + ALL_CLASS[cname] for cname in ALL_CLASS.keys()}
+cname_list = [cname for cname, path in ALL_CLASS.items()]
 
 USER_DIR_PATH = BASEDIR + "/user_data"
 DDLTIME = '2025-06-02-21-00-00'
 
 MYSQL_USERNAME = 'root'
-MYSQL_PASSWORD = 'Litonglablw_1'
+MYSQL_PASSWORD = '123456'
 MYSQL_ADDRESS = 'localhost:3306'
-MYSQL_DBNAME = 'network_class_2025'
+MYSQL_DBNAME = 'transhub_base'
 
 
 class PantheonNetworkConfig:
@@ -38,10 +39,11 @@ class PantheonICSConfig:
     cca_guide_path = ALL_CLASS_PATH[cname] + "/help/cca_guide.docx"
     user_guide_path = ALL_CLASS_PATH[cname] + "/help/user_guide.docx"
 
+
 def get_config_by_cname(cname):
     config_map = {
         "计算机系统基础II": PantheonICSConfig,
         "计算机网络": PantheonNetworkConfig,
-        #"校内赛计算机网络赛道": PantheonCompetitionConfig
+        # "校内赛计算机网络赛道": PantheonCompetitionConfig
     }
     return config_map.get(cname, None)

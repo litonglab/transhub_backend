@@ -1,10 +1,17 @@
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 
-from flask import Blueprint, request,  session
+from flask import Blueprint, request, make_response, copy_current_request_context
+from flask_jwt_extended import create_access_token, set_access_cookies, unset_jwt_cookies, jwt_required, \
+    get_jwt_identity
 
+from app_backend.config import cname_list
+from app_backend.model.Competition_model import Competition_model
 from app_backend.model.User_model import User_model
 from app_backend.vo.response import myResponse
-from app_backend.security.safe_check import check_user_state
+
+# 创建线程池执行器
+executor = ThreadPoolExecutor(2)
 
 user_bp = Blueprint('user', __name__)
 
@@ -14,30 +21,48 @@ def user_login():
     request_data = request.json or request.form
     username = request_data['username']
     password = request_data['password']
+    cname = request_data.get('cname')  # 假设前端传了cname
     user = User_model.query.filter_by(username=username, password=password).first()
     if not user:
         return myResponse(400, "User not found or Username error or Password error.")
-    session['user_id'] = user.user_id
-    return myResponse(200, "Login success.", user_id=user.user_id)
+    # 参赛
+    # 检测用户是否已经参加了比赛
+    # 判断cname是否存在配置文件中
+    if cname not in cname_list:
+        return myResponse(400, "Competition not found or cname error.")
+    if Competition_model.query.filter_by(user_id=user.user_id, cname=cname).first():
+        # 生成带自定义内容的JWT
+        additional_claims = {"cname": cname}
+        access_token = create_access_token(identity=user.user_id, additional_claims=additional_claims)
+        resp = make_response(myResponse(200, "Login success.", user_id=user.user_id))
+        set_access_cookies(resp, access_token)
+        return resp
+    else:
+        # 异步调用参赛函数，为用户报名
+        # user.paticapate_competition(cname)
+        # 用 copy_current_app_context 包装你的函数
+        # todo: 加锁，用户频繁操作可能导致重复调用此函数
+        @copy_current_request_context
+        def async_paticapate():
+            user.paticapate_competition(cname)
+
+        executor.submit(async_paticapate)
+        message = "验证成功，欢迎参加【{}】课程，首次加入课程，系统后台需要为你创建项目工程，预计需要几分钟，请稍后再登录。\n如果长时间仍无法登录，请联系管理员。".format(
+            cname)
+        return myResponse(201, message)
 
 
 @user_bp.route('/user_logout', methods=['POST'])
 def user_logout():
-    if not check_user_state(request.json['user_id']):
-        return myResponse(400, "Please login firstly.")
-    user_id = request.json['user_id']
-    if user_id != session.get('user_id'):
-        return {"code": 400, "message": "Please login firstly."}
-    session.pop('user_id', None)
-    return {"code": 200, "message": "Logout success."}
+    resp = make_response(myResponse(200, "Logout success."))
+    unset_jwt_cookies(resp)
+    return resp
 
 
 @user_bp.route('/user_register', methods=['POST'])
 def user_register():
     try:
-        request_data = request.form
-        if not request_data:
-            request_data = request.form
+        request_data = request.json
         username = request_data['username']
         password = request_data['password']
         if len(username) < 4 or len(username) > 16:
@@ -66,28 +91,15 @@ def user_register():
         print("register occur error: {}".format(e))
         return myResponse(500, "Register failed.")
 
-@user_bp.route("/user_paticipate_competition", methods=['POST'])
-def paticipate_competition():
-    user_id = request.json['user_id']
-    cname = request.json['cname']
-    if not check_user_state(user_id):
-        return myResponse(400, "Please login firstly.")
-    user = User_model.query.filter_by(user_id=user_id).first()
-    if not user:
-        return myResponse(400, "User not found.")
-    if not user.paticapate_competition(cname):
-        return myResponse(400, "Paticipate competition failed.")
-    return myResponse(200, "Paticipate competition success.")
-
 
 @user_bp.route("/user_change_password", methods=['POST'])
+@jwt_required()
 def change_password():
+    user_id = get_jwt_identity()
     request_data = request.json or request.form
     user_id = request_data['user_id']
     old_pwd = request_data['oldpwd']
     new_pwd = request_data['new_pwd']
-    if not check_user_state(user_id):
-        return myResponse(400, "Please login firstly.")
     if len(new_pwd) < 6 or len(new_pwd) > 18:
         return myResponse(400, "New passward must be 6-18 characters long.")
     user = User_model.query.filter_by(user_id=user_id, password=old_pwd).first()
@@ -99,29 +111,21 @@ def change_password():
     return myResponse(200, "Change password success.")
 
 
-
-# app_backend/views/user.py
 @user_bp.route("/user_get_real_info", methods=["POST"])
+@jwt_required()
 def return_real_info():
-    user_id= request.json.get('user_id')
-    if not check_user_state(user_id):
-        return myResponse(400, "Please login firstly.", real_info=None)
+    user_id = get_jwt_identity()
     user = User_model.query.filter_by(user_id=user_id).first()
     real_info = {"real_name": user.real_name,
                  "sno": user.sno}
     return myResponse(200, "Get real info success.", real_info=real_info)
 
-
-# app_backend/views/user.py
 # @user_bp.route("/user_set_real_info", methods=["POST"])
+# @jwt_required()
 # def change_real_info():
-
-#     user_id = request.json['user_id']
+#     user_id = get_jwt_identity()
 #     real_name = request.json['real_name']
 #     sno = request.json['sno']
-#     #password = request.json['password']
-#     if not check_user_state(user_id):
-#         return myResponse(400, "Please login firstly.")
 #     user = User_model.query.filter_by(user_id=user_id).first()
 #     if not user:
 #         return myResponse(400, "User not found.")
@@ -129,7 +133,3 @@ def return_real_info():
 #         return myResponse(400, "Real info need to be provided completely.")
 #     user.update_real_info(real_name, sno)
 #     return myResponse(200, "Set real info success.")
-
-
-
-

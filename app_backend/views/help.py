@@ -1,5 +1,7 @@
 from flask import send_file, Blueprint, request
-from app_backend.config import get_config_by_cname, ALL_CLASS
+from flask_jwt_extended import jwt_required
+
+from app_backend.config import get_config_by_cname, cname_list
 from app_backend.vo.response import myResponse
 
 help_bp = Blueprint('help', __name__)
@@ -24,6 +26,7 @@ help_bp = Blueprint('help', __name__)
 
 
 @help_bp.route("/help_get_tutorial", methods=["POST"])
+@jwt_required()
 def return_zhinan():
     cname = request.json['cname']
     config = get_config_by_cname(cname)
@@ -36,6 +39,4 @@ def return_zhinan():
 
 @help_bp.route('/help_get_pantheon', methods=["POST"])
 def return_pantheon():
-    return myResponse(200, "success", pantheon=[cname for cname, path in ALL_CLASS.items()])
-
-
+    return myResponse(200, "success", pantheon=cname_list)

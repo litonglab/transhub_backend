@@ -1,18 +1,20 @@
-from app_backend.config import USER_DIR_PATH, ALL_CLASS_PATH, ALL_CLASS
-from app_backend import db
 import os
+
 from sqlalchemy.dialects.mysql import VARCHAR
+
+from app_backend import db
+from app_backend.config import USER_DIR_PATH, ALL_CLASS_PATH, ALL_CLASS
 from app_backend.model.Competition_model import Competition_model
 
 
 class User_model(db.Model):
     __tablename__ = 'student'
     user_id = db.Column(db.String(36), primary_key=True)
-    #username = db.Column(db.String(30), nullable=False)
+    # username = db.Column(db.String(30), nullable=False)
     username = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)
     password = db.Column(db.String(64), nullable=False)
-    #real_name = db.Column(db.String(50), nullable=False)
-    real_name = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False) 
+    # real_name = db.Column(db.String(50), nullable=False)
+    real_name = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)
     sno = db.Column(db.String(20), nullable=False)
 
     def save(self):
@@ -61,6 +63,7 @@ class User_model(db.Model):
 
     def paticapate_competition(self, cname) -> bool:
         # 1. 参赛
+        print("paticapate competition: ", cname)
         if Competition_model.query.filter_by(user_id=self.user_id, cname=cname).first():
             return True
         else:
@@ -73,8 +76,12 @@ class User_model(db.Model):
             # 3. run competion's init script
             cmd = f'bash {com_dir}/init/gen_test.sh {com_dir}/project {work_dir} && exit 0'
             try:
-                os.system(cmd)
+                ret = os.system(cmd)
+                if ret != 0:
+                    print(f"run init script error: {ret}")
+                    return False
                 com.save()
+                print(f"Competition {cname} initialized successfully.")
                 return True
             except Exception as e:
                 print(f"run init script error: {e}")
@@ -95,3 +102,6 @@ class User_model(db.Model):
     def unlock(self):
         self.is_locked = False
         db.session.commit()
+
+    def get_id(self):
+        return self.user_id
