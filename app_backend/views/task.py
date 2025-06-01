@@ -53,6 +53,9 @@ def upload_project_file():
     task_ids = []
 
     uplink_dir = config.uplink_dir
+    enqueue_results = []  # 收集所有入队结果
+    failed_tasks = []  # 记录失败的任务
+
     for trace_file in os.listdir(uplink_dir):
         trace_name = trace_file[:-3]
         for loss in config.loss_rate:
@@ -64,14 +67,48 @@ def upload_project_file():
                                   algorithm=filename[:-3], trace_name=trace_name, upload_id=upload_id, loss_rate=loss,
                                   buffer_size=buffer_size)
 
-                # task = executor.submit(run_task, newfilename[:-3])
-                # task = run_task.queue()
-                # update_task_status(task_id, 'queued')
+                # 保存任务到数据库
                 task.save()
                 task_ids.append(task_id)
-                enqueue_cc_task(task_id)
-    # return {"code": 200, "message": "Upload Success. Task is running.", "filename": filename, "task_id": task_id}
-    return HttpResponse.ok(filename=filename, tasks=task_ids)
+
+                # 发送任务到队列并检查结果
+                enqueue_result = enqueue_cc_task(task_id)
+                enqueue_results.append(enqueue_result)
+
+                if not enqueue_result['success']:
+                    # 如果入队失败，更新任务状态为错误
+                    task.update(task_status='not_queued')
+                    failed_tasks.append({
+                        'task_id': task_id,
+                        'trace_name': trace_name,
+                        'loss_rate': loss,
+                        'buffer_size': buffer_size,
+                        'error': enqueue_result['message']
+                    })
+                    print(f"Failed to enqueue task {task_id}: {enqueue_result['message']}")
+                else:
+                    print(f"Task {task_id} successfully enqueued with message ID: {enqueue_result['message_id']}")
+
+    # 统计入队结果
+    successful_enqueues = sum(1 for result in enqueue_results if result['success'])
+    total_tasks = len(enqueue_results)
+
+    # 构建响应消息
+    if len(failed_tasks) > 0:
+        message = f"Upload completed. {successful_enqueues}/{total_tasks} tasks successfully enqueued."
+    else:
+        message = f"Upload success. All {total_tasks} tasks successfully enqueued."
+    return HttpResponse.ok(
+        message=message,
+        filename=filename,
+        tasks=task_ids,
+        enqueue_summary={
+            'total_tasks': total_tasks,
+            'successful_enqueues': successful_enqueues,
+            'failed_enqueues': len(failed_tasks),
+            'failed_tasks': failed_tasks
+        }
+    )
 
 
 @task_bp.route("/task_get_task_info", methods=["POST"])
