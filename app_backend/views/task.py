@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 
 from flask import Blueprint, request
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 
 from app_backend.config import DDLTIME
 from app_backend.config import get_config_by_cname
@@ -70,7 +70,11 @@ def upload_project_file():
 
     file = request.files.get('file')
     user_id = get_jwt_identity()  # 用户id
-    cname = request_data['cname']  # 参赛的比赛名称
+    # cname = request_data['cname']  # 参赛的比赛名称
+    # 从token中获取cname
+    claims = get_jwt()
+    # 访问cname声明
+    cname = claims.get('cname')
     config = get_config_by_cname(cname)
     if not config:
         return myResponse(400, "No such competition.")

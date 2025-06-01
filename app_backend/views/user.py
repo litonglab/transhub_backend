@@ -5,6 +5,7 @@ from flask import Blueprint, request, make_response, copy_current_request_contex
 from flask_jwt_extended import create_access_token, set_access_cookies, unset_jwt_cookies, jwt_required, \
     get_jwt_identity
 
+from app_backend.config import cname_list
 from app_backend.model.Competition_model import Competition_model
 from app_backend.model.User_model import User_model
 from app_backend.vo.response import myResponse
@@ -26,6 +27,9 @@ def user_login():
         return myResponse(400, "User not found or Username error or Password error.")
     # 参赛
     # 检测用户是否已经参加了比赛
+    # 判断cname是否存在配置文件中
+    if cname not in cname_list:
+        return myResponse(400, "Competition not found or cname error.")
     if Competition_model.query.filter_by(user_id=user.user_id, cname=cname).first():
         # 生成带自定义内容的JWT
         additional_claims = {"cname": cname}

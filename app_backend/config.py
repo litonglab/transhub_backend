@@ -5,6 +5,7 @@ ALL_CLASS = {"计算机系统基础II": "pantheon-ics", "计算机网络": "pant
 
 # 构建规则：{cname: BASEDIR+ALL_CLASS[cname]}
 ALL_CLASS_PATH = {cname: BASEDIR + "/" + ALL_CLASS[cname] for cname in ALL_CLASS.keys()}
+cname_list = [cname for cname, path in ALL_CLASS.items()]
 
 USER_DIR_PATH = BASEDIR + "/user_data"
 DDLTIME = '2025-06-02-21-00-00'
