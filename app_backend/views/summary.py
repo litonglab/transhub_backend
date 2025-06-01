@@ -2,7 +2,7 @@ from flask import Blueprint
 from flask_jwt_extended import jwt_required, get_jwt
 
 from app_backend.model.Rank_model import Rank_model
-from app_backend.vo.response import myResponse
+from app_backend.vo import HttpResponse
 
 summary_bp = Blueprint('summary', __name__)
 
@@ -17,4 +17,4 @@ def return_ranks():
     ranks = sorted(ranks, key=lambda x: x.task_score, reverse=True)
     for rank in ranks:
         res.append(rank.to_dict())
-    return myResponse(200, "Success", rank=res)
+    return HttpResponse.ok(rank=res)

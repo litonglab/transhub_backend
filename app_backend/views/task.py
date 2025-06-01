@@ -14,7 +14,8 @@ from app_backend.model.Task_model import Task_model
 from app_backend.model.User_model import User_model
 from app_backend.security.safe_check import check_task_auth
 from app_backend.validators.schemas import TaskInfoSchema, FileUploadSchema
-from app_backend.vo.response import myResponse
+from app_backend.vo import HttpResponse
+from app_backend.vo.HttpResponse import _my_response
 
 task_bp = Blueprint('task', __name__)
 
@@ -28,7 +29,7 @@ task_bp = Blueprint('task', __name__)
 def upload_project_file():
     ddl_time = time.mktime(time.strptime(DDLTIME, "%Y-%m-%d-%H-%M-%S"))
     if time.time() > ddl_time:
-        return myResponse(400, "The competition has ended.")
+        return HttpResponse.error("The competition has ended.")
 
     # 获取验证后的数据
     data = request.validated_data
@@ -38,14 +39,14 @@ def upload_project_file():
     cname = get_jwt().get('cname')
     config = get_config_by_cname(cname)
     if not config:
-        return myResponse(400, "No such competition.")
+        return HttpResponse.error("No such competition.")
 
     # 文件已经通过 Pydantic 验证，直接获取文件信息
     filename = file.filename
 
     user = User_model.query.get(user_id)
     if not user:
-        return myResponse(400, "User not found.")
+        return HttpResponse.error("User not found.")
     now = datetime.now()
     user.save_file_to_user_dir(file, cname, now.strftime("%Y-%m-%d-%H-%M-%S"))
     temp_dir = user.get_user_dir(cname) + "/" + now.strftime("%Y-%m-%d-%H-%M-%S")
@@ -72,7 +73,7 @@ def upload_project_file():
                 task_ids.append(task_id)
                 enqueue_cc_task(task_id)
     # return {"code": 200, "message": "Upload Success. Task is running.", "filename": filename, "task_id": task_id}
-    return myResponse(200, "Upload Success. Task is running.", filename=filename, tasks=task_ids)
+    return HttpResponse.ok(filename=filename, tasks=task_ids)
 
 
 @task_bp.route("/task_get_task_info", methods=["POST"])
@@ -85,25 +86,25 @@ def return_task():
 
     # security check
     if not check_task_auth(user_id, task_id):
-        return myResponse(400, 'Illegal state or role, please DO NOT try to HACK the system.')
+        return HttpResponse.error('Illegal state or role, please DO NOT try to HACK the system.')
 
     task_info = Task_model.query.filter_by(task_id=task_id).first()
     print(task_info)
     if not task_info:
-        return myResponse(400, "Task not found.")
+        return HttpResponse.error("Task not found.")
 
     if task_info.task_status == 'queued':
-        return myResponse(200, "Task is queued.")
+        return HttpResponse.ok("Task is queued.")
 
     if task_info.task_status == 'error':
         # 从task_dir中读取error.log,返回给前端
         try:
             with open(f'{task_info.task_dir}/error.log', 'r') as f:
                 error_info = f.read()
-            return myResponse(200, "Task error", error_info=error_info)
+            return _my_response(200, "Task error", error_info=error_info)
         except Exception as e:
             with open(f'{task_info.task_dir}/error.log', 'r') as f:
                 error_info = str(e)
-            return myResponse(200, "Task error", error_info=error_info)
+            return HttpResponse.ok("Task error", error_info=error_info)
     task_res = task_info.to_detail_dict()
-    return myResponse(200, "Task info found.", task_res=task_res)
+    return HttpResponse.ok("Task info found.", task_res=task_res)

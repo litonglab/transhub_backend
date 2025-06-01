@@ -6,7 +6,7 @@ from functools import wraps
 from flask import request
 from pydantic import ValidationError
 
-from app_backend.vo.response import myResponse
+from app_backend.vo import HttpResponse
 
 
 def validate_request(schema_class):
@@ -50,9 +50,9 @@ def validate_request(schema_class):
                     message = error.get('msg', '')
                     error_messages.append(f"{field}: {message}")
 
-                return myResponse(400, f"参数验证失败: {error_messages}")  # , errors=error_messages)
+                return HttpResponse.error(f"参数验证失败: {error_messages}")  # , errors=error_messages)
             except Exception as e:
-                return myResponse(500, f"服务器内部错误: {str(e)}")
+                return HttpResponse.error(500, f"服务器内部错误: {str(e)}")
 
         return decorated_function
 

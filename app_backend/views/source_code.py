@@ -6,7 +6,7 @@ from flask_jwt_extended import get_jwt_identity, jwt_required
 from app_backend.decorators.validators import validate_request
 from app_backend.model.Task_model import Task_model
 from app_backend.validators.schemas import SourceCodeSchema
-from app_backend.vo.response import myResponse
+from app_backend.vo import HttpResponse
 
 source_code_bp = Blueprint('app_backend', __name__)
 
@@ -24,5 +24,5 @@ def return_code():
 
     file_path = task_info.task_dir + "/../" + task_info.algorithm + ".cc"
     if not os.path.exists(file_path):
-        return myResponse(400, "File not found")
+        return HttpResponse.error("File not found")
     return send_file(file_path, as_attachment=True, download_name=task_info.algorithm + ".cc")
