@@ -1,7 +1,7 @@
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 
-from flask import Blueprint, request, make_response, copy_current_request_context
+from flask import Blueprint, make_response, copy_current_request_context
 from flask_jwt_extended import create_access_token, set_access_cookies, unset_jwt_cookies, jwt_required, \
     get_jwt_identity, get_jwt
 
@@ -44,7 +44,6 @@ def user_login():
         return resp
     else:
         # 异步调用参赛函数，为用户报名
-        # user.paticapate_competition(cname)
         # 用 copy_current_app_context 包装你的函数
         # todo: 加锁，用户频繁操作可能导致重复调用此函数
         @copy_current_request_context
@@ -52,7 +51,7 @@ def user_login():
             user.paticapate_competition(cname)
 
         executor.submit(async_paticapate)
-        message = "验证成功，欢迎参加【{}】课程，首次加入课程，系统后台需要为你创建项目工程，预计需要几分钟，请稍后再登录。\n如果长时间仍无法登录，请联系管理员。".format(
+        message = "同学你好，欢迎加入【{}】课程（比赛），首次加入课程，系统需要后台为你创建项目工程，预计需要一分钟，请稍后再登录。\n如果长时间仍无法登录，请联系管理员。".format(
             cname)
         return HttpResponse.error(201, message)
 
