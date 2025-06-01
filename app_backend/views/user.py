@@ -1,11 +1,16 @@
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 
-from flask import Blueprint, request, make_response
+from flask import Blueprint, request, make_response, copy_current_request_context
 from flask_jwt_extended import create_access_token, set_access_cookies, unset_jwt_cookies, jwt_required, \
-    get_jwt_identity, get_jwt
+    get_jwt_identity
 
+from app_backend.model.Competition_model import Competition_model
 from app_backend.model.User_model import User_model
 from app_backend.vo.response import myResponse
+
+# 创建线程池执行器
+executor = ThreadPoolExecutor(2)
 
 user_bp = Blueprint('user', __name__)
 
@@ -19,12 +24,28 @@ def user_login():
     user = User_model.query.filter_by(username=username, password=password).first()
     if not user:
         return myResponse(400, "User not found or Username error or Password error.")
-    # 生成带自定义内容的JWT
-    additional_claims = {"cname": cname}
-    access_token = create_access_token(identity=user.user_id, additional_claims=additional_claims)
-    resp = make_response(myResponse(200, "Login success.", user_id=user.user_id))
-    set_access_cookies(resp, access_token)
-    return resp
+    # 参赛
+    # 检测用户是否已经参加了比赛
+    if Competition_model.query.filter_by(user_id=user.user_id, cname=cname).first():
+        # 生成带自定义内容的JWT
+        additional_claims = {"cname": cname}
+        access_token = create_access_token(identity=user.user_id, additional_claims=additional_claims)
+        resp = make_response(myResponse(200, "Login success.", user_id=user.user_id))
+        set_access_cookies(resp, access_token)
+        return resp
+    else:
+        # 异步调用参赛函数，为用户报名
+        # user.paticapate_competition(cname)
+        # 用 copy_current_app_context 包装你的函数
+        # todo: 加锁，用户频繁操作可能导致重复调用此函数
+        @copy_current_request_context
+        def async_paticapate():
+            user.paticapate_competition(cname)
+
+        executor.submit(async_paticapate)
+        message = "验证成功，欢迎参加【{}】课程，首次加入课程，系统后台需要为你创建项目工程，预计需要几分钟，请稍后再登录。\n如果长时间仍无法登录，请联系管理员。".format(
+            cname)
+        return myResponse(201, message)
 
 
 @user_bp.route('/user_logout', methods=['POST'])
@@ -65,21 +86,6 @@ def user_register():
     except Exception as e:
         print("register occur error: {}".format(e))
         return myResponse(500, "Register failed.")
-
-
-@user_bp.route("/user_paticipate_competition", methods=['POST'])
-@jwt_required()
-def paticipate_competition():
-    user_id = get_jwt_identity()
-    claims = get_jwt()
-    # cname = claims.get('cname')
-    cname = request.json['cname']
-    user = User_model.query.filter_by(user_id=user_id).first()
-    if not user:
-        return myResponse(400, "User not found.")
-    if not user.paticapate_competition(cname):
-        return myResponse(400, "Paticipate competition failed.")
-    return myResponse(200, "Paticipate competition success.")
 
 
 @user_bp.route("/user_change_password", methods=['POST'])

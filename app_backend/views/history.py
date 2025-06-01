@@ -3,7 +3,6 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 
 # from app_backend.model.User_model import User_model
 from app_backend.model.Task_model import Task_model, to_history_dict
-from app_backend.security.safe_check import check_user_state
 from app_backend.vo.response import myResponse
 
 history_bp = Blueprint('history', __name__)
