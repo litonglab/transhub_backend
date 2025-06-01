@@ -24,5 +24,5 @@ def return_code():
 
     file_path = task_info.task_dir + "/../" + task_info.algorithm + ".cc"
     if not os.path.exists(file_path):
-        return HttpResponse.error("File not found")
+        return HttpResponse.fail("File not found")
     return send_file(file_path, as_attachment=True, download_name=task_info.algorithm + ".cc")

@@ -17,6 +17,13 @@ def ok(message='success', **kwargs):
     return _my_response(code=200, message=message, **kwargs)
 
 
+def fail(message='error', **kwargs):
+    """
+    Returns an error response with the specified code.
+    """
+    return _my_response(code=400, message=message, **kwargs)
+
+
 def error(code=400, message='error', **kwargs):
     """
     Returns an error response with the specified code.

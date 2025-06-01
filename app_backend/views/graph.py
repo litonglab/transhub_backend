@@ -28,6 +28,6 @@ def get_graph():
     # 性能图所有用户都可查询，无需验证user_id
     graph = graph_model.query.filter_by(task_id=task_id, graph_type=graph_type).first()
     if not graph or not os.path.exists(graph.graph_path):
-        return HttpResponse.error("No such graph or graph file does not exist.")
+        return HttpResponse.fail("No such graph or graph file does not exist.")
     print(graph.graph_path)
     return send_file(graph.graph_path, mimetype='image/svg+xml', as_attachment=True)

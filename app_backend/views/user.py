@@ -6,10 +6,11 @@ from flask_jwt_extended import create_access_token, set_access_cookies, unset_jw
     get_jwt_identity, get_jwt
 
 from app_backend.config import cname_list
-from app_backend.decorators.validators import validate_request
+from app_backend.decorators.validators import validate_request, get_validated_data
 from app_backend.model.Competition_model import Competition_model
 from app_backend.model.User_model import User_model
-from app_backend.validators.schemas import UserLoginSchema, UserRegisterSchema, ChangePasswordSchema
+from app_backend.validators.schemas import UserLoginSchema, UserRegisterSchema, ChangePasswordSchema, \
+    UserChangeRealInfoSchema
 from app_backend.vo import HttpResponse
 
 # 创建线程池执行器
@@ -28,12 +29,12 @@ def user_login():
 
     user = User_model.query.filter_by(username=username, password=password).first()
     if not user:
-        return HttpResponse.error("User not found or Username error or Password error.")
+        return HttpResponse.fail("User not found or Username error or Password error.")
     # 参赛
     # 检测用户是否已经参加了比赛
     # 判断cname是否存在配置文件中
     if cname not in cname_list:
-        return HttpResponse.error("Competition not found or cname error.")
+        return HttpResponse.fail("Competition not found or cname error.")
     if Competition_model.query.filter_by(user_id=user.user_id, cname=cname).first():
         # 生成带自定义内容的JWT
         additional_claims = {"cname": cname}
@@ -76,12 +77,12 @@ def user_register():
         # 检测username，real_name,sno是否已经存在
         user = User_model.query.filter_by(real_name=real_name, sno=sno).first()
         if user:
-            return HttpResponse.error("User already exists.")
+            return HttpResponse.fail("User already exists.")
         user = User_model(username=username, password=password, real_name=real_name, sno=sno)
         if user.is_exist():
-            return HttpResponse.error("User already exists.")
+            return HttpResponse.fail("User already exists.")
         elif user.is_null_info():
-            return HttpResponse.error("Information is not complete.")
+            return HttpResponse.fail("Information is not complete.")
         else:
             user_id = str(uuid.uuid1())
             user.user_id = user_id
@@ -103,7 +104,7 @@ def change_password():
 
     user = User_model.query.filter_by(user_id=user_id, password=old_pwd).first()
     if not user:
-        return HttpResponse.error("Password error.")
+        return HttpResponse.fail("Password error.")
 
     user.password = new_pwd
     user.save()
@@ -125,16 +126,16 @@ def return_real_info():
 @jwt_required()
 def check_login():
     return HttpResponse.ok()
-# @user_bp.route("/user_set_real_info", methods=["POST"])
-# @jwt_required()
-# def change_real_info():
-#     user_id = get_jwt_identity()
-#     real_name = request.json['real_name']
-#     sno = request.json['sno']
-#     user = User_model.query.filter_by(user_id=user_id).first()
-#     if not user:
-#         return myResponse(400, "User not found.")
-#     if not real_name or not sno:
-#         return myResponse(400, "Real info need to be provided completely.")
-#     user.update_real_info(real_name, sno)
-#     return myResponse(200, "Set real info success.")
+
+
+@user_bp.route("/user_set_real_info", methods=["POST"])
+@jwt_required()
+@validate_request(UserChangeRealInfoSchema)
+def change_real_info():
+    user_id = get_jwt_identity()
+    # data: UserChangeRealInfoSchema = request.validated_data
+    data = get_validated_data(UserChangeRealInfoSchema)
+    real_name = data.real_name
+    user = User_model.query.filter_by(user_id=user_id).first()
+    user.update_real_info(real_name)
+    return HttpResponse.ok("Set real info success.")

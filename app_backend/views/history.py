@@ -31,7 +31,7 @@ def get_record_detail():
     #     return myResponse(400, "User is not authorized to access this task.")
     record = Task_model.query.filter_by(upload_id=upload_id, cname=cname).all()
     if not record:
-        return HttpResponse.error("No such record.")
+        return HttpResponse.fail("No such record.")
     records = [r.to_detail_dict() for r in record]  # 返回的是所有记录，需要前端聚合
 
     return HttpResponse.ok(tasks=records)

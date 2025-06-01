@@ -56,9 +56,8 @@ class User_model(db.Model):
         else:
             return False
 
-    def update_real_info(self, real_name, sno):
+    def update_real_info(self, real_name):
         self.real_name = real_name
-        self.sno = sno
         db.session.commit()
 
     def paticapate_competition(self, cname) -> bool:

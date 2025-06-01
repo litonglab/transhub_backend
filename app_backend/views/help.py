@@ -34,7 +34,7 @@ def return_zhinan():
         return send_file(config.zhinan_path, as_attachment=True)
         # return send_file(config.zhinan_path, mimetype="application/pdf")
     else:
-        return HttpResponse.error("No such tutorial!")
+        return HttpResponse.fail("No such tutorial!")
 
 
 @help_bp.route('/help_get_pantheon', methods=["GET"])

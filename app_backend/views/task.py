@@ -29,7 +29,7 @@ task_bp = Blueprint('task', __name__)
 def upload_project_file():
     ddl_time = time.mktime(time.strptime(DDLTIME, "%Y-%m-%d-%H-%M-%S"))
     if time.time() > ddl_time:
-        return HttpResponse.error("The competition has ended.")
+        return HttpResponse.fail("The competition has ended.")
 
     # 获取验证后的数据
     data = request.validated_data
@@ -39,14 +39,14 @@ def upload_project_file():
     cname = get_jwt().get('cname')
     config = get_config_by_cname(cname)
     if not config:
-        return HttpResponse.error("No such competition.")
+        return HttpResponse.fail("No such competition.")
 
     # 文件已经通过 Pydantic 验证，直接获取文件信息
     filename = file.filename
 
     user = User_model.query.get(user_id)
     if not user:
-        return HttpResponse.error("User not found.")
+        return HttpResponse.fail("User not found.")
     now = datetime.now()
     user.save_file_to_user_dir(file, cname, now.strftime("%Y-%m-%d-%H-%M-%S"))
     temp_dir = user.get_user_dir(cname) + "/" + now.strftime("%Y-%m-%d-%H-%M-%S")
@@ -86,12 +86,12 @@ def return_task():
 
     # security check
     if not check_task_auth(user_id, task_id):
-        return HttpResponse.error('Illegal state or role, please DO NOT try to HACK the system.')
+        return HttpResponse.fail('Illegal state or role, please DO NOT try to HACK the system.')
 
     task_info = Task_model.query.filter_by(task_id=task_id).first()
     print(task_info)
     if not task_info:
-        return HttpResponse.error("Task not found.")
+        return HttpResponse.fail("Task not found.")
 
     if task_info.task_status == 'queued':
         return HttpResponse.ok("Task is queued.")
