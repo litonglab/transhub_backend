@@ -41,6 +41,7 @@ def upload_project_file():
 
     # 文件已经通过 Pydantic 验证，直接获取文件信息
     filename = file.filename
+    algorithm = filename.split('.')[0]
 
     user = User_model.query.get(user_id)
     if not user:
@@ -64,7 +65,7 @@ def upload_project_file():
                 task = Task_model(task_id=task_id, user_id=user_id, task_status='queued', task_score=0,
                                   created_time=now.strftime("%Y-%m-%d-%H-%M-%S"), cname=cname,
                                   task_dir=temp_dir + "/" + trace_name + "_" + str(loss) + "_" + str(buffer_size),
-                                  algorithm=filename[:-3], trace_name=trace_name, upload_id=upload_id, loss_rate=loss,
+                                  algorithm=algorithm, trace_name=trace_name, upload_id=upload_id, loss_rate=loss,
                                   buffer_size=buffer_size)
 
                 # 保存任务到数据库
@@ -102,6 +103,7 @@ def upload_project_file():
         message=message,
         filename=filename,
         tasks=task_ids,
+        upload_id=upload_id,
         enqueue_summary={
             'total_tasks': total_tasks,
             'successful_enqueues': successful_enqueues,

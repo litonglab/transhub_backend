@@ -71,15 +71,10 @@ def run_cc_training_task(task_id):
                 if not os.path.exists(task.task_dir):
                     os.mkdir(task.task_dir)
                     log(f"[INFO] Created task dir: {task.task_dir}")
-                # 将用户上传的文件拷贝到target_dir中
-                if not run_cmd(f'cp {parent_dir}/{task.algorithm}.cc {target_dir}', f'{task.task_dir}/error.log', task):
-                    log(f"[ERROR] cp failed: {parent_dir}/{task.algorithm}.cc -> {target_dir}")
-                    task.update(task_status='error')
-                    return
-                # 重命名
-                if not run_cmd(f'mv {target_dir}/{task.algorithm}.cc {target_dir}/controller.cc',
+                # 将用户上传的文件拷贝到target_dir中，并直接命名为 controller.cc，避免覆盖
+                if not run_cmd(f'cp {parent_dir}/{task.algorithm}.cc {target_dir}/controller.cc',
                                f'{task.task_dir}/error.log', task):
-                    log(f"[ERROR] mv failed: {target_dir}/{task.algorithm}.cc -> controller.cc")
+                    log(f"[ERROR] cp failed: {parent_dir}/{task.algorithm}.cc -> {target_dir}")
                     task.update(task_status='error')
                     return
                 # 2. 编译并创建trace文件夹
