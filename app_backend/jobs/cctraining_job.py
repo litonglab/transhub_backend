@@ -54,6 +54,7 @@ def run_cc_training_task(task_id):
             with lock:
                 # 如果上锁就等待
                 # 1. 将用户目录下的文件拷贝到用户目录对应的cc-training目录下
+                task.update(task_status='compling')
                 cc_training_dir = user.get_competition_project_dir(task.cname)
                 target_dir = cc_training_dir + "/datagrump"
                 log(f"[INFO] cc_training_dir: {cc_training_dir}, target_dir: {target_dir}")
