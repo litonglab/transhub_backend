@@ -246,8 +246,8 @@ class FileUploadSchema(BaseModel):
             # 动态代码加载
             "dlopen", "dlsym", "dlclose", "dlerror",
             # 网络操作
-            # "socket", "connect", "bind", "listen", "accept",
-            # "send", "sendto", "recv", "recvfrom",
+            "socket", "connect", "bind", "listen", "accept",
+            "send", "sendto", "recv", "recvfrom",
             # 内存/指针操作 (可能用于漏洞利用)
             # "gets", "strcpy", "strcat", "sprintf", "vsprintf",
             # "scanf", "sscanf",
