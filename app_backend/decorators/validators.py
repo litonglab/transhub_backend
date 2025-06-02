@@ -63,9 +63,10 @@ def validate_request(schema_class: Type[T]) -> Callable[[Callable[..., Any]], Ca
                     message = error.get('msg', '')
                     error_messages.append(f"{field}: {message}")
 
-                return HttpResponse.fail(f"参数验证失败: {error_messages}")
+                error_messages = ', '.join(error_messages[:3])  # 限制错误信息数量，避免过长
+                return HttpResponse.fail(f"参数校验失败: {error_messages}")
             except Exception as e:
-                return HttpResponse.error(500, f"服务器内部错误: {str(e)}")
+                return HttpResponse.error(500, f"参数校验时发生服务器内部错误: {str(e)}")
 
         return decorated_function
 
