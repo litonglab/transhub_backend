@@ -2,14 +2,15 @@ import logging
 import os
 import secrets
 import threading
+from http.client import HTTPException
 
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template
 from flask_cors import CORS
 from flask_redis import FlaskRedis
 from flask_sqlalchemy import SQLAlchemy
-from werkzeug.exceptions import HTTPException
 
 from app_backend.config import USER_DIR_PATH, BASEDIR, ALL_CLASS_PATH
+from app_backend.vo import HttpResponse
 
 # Initialize extensions
 redis_client = FlaskRedis()
@@ -136,7 +137,6 @@ def get_app():
         # Handle 404 errors by serving frontend
         @app.errorhandler(404)
         def handle_404(error):
-            logger.debug(f'404 handler triggered: {error}')
             return render_template("index.html")
     else:
         app = Flask(__name__)
@@ -267,21 +267,12 @@ def _configure_error_handlers(app):
 
     def handle_http_exception(e):
         """Handle HTTP exceptions with JSON response."""
-        response = e.get_response()
-        response.data = jsonify({
-            "code": e.code,
-            "message": e.description
-        }).data
-        response.content_type = "application/json"
-        return response
+        return HttpResponse.error(e.code, e.description)
 
     def handle_exception(e):
         """Handle general exceptions with JSON response."""
         logger.error(f'Unhandled exception: {e}', exc_info=True)
-        return jsonify({
-            "code": 500,
-            "message": "Internal server error"
-        }), 500
+        return HttpResponse.error(500, "Internal Server Error")
 
     app.register_error_handler(HTTPException, handle_http_exception)
     app.register_error_handler(Exception, handle_exception)

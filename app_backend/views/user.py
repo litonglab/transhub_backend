@@ -1,14 +1,17 @@
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 
-from flask import Blueprint, request, make_response, copy_current_request_context
+from flask import Blueprint, make_response, copy_current_request_context
 from flask_jwt_extended import create_access_token, set_access_cookies, unset_jwt_cookies, jwt_required, \
-    get_jwt_identity
+    get_jwt_identity, get_jwt
 
 from app_backend.config import cname_list
+from app_backend.decorators.validators import validate_request, get_validated_data
 from app_backend.model.Competition_model import Competition_model
 from app_backend.model.User_model import User_model
-from app_backend.vo.response import myResponse
+from app_backend.validators.schemas import UserLoginSchema, UserRegisterSchema, ChangePasswordSchema, \
+    UserChangeRealInfoSchema
+from app_backend.vo import HttpResponse
 
 # 创建线程池执行器
 executor = ThreadPoolExecutor(2)
@@ -17,29 +20,30 @@ user_bp = Blueprint('user', __name__)
 
 
 @user_bp.route('/user_login', methods=['POST'])
+@validate_request(UserLoginSchema)
 def user_login():
-    request_data = request.json or request.form
-    username = request_data['username']
-    password = request_data['password']
-    cname = request_data.get('cname')  # 假设前端传了cname
+    data = get_validated_data(UserLoginSchema)
+    username = data.username
+    password = data.password
+    cname = data.cname
+
     user = User_model.query.filter_by(username=username, password=password).first()
     if not user:
-        return myResponse(400, "User not found or Username error or Password error.")
+        return HttpResponse.fail("User not found or Username error or Password error.")
     # 参赛
     # 检测用户是否已经参加了比赛
     # 判断cname是否存在配置文件中
     if cname not in cname_list:
-        return myResponse(400, "Competition not found or cname error.")
+        return HttpResponse.fail("Competition not found or cname error.")
     if Competition_model.query.filter_by(user_id=user.user_id, cname=cname).first():
         # 生成带自定义内容的JWT
         additional_claims = {"cname": cname}
         access_token = create_access_token(identity=user.user_id, additional_claims=additional_claims)
-        resp = make_response(myResponse(200, "Login success.", user_id=user.user_id))
+        resp = make_response(HttpResponse.ok(user_id=user.user_id))
         set_access_cookies(resp, access_token)
         return resp
     else:
         # 异步调用参赛函数，为用户报名
-        # user.paticapate_competition(cname)
         # 用 copy_current_app_context 包装你的函数
         # todo: 加锁，用户频繁操作可能导致重复调用此函数
         @copy_current_request_context
@@ -47,68 +51,63 @@ def user_login():
             user.paticapate_competition(cname)
 
         executor.submit(async_paticapate)
-        message = "验证成功，欢迎参加【{}】课程，首次加入课程，系统后台需要为你创建项目工程，预计需要几分钟，请稍后再登录。\n如果长时间仍无法登录，请联系管理员。".format(
+        message = "同学你好，欢迎加入【{}】课程（比赛），首次加入课程，系统需要后台为你创建项目工程，预计需要一分钟，请稍后再登录。\n如果长时间仍无法登录，请联系管理员。".format(
             cname)
-        return myResponse(201, message)
+        return HttpResponse.error(201, message)
 
 
-@user_bp.route('/user_logout', methods=['POST'])
+@user_bp.route('/user_logout', methods=['GET'])
 def user_logout():
-    resp = make_response(myResponse(200, "Logout success."))
+    resp = make_response(HttpResponse.ok())
     unset_jwt_cookies(resp)
     return resp
 
 
 @user_bp.route('/user_register', methods=['POST'])
+@validate_request(UserRegisterSchema)
 def user_register():
     try:
-        request_data = request.json
-        username = request_data['username']
-        password = request_data['password']
-        if len(username) < 4 or len(username) > 16:
-            return myResponse(400, "Username must be 4-16 characters long.")
-        if len(password) < 6 or len(password) > 18:
-            return myResponse(400, "Password must be 6-18 characters long.")
-        real_name = request_data['real_name']
-        sno = request_data['sno']
+        data = get_validated_data(UserRegisterSchema)
+        username = data.username
+        password = data.password
+        real_name = data.real_name
+        sno = data.sno
+
         # 检测username，real_name,sno是否已经存在
         user = User_model.query.filter_by(real_name=real_name, sno=sno).first()
         if user:
-            return myResponse(400, "User already exists.")
+            return HttpResponse.fail("User already exists.")
         user = User_model(username=username, password=password, real_name=real_name, sno=sno)
         if user.is_exist():
-            return myResponse(400, "User already exists.")
+            return HttpResponse.fail("User already exists.")
         elif user.is_null_info():
-            return myResponse(400, "Information is not complete.")
-        elif not str(sno).isdecimal() or len(sno) != 10:
-            return myResponse(400, "Please input correct student number(10 numbers)!")
+            return HttpResponse.fail("Information is not complete.")
         else:
             user_id = str(uuid.uuid1())
             user.user_id = user_id
             user.save()
-            return myResponse(200, "Register success.", user_id=user_id)
+            return HttpResponse.ok("Register success.", user_id=user_id)
     except Exception as e:
         print("register occur error: {}".format(e))
-        return myResponse(500, "Register failed.")
+        return HttpResponse.error(500, "Register failed.")
 
 
 @user_bp.route("/user_change_password", methods=['POST'])
 @jwt_required()
+@validate_request(ChangePasswordSchema)
 def change_password():
-    user_id = get_jwt_identity()
-    request_data = request.json or request.form
-    user_id = request_data['user_id']
-    old_pwd = request_data['oldpwd']
-    new_pwd = request_data['new_pwd']
-    if len(new_pwd) < 6 or len(new_pwd) > 18:
-        return myResponse(400, "New passward must be 6-18 characters long.")
+    data = get_validated_data(ChangePasswordSchema)
+    user_id = data.user_id
+    old_pwd = data.oldpwd
+    new_pwd = data.new_pwd
+
     user = User_model.query.filter_by(user_id=user_id, password=old_pwd).first()
     if not user:
-        return myResponse(400, "Password error.")
+        return HttpResponse.fail("Password error.")
 
     user.password = new_pwd
     user.save()
-    return myResponse(200, "Change password success.")
+    return HttpResponse.ok("Change password success.")
 
 
 @user_bp.route("/user_get_real_info", methods=["POST"])
@@ -116,20 +115,25 @@ def change_password():
 def return_real_info():
     user_id = get_jwt_identity()
     user = User_model.query.filter_by(user_id=user_id).first()
-    real_info = {"real_name": user.real_name,
+    real_info = {"cname": get_jwt().get('cname'),
+                 "real_name": user.real_name,
                  "sno": user.sno}
-    return myResponse(200, "Get real info success.", real_info=real_info)
+    return HttpResponse.ok("Get real info success.", real_info=real_info)
 
-# @user_bp.route("/user_set_real_info", methods=["POST"])
-# @jwt_required()
-# def change_real_info():
-#     user_id = get_jwt_identity()
-#     real_name = request.json['real_name']
-#     sno = request.json['sno']
-#     user = User_model.query.filter_by(user_id=user_id).first()
-#     if not user:
-#         return myResponse(400, "User not found.")
-#     if not real_name or not sno:
-#         return myResponse(400, "Real info need to be provided completely.")
-#     user.update_real_info(real_name, sno)
-#     return myResponse(200, "Set real info success.")
+
+@user_bp.route("/user_check_login", methods=["GET"])
+@jwt_required()
+def check_login():
+    return HttpResponse.ok()
+
+
+@user_bp.route("/user_set_real_info", methods=["POST"])
+@jwt_required()
+@validate_request(UserChangeRealInfoSchema)
+def change_real_info():
+    user_id = get_jwt_identity()
+    data = get_validated_data(UserChangeRealInfoSchema)
+    real_name = data.real_name
+    user = User_model.query.filter_by(user_id=user_id).first()
+    user.update_real_info(real_name)
+    return HttpResponse.ok("Set real info success.")
