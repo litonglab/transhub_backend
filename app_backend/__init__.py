@@ -2,12 +2,12 @@ import logging
 import os
 import secrets
 import threading
-from http.client import HTTPException
 
 from flask import Flask, render_template
 from flask_cors import CORS
 from flask_redis import FlaskRedis
 from flask_sqlalchemy import SQLAlchemy
+from werkzeug.exceptions import HTTPException
 
 from app_backend.config import USER_DIR_PATH, BASEDIR, ALL_CLASS_PATH
 from app_backend.vo import HttpResponse
@@ -271,7 +271,7 @@ def _configure_error_handlers(app):
 
     def handle_exception(e):
         """Handle general exceptions with JSON response."""
-        logger.error(f'Unhandled exception: {e}', exc_info=True)
+        logger.error(f'The Unhandled exception details: {e}', exc_info=True)
         return HttpResponse.error(500, "Internal Server Error")
 
     app.register_error_handler(HTTPException, handle_http_exception)
