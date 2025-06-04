@@ -3,7 +3,7 @@ import os
 from sqlalchemy.dialects.mysql import VARCHAR
 
 from app_backend import db
-from app_backend.config import USER_DIR_PATH, ALL_CLASS_PATH, ALL_CLASS
+from app_backend.config import USER_DIR_PATH, ALL_CLASS
 from app_backend.model.Competition_model import Competition_model
 
 
@@ -27,10 +27,11 @@ class User_model(db.Model):
         :param cname:
         :return: 可以直接使用的全局路径
         """
-        dir = USER_DIR_PATH + "/" + self.username + "_" + self.sno + "/" + ALL_CLASS[cname]
-        if not os.path.exists(dir):
-            os.makedirs(dir)
-        return dir
+        _dir = os.path.join(USER_DIR_PATH, self.username + "_" + self.sno, ALL_CLASS[cname]["name"])
+        # USER_DIR_PATH + "/" + self.username + "_" + self.sno + "/" + ALL_CLASS_new[cname]["name"]
+        if not os.path.exists(_dir):
+            os.makedirs(_dir)
+        return _dir
 
     def save_file_to_user_dir(self, file, cname, nowtime):
         user_dir = self.get_user_dir(cname)
@@ -68,7 +69,7 @@ class User_model(db.Model):
         else:
             com = Competition_model(user_id=self.user_id, cname=cname)
             # 2. get competition dir and workdir
-            com_dir = ALL_CLASS_PATH[cname]
+            com_dir = ALL_CLASS[cname]["path"]
             work_dir = self.get_competition_project_dir(cname)  # 用户目录下的竞赛目录下的竞赛文件目录
             if not os.path.exists(work_dir):
                 os.makedirs(work_dir)

@@ -9,18 +9,19 @@ from dramatiq.middleware import TimeLimit
 from redis import Redis
 from redis.lock import Lock
 
-from app_backend import db
+from app_backend import db, ALL_CLASS
 from app_backend import get_app
-from app_backend.config import get_config_by_cname
+from app_backend.config import REDIS_CONFIG
 from app_backend.model.Rank_model import Rank_model
 from app_backend.model.Task_model import Task_model
 from app_backend.model.User_model import User_model
 from app_backend.model.graph_model import graph_model
 from app_backend.utils import get_available_port, release_port
 
-redis_broker = RedisBroker(url="redis://localhost:6379/0")
+redis_broker = RedisBroker(
+    url=f"redis://{REDIS_CONFIG['REDIS_ADDRESS']}:{REDIS_CONFIG['REDIS_PORT']}/{REDIS_CONFIG['REDIS_DB']}")
 redis_broker.add_middleware(TimeLimit())
-redis_client = Redis(host='localhost', port=6379, db=0)
+redis_client = Redis(host=REDIS_CONFIG['REDIS_ADDRESS'], port=REDIS_CONFIG['REDIS_PORT'], db=REDIS_CONFIG['REDIS_DB'])
 dramatiq.set_broker(redis_broker)
 
 
@@ -103,10 +104,10 @@ def run_cc_training_task(task_id):
                 running_port = get_available_port()
                 log(f"[INFO] select port {running_port} for running {task.task_id}")
                 task.update(task_status='running')
-                config = get_config_by_cname(task.cname)
+                config = ALL_CLASS[task.cname]
                 loss_rate = task.loss_rate
-                uplink_dir = config.uplink_dir
-                downlink_dir = config.downlink_dir
+                uplink_dir = config['uplink_dir']
+                downlink_dir = config['downlink_dir']
                 # 遍历所有的trace文件，执行
                 uplink_file = uplink_dir + "/" + task.trace_name + ".up"
                 downlink_file = downlink_dir + "/" + task.trace_name + ".down"

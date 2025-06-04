@@ -1,49 +1,121 @@
-BASEDIR = "/mnt/mac/Users/zjx/Documents/workspace/transhub_backend/project/Transhub_data"
+import os
 
-ALL_CLASS = {"计算机系统基础II": "pantheon-ics", "计算机网络": "pantheon-network",
-             "校内赛计算机网络赛道": "pantheon-competition"}
+# 以下配置由管理员填写
+# ===admin config start.===
+BASEDIR = "/Users/zjx/Documents/code/my/transhub_backend/project/Transhub_data"
 
-# 构建规则：{cname: BASEDIR+ALL_CLASS[cname]}
-ALL_CLASS_PATH = {cname: BASEDIR + "/" + ALL_CLASS[cname] for cname in ALL_CLASS.keys()}
-cname_list = [cname for cname, path in ALL_CLASS.items()]
-
-USER_DIR_PATH = BASEDIR + "/user_data"
-DDLTIME = '2025-06-02-21-00-00'
-
-MYSQL_USERNAME = 'root'
-MYSQL_PASSWORD = '123456'
-MYSQL_ADDRESS = 'localhost:3306'
-MYSQL_DBNAME = 'transhub_base'
-
-
-class PantheonNetworkConfig:
-    cname = "计算机网络"
-    loss_rate = [0.0]
-    buffer_size = [20, 250]
-
-    zhinan_path = ALL_CLASS_PATH[cname] + "/help/zhinan.md"
-    downlink_dir = ALL_CLASS_PATH[cname] + "/test_data/downlink"
-    uplink_dir = ALL_CLASS_PATH[cname] + "/test_data/uplink"
-    cca_guide_path = ALL_CLASS_PATH[cname] + "/help/cca_guide.docx"
-    user_guide_path = ALL_CLASS_PATH[cname] + "/help/user_guide.docx"
-
-
-class PantheonICSConfig:
-    cname = "计算机系统基础II"
-    loss_rate = [0.0]
-    buffer_size = [20, 250]
-
-    zhinan_path = ALL_CLASS_PATH[cname] + "/help/zhinan.md"
-    downlink_dir = ALL_CLASS_PATH[cname] + "/test_data/downlink"
-    uplink_dir = ALL_CLASS_PATH[cname] + "/test_data/uplink"
-    cca_guide_path = ALL_CLASS_PATH[cname] + "/help/cca_guide.docx"
-    user_guide_path = ALL_CLASS_PATH[cname] + "/help/user_guide.docx"
-
-
-def get_config_by_cname(cname):
-    config_map = {
-        "计算机系统基础II": PantheonICSConfig,
-        "计算机网络": PantheonNetworkConfig,
-        # "校内赛计算机网络赛道": PantheonCompetitionConfig
+ALL_CLASS = {
+    "计算机系统基础II": {
+        "name": "pantheon-ics",
+        "allow_login": True,
+        "start_time": "2024-09-01-00-00-00",
+        "end_time": "2025-06-04-21-00-00",
+        "loss_rate": [0.0],
+        "buffer_size": [20, 250],
+        # 以下字段由系统生成，无需填写
+        # ===system generated start.===
+        "path": "",  # 系统生成
+        "zhinan_path": "",  # 系统生成
+        "downlink_dir": "",  # 系统生成
+        "uplink_dir": "",  # 系统生成
+        "student_list": [],  # 系统生成
+        # "cca_guide_path": "",  # 系统生成，此字段暂未使用
+        # "user_guide_path": "",  # 系统生成，此字段暂未使用
+        # ===system generated end.===
+    },
+    "计算机网络": {
+        "name": "pantheon-network",
+        "allow_login": True,
+        "start_time": "2024-09-01-00-00-00",
+        "end_time": "2025-06-02-21-00-00",
+        "loss_rate": [0.0],
+        "buffer_size": [20, 250],
+        # 以下字段由系统生成，无需填写
+        # ===system generated start.===
+        "path": "",  # 系统生成
+        "zhinan_path": "",  # 系统生成
+        "downlink_dir": "",  # 系统生成
+        "uplink_dir": "",  # 系统生成
+        "student_list": [],  # 系统生成
+        # "cca_guide_path": "",  # 系统生成，此字段暂未使用
+        # "user_guide_path": "",  # 系统生成，此字段暂未使用
+        # ===system generated end.===
+    },
+    "校内赛计算机网络赛道": {
+        "name": "pantheon-competition",
+        "allow_login": False,
+        "start_time": "2024-09-01-00-00-00",
+        "end_time": "2025-06-02-21-00-00",
+        "loss_rate": [0.0],
+        "buffer_size": [20, 250],
+        # 以下字段由系统生成，无需填写
+        # ===system generated start.===
+        "path": "",  # 系统生成
+        "zhinan_path": "",  # 系统生成
+        "downlink_dir": "",  # 系统生成
+        "uplink_dir": "",  # 系统生成
+        "student_list": [],  # 系统生成
+        # "cca_guide_path": "",  # 系统生成，此字段暂未使用
+        # "user_guide_path": "",  # 系统生成，此字段暂未使用
+        # ===system generated end.===
     }
-    return config_map.get(cname, None)
+}
+
+MYSQL_CONFIG = {
+    "MYSQL_USERNAME": 'root',
+    "MYSQL_PASSWORD": '123456',
+    "MYSQL_ADDRESS": 'localhost:3306',
+    "MYSQL_DBNAME": 'transhub_base',
+}
+
+REDIS_CONFIG = {
+    "REDIS_ADDRESS": 'localhost',
+    "REDIS_PORT": 6379,
+    "REDIS_DB": 0,
+}
+
+JWT_CONFIG = {
+    # JWT密钥，JWT密钥长度 ≥ 32字节
+    # JWT密钥泄露会导致安全问题（可通过伪造token登录任意用户），请妥善保管。
+    # 建议配置为None，自动生成一个随机密钥，避免泄露。
+    "JWT_SECRET_KEY": None,  # JWT密钥，配置为None时会自动生成一个随机密钥
+    "JWT_ACCESS_TOKEN_EXPIRES": 60 * 60 * 24 * 3,  # JWT访问令牌过期时间，单位为秒（3天）
+}
+# ===admin config end.===
+
+# 以下配置由系统生成
+# ===system generated start.===
+CNAME_LIST = list(ALL_CLASS.keys())
+USER_DIR_PATH = os.path.join(BASEDIR, "user_data")
+REGISTER_STUDENT_LIST = set()
+
+
+def fill_class_config():
+    """
+    Fill the config with paths based on the cname.
+    """
+    for cname, config in ALL_CLASS.items():
+        config["path"] = os.path.join(BASEDIR, config["name"])
+        config["zhinan_path"] = os.path.join(config["path"], 'help', 'zhinan.md')
+        config["downlink_dir"] = os.path.join(config["path"], 'test_data', 'downlink')
+        config["uplink_dir"] = os.path.join(config["path"], 'test_data', 'uplink')
+        # config["cca_guide_path"] = config["path"] + "/help/cca_guide.docx"  # 暂未使用
+        # config["user_guide_path"] = config["path"] + "/help/user_guide.docx"  # 暂未使用
+        student_list_path = os.path.join(config["path"], 'student_list.txt')
+        if os.path.exists(student_list_path):
+            with open(student_list_path, 'r') as f:
+                config["student_list"] = [line.strip() for line in f if line.strip()]
+                # 将学生列表加到可注册学号列表集合中
+                REGISTER_STUDENT_LIST.update(config["student_list"])
+                print(f"Loaded student list for {cname}: {config['student_list']}")
+                print(f"Total students in {cname}: {len(config['student_list'])}")
+                print(f"register student list: {REGISTER_STUDENT_LIST}")
+                print(f"length of register student list: {len(REGISTER_STUDENT_LIST)}")
+                if "111" in config["student_list"]:
+                    print("111 is in student list, this is a test student")
+                if "111" in REGISTER_STUDENT_LIST:
+                    print("111 is in register student list, this is a test student")
+
+
+fill_class_config()
+# ===system generated end.===

@@ -9,7 +9,7 @@ from flask_redis import FlaskRedis
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.exceptions import HTTPException
 
-from app_backend.config import USER_DIR_PATH, BASEDIR, ALL_CLASS_PATH
+from app_backend.config import USER_DIR_PATH, BASEDIR, ALL_CLASS
 from app_backend.vo import HttpResponse
 
 # Initialize extensions
@@ -76,7 +76,8 @@ def make_dir():
             logger.info(f'Created {dir_name}: {dir_path}')
 
     # Create class-specific directories
-    for name, dir_path in ALL_CLASS_PATH.items():
+    for name, _config in ALL_CLASS.items():
+        dir_path = _config['path']
         if not os.path.exists(dir_path):
             os.makedirs(dir_path, exist_ok=True)
             logger.info(f'Created class directory for {name}: {dir_path}')
@@ -96,9 +97,9 @@ def _configure_database(app):
     """Configure database connection."""
     # Build database URI
     db_uri = (
-        f"mysql+pymysql://{app.config['MYSQL_USERNAME']}:"
-        f"{app.config['MYSQL_PASSWORD']}@{app.config['MYSQL_ADDRESS']}/"
-        f"{app.config['MYSQL_DBNAME']}"
+        f"mysql+pymysql://{app.config['MYSQL_CONFIG']['MYSQL_USERNAME']}:"
+        f"{app.config['MYSQL_CONFIG']['MYSQL_PASSWORD']}@{app.config['MYSQL_CONFIG']['MYSQL_ADDRESS']}/"
+        f"{app.config['MYSQL_CONFIG']['MYSQL_DBNAME']}"
     )
     app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # Disable to save resources

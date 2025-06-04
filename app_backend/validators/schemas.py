@@ -6,7 +6,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-from app_backend.config import cname_list
+from app_backend import ALL_CLASS
+from app_backend.config import CNAME_LIST, REGISTER_STUDENT_LIST
 
 
 class UserLoginSchema(BaseModel):
@@ -29,8 +30,10 @@ class UserLoginSchema(BaseModel):
 
     @field_validator('cname')
     def validate_cname(cls, v):
-        if v not in cname_list:
-            raise ValueError(f'比赛名称必须是以下之一: {", ".join(cname_list)}')
+        if v not in CNAME_LIST:
+            raise ValueError(f'比赛名称必须是以下之一: {", ".join(CNAME_LIST)}')
+        if ALL_CLASS[v]['allow_login'] is False:
+            raise ValueError(f'{v}：此课程（比赛）暂未开放登录')
         return v
 
 
@@ -65,20 +68,9 @@ class UserRegisterSchema(BaseModel):
             raise ValueError('学号必须是10位数字')
         if len(v) != 10:
             raise ValueError('学号必须是10位数字')
-        # 读取student_list.txt文件，文件每行是一个学号，表示允许注册的学号，如果学号不在列表中，则抛出异常
-        cls._validate_user_in_student_list(v)
-        return v
-
-    @classmethod
-    def _validate_user_in_student_list(cls, sno: str):
-        """
-        验证用户是否在允许注册的学号列表中
-        """
-        with open('app_backend/validators/student_list.txt', 'r') as f:
-            allowed_snos = {line.strip() for line in f if line.strip()}
-
-        if len(allowed_snos) > 0 and sno not in allowed_snos:
+        if len(REGISTER_STUDENT_LIST) > 0 and v not in REGISTER_STUDENT_LIST:
             raise ValueError('该学号不在允许注册的名单中，请确认你已选课或报名竞赛。')
+        return v
 
 
 class ChangePasswordSchema(BaseModel):

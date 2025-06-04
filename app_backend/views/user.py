@@ -5,7 +5,8 @@ from flask import Blueprint, make_response, copy_current_request_context
 from flask_jwt_extended import create_access_token, set_access_cookies, unset_jwt_cookies, jwt_required, \
     get_jwt_identity, get_jwt
 
-from app_backend.config import cname_list
+from app_backend import ALL_CLASS
+from app_backend.config import CNAME_LIST
 from app_backend.decorators.validators import validate_request, get_validated_data
 from app_backend.model.Competition_model import Competition_model
 from app_backend.model.User_model import User_model
@@ -33,8 +34,12 @@ def user_login():
     # 参赛
     # 检测用户是否已经参加了比赛
     # 判断cname是否存在配置文件中
-    if cname not in cname_list:
+    if cname not in CNAME_LIST:
         return HttpResponse.fail("Competition not found or cname error.")
+
+    class_student_list = ALL_CLASS[cname]['student_list']
+    if len(class_student_list) > 0 and user.sno not in class_student_list:
+        return HttpResponse.fail("该学号不在此课程（比赛）的名单中，请确认你已选课或报名竞赛。")
     if Competition_model.query.filter_by(user_id=user.user_id, cname=cname).first():
         # 生成带自定义内容的JWT
         additional_claims = {"cname": cname}

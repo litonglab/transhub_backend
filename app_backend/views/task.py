@@ -6,8 +6,7 @@ from datetime import datetime
 from flask import Blueprint
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 
-from app_backend.config import DDLTIME
-from app_backend.config import get_config_by_cname
+from app_backend import ALL_CLASS
 from app_backend.decorators.validators import validate_request, get_validated_data
 from app_backend.jobs.cctraining_job import enqueue_cc_task
 from app_backend.model.Task_model import Task_model
@@ -25,9 +24,15 @@ task_bp = Blueprint('task', __name__)
 @jwt_required()
 @validate_request(FileUploadSchema)
 def upload_project_file():
-    ddl_time = time.mktime(time.strptime(DDLTIME, "%Y-%m-%d-%H-%M-%S"))
-    if time.time() > ddl_time:
-        return HttpResponse.fail("The competition has ended.")
+    cname = get_jwt().get('cname')
+    config = ALL_CLASS[cname]
+    start_time = time.mktime(time.strptime(config['start_time'], "%Y-%m-%d-%H-%M-%S"))
+    ddl_time = time.mktime(time.strptime(config['end_time'], "%Y-%m-%d-%H-%M-%S"))
+    now_time = time.time()
+    # 检查当前时间是否在比赛时间范围内
+    if not (start_time <= now_time <= ddl_time):
+        return HttpResponse.fail(f"Current time is not within the competition period. "
+                                 f"Competition starts at {config['start_time']} and ends at {config['end_time']}.")
 
     # 获取验证后的数据
     data = get_validated_data(FileUploadSchema)
@@ -35,9 +40,7 @@ def upload_project_file():
     user_id = get_jwt_identity()  # 用户id
     # 从token中获取cname
     cname = get_jwt().get('cname')
-    config = get_config_by_cname(cname)
-    if not config:
-        return HttpResponse.fail("No such competition.")
+    config = ALL_CLASS[cname]
 
     # 文件已经通过 Pydantic 验证，直接获取文件信息
     filename = file.filename
@@ -53,14 +56,14 @@ def upload_project_file():
     # 构建task,按trace和env构建多个task
     task_ids = []
 
-    uplink_dir = config.uplink_dir
+    uplink_dir = config['uplink_dir']
     enqueue_results = []  # 收集所有入队结果
     failed_tasks = []  # 记录失败的任务
 
     for trace_file in os.listdir(uplink_dir):
         trace_name = trace_file[:-3]
-        for loss in config.loss_rate:
-            for buffer_size in config.buffer_size:
+        for loss in config['loss_rate']:
+            for buffer_size in config['buffer_size']:
                 task_id = str(uuid.uuid1())
                 task = Task_model(task_id=task_id, user_id=user_id, task_status='queued', task_score=0,
                                   created_time=now.strftime("%Y-%m-%d-%H-%M-%S"), cname=cname,

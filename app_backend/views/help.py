@@ -1,7 +1,10 @@
+import time
+
 from flask import send_file, Blueprint
 from flask_jwt_extended import jwt_required, get_jwt
 
-from app_backend.config import get_config_by_cname, cname_list
+from app_backend import ALL_CLASS
+from app_backend.config import CNAME_LIST
 from app_backend.vo import HttpResponse
 
 help_bp = Blueprint('help', __name__)
@@ -29,9 +32,9 @@ help_bp = Blueprint('help', __name__)
 @jwt_required()
 def return_zhinan():
     cname = get_jwt().get('cname')
-    config = get_config_by_cname(cname)
+    config = ALL_CLASS[cname]
     if config:
-        return send_file(config.zhinan_path, as_attachment=True)
+        return send_file(config['zhinan_path'], as_attachment=True)
         # return send_file(config.zhinan_path, mimetype="application/pdf")
     else:
         return HttpResponse.fail("No such tutorial!")
@@ -39,4 +42,16 @@ def return_zhinan():
 
 @help_bp.route('/help_get_pantheon', methods=["GET"])
 def return_pantheon():
-    return HttpResponse.ok(pantheon=cname_list)
+    return HttpResponse.ok(pantheon=CNAME_LIST)
+
+
+@help_bp.route("/help_get_competition_time", methods=["GET"])
+@jwt_required()
+def return_competition_time():
+    """ Returns the start and end time of the competition for the current user.
+    """
+    cname = get_jwt().get('cname')
+    config = ALL_CLASS[cname]
+    time_stmp = [int(time.mktime(time.strptime(config['start_time'], "%Y-%m-%d-%H-%M-%S"))),
+                 int(time.mktime(time.strptime(config['end_time'], "%Y-%m-%d-%H-%M-%S")))]
+    return HttpResponse.ok(data=time_stmp)
