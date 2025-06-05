@@ -1,10 +1,12 @@
-import os
 import logging
+import os
 
-from app_backend import db
 from sqlalchemy.dialects.mysql import VARCHAR
 
+from app_backend import db
+
 logger = logging.getLogger(__name__)
+
 
 class Task_model(db.Model):
     __tablename__ = 'task'
@@ -66,7 +68,7 @@ class Task_model(db.Model):
                 'task_score': self.task_score,
                 'cname': self.cname,
                 'algorithm': self.algorithm,
-                'log':"success"
+                'log': "success"
             }
             return res
 
@@ -83,7 +85,7 @@ class Task_model(db.Model):
                 'task_score': 0,
                 'cname': self.cname,
                 'algorithm': self.algorithm,
-                'log':"running"
+                'log': "running"
             }
             return res
         elif self.task_status == 'error':
@@ -92,10 +94,9 @@ class Task_model(db.Model):
             if os.path.exists(logpath):
                 with open(logpath, 'r') as f:
                     log_content = f.read()
-                logger.error(f"Task {self.task_id} error log: {log_content}")
             else:
-                logger.warning(f"Error log file not found for task {self.task_id} at {logpath}")
-                
+                logger.error(f"Error log file not found for task {self.task_id} at {logpath}")
+
             res = {
                 'user_id': self.user_id,
                 'task_id': self.task_id,
@@ -130,7 +131,7 @@ class Task_model(db.Model):
 
 
 def to_history_dict(tasks: list):
-    #将tasks按upload_id聚合,score求和。如果status有一个是error，则整体status是error，score是0，如果有一个是running，则整体是running，score是当前的score，否则是finished，score是求和的score
+    # 将tasks按upload_id聚合,score求和。如果status有一个是error，则整体status是error，score是0，如果有一个是running，则整体是running，score是当前的score，否则是finished，score是求和的score
     res = []
     upload_id_set = set()
 
@@ -159,4 +160,3 @@ def to_history_dict(tasks: list):
                         r['score'] += task.task_score
 
     return res
-
