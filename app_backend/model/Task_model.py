@@ -1,7 +1,10 @@
 import os
+import logging
 
 from app_backend import db
 from sqlalchemy.dialects.mysql import VARCHAR
+
+logger = logging.getLogger(__name__)
 
 class Task_model(db.Model):
     __tablename__ = 'task'
@@ -24,22 +27,29 @@ class Task_model(db.Model):
         return f'<Task {self.task_id}>'
 
     def save(self):
+        logger.debug(f"Saving task {self.task_id} for user {self.user_id}")
         db.session.add(self)
         db.session.commit()
+        logger.info(f"Task {self.task_id} saved successfully")
 
     def update(self, **kwargs):
+        logger.debug(f"Updating task {self.task_id} with parameters: {kwargs}")
         try:
             with db.session.begin_nested():
                 for key, value in kwargs.items():
                     setattr(self, key, value)
                 db.session.commit()
+            logger.info(f"Task {self.task_id} updated successfully")
         except Exception as e:
+            logger.error(f"Error updating task {self.task_id}: {str(e)}", exc_info=True)
             db.session.rollback()
             raise e
 
     def delete(self):
+        logger.info(f"Deleting task {self.task_id}")
         db.session.delete(self)
         db.session.commit()
+        logger.info(f"Task {self.task_id} deleted successfully")
 
     def to_detail_dict(self):
 
@@ -82,6 +92,10 @@ class Task_model(db.Model):
             if os.path.exists(logpath):
                 with open(logpath, 'r') as f:
                     log_content = f.read()
+                logger.error(f"Task {self.task_id} error log: {log_content}")
+            else:
+                logger.warning(f"Error log file not found for task {self.task_id} at {logpath}")
+                
             res = {
                 'user_id': self.user_id,
                 'task_id': self.task_id,
