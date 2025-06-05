@@ -1,7 +1,7 @@
-import logging
 import os
 import secrets
 import threading
+from logging import getLogger
 
 from flask import Flask, render_template
 from flask_cors import CORS
@@ -10,6 +10,7 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.exceptions import HTTPException
 
 from app_backend.config import USER_DIR_PATH, BASEDIR, ALL_CLASS
+from app_backend.utils.utils import setup_logger
 from app_backend.vo import HttpResponse
 
 # Initialize extensions
@@ -17,11 +18,8 @@ redis_client = FlaskRedis()
 db = SQLAlchemy()
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+setup_logger()
+logger = getLogger(__name__)
 
 # Global app instance and lock for singleton pattern
 _app_instance = None

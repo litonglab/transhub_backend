@@ -14,3 +14,4 @@ dramatiq~=1.17.0
 SQLAlchemy~=2.0.41
 Flask-JWT-Extended~=4.7.1
 pydantic~=2.11.5
+concurrent-log-handler==0.9.26

@@ -61,6 +61,14 @@ ALL_CLASS = {
     }
 }
 
+LOG_CONFIG = {
+    "LOG_DIR": os.path.join(BASEDIR, "logs"),  # 日志文件目录
+    "LOG_LEVEL": "INFO",  # 日志级别
+    "LOG_MAX_BYTES": 10 * 1024 * 1024,  # 单个日志文件最大大小（10MB）
+    "LOG_BACKUP_COUNT": 5,  # 保留的日志文件数量
+    "LOG_FILENAME": "app.log",  # 日志文件名
+}
+
 MYSQL_CONFIG = {
     "MYSQL_USERNAME": 'root',
     "MYSQL_PASSWORD": '123456',
@@ -84,6 +92,7 @@ JWT_CONFIG = {
 # ===admin config end.===
 
 # 以下配置由系统生成
+# 由于循环导入，此模块不允许使用logger
 # ===system generated start.===
 CNAME_LIST = list(ALL_CLASS.keys())
 USER_DIR_PATH = os.path.join(BASEDIR, "user_data")
@@ -107,14 +116,6 @@ def fill_class_config():
                 config["student_list"] = [line.strip() for line in f if line.strip()]
                 # 将学生列表加到可注册学号列表集合中
                 REGISTER_STUDENT_LIST.update(config["student_list"])
-                print(f"Loaded student list for {cname}: {config['student_list']}")
-                print(f"Total students in {cname}: {len(config['student_list'])}")
-                print(f"register student list: {REGISTER_STUDENT_LIST}")
-                print(f"length of register student list: {len(REGISTER_STUDENT_LIST)}")
-                if "111" in config["student_list"]:
-                    print("111 is in student list, this is a test student")
-                if "111" in REGISTER_STUDENT_LIST:
-                    print("111 is in register student list, this is a test student")
 
 
 fill_class_config()
