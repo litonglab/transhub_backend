@@ -119,7 +119,7 @@ def setup_logger():
         },
         'root': {
             'level': LOG_CONFIG["LOG_LEVEL"],
-            'handlers': ['console', 'file']
+            'handlers': ['file']
         }
     }
     dictConfig(config)

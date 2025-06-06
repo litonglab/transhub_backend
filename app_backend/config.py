@@ -1,4 +1,6 @@
 import os
+import shlex
+import sys
 
 # 以下配置由管理员填写
 # ===admin config start.===
@@ -61,6 +63,17 @@ ALL_CLASS = {
     }
 }
 
+GUNICORN_CONFIG = {
+    "ADDRESS": "127.0.0.1:54321",  # Gunicorn监听地址和端口
+    "WORKERS": 4,  # Gunicorn工作进程数
+    "THREADS": 2,  # 每个工作进程的线程数
+}
+
+DRAMATIQ_CONFIG = {
+    "PROCESSES": 4,  # Dramatiq工作进程数
+    "THREADS": 2,  # 每个工作进程的线程数
+}
+
 LOG_CONFIG = {
     "LOG_DIR": os.path.join(BASEDIR, "logs"),  # 日志文件目录
     "LOG_LEVEL": "INFO",  # 日志级别
@@ -116,6 +129,30 @@ def fill_class_config():
                 config["student_list"] = [line.strip() for line in f if line.strip()]
                 # 将学生列表加到可注册学号列表集合中
                 REGISTER_STUDENT_LIST.update(config["student_list"])
+
+
+def export_config2env():
+    """
+    将配置导出为环境变量格式的字符串
+    """
+    sys.path.append('.')
+
+    # 安全格式化导出函数
+    def _safe_export(name, value):
+        return f'export {name}={shlex.quote(str(value))}'
+
+    # 格式化并输出所有导出命令
+    exports = [
+        _safe_export('BASEDIR', os.path.abspath(BASEDIR)),
+        _safe_export('LOG_DIR', os.path.abspath(LOG_CONFIG['LOG_DIR'])),
+        _safe_export('GUNICORN_ADDRESS', GUNICORN_CONFIG['ADDRESS']),
+        _safe_export('GUNICORN_WORKERS', GUNICORN_CONFIG['WORKERS']),
+        _safe_export('GUNICORN_THREADS', GUNICORN_CONFIG['THREADS']),
+        _safe_export('DRAMATIQ_PROCESSES', DRAMATIQ_CONFIG['PROCESSES']),
+        _safe_export('DRAMATIQ_THREADS', DRAMATIQ_CONFIG['THREADS'])
+    ]
+
+    print(';'.join(exports))
 
 
 fill_class_config()
