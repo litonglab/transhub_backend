@@ -23,20 +23,8 @@ class BaseConfig:
     class App:
         """应用基础配置"""
         NAME = _get_env_variable('APP_NAME')
-        # SECRET_KEY = os.getenv('SECRET_KEY') or secrets.token_hex(32)
-        # if os.getenv('SECRET_KEY') is None:
-        #     print("⚠️ SECRET_KEY 未设置，使用自动生成的密钥。请在生产环境中设置此变量以增强安全性。")
         BASEDIR = _get_env_variable('BASEDIR')
         USER_DIR_PATH = os.path.join(BASEDIR, "user_data")
-
-    # class Database:
-    #     """数据库配置"""
-    #     # MySQL 配置 - 开发环境使用开发数据库
-    #     MYSQL_USERNAME = _get_env_variable('MYSQL_USERNAME')
-    #     MYSQL_PASSWORD = _get_env_variable('MYSQL_PASSWORD')
-    #     MYSQL_ADDRESS = _get_env_variable('MYSQL_ADDRESS')
-    #     MYSQL_DBNAME = _get_env_variable('MYSQL_DBNAME')
-    #     SQLALCHEMY_DATABASE_URI = ""
 
     class Cache:
         """缓存配置"""
@@ -45,12 +33,6 @@ class BaseConfig:
 
     class Security:
         """安全配置"""
-        # JWT 配置 - 开发环境使用较短的过期时间便于测试
-        # JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY') or secrets.token_hex(32)
-        # if os.getenv('JWT_SECRET_KEY') is None:
-        #     print("⚠️ JWT_SECRET_KEY 未设置，使用自动生成的密钥。请在生产环境中设置此变量以增强安全性。")
-        # JWT_ACCESS_TOKEN_EXPIRES = int(_get_env_variable('JWT_ACCESS_TOKEN_EXPIRES'))
-
         # CORS 配置 - 开发环境允许所有来源
         CORS_ORIGINS = _get_env_variable('CORS_ORIGINS')
 
@@ -62,19 +44,6 @@ class BaseConfig:
         LOG_MAX_BYTES = int(_get_env_variable('LOG_MAX_BYTES'))
         LOG_BACKUP_COUNT = int(_get_env_variable('LOG_BACKUP_COUNT'))
         LOG_FILENAME = _get_env_variable('LOG_FILENAME')
-
-    # class Server:
-    #     """服务器配置"""
-    #     # 开发环境使用较少的进程
-    #     GUNICORN_ADDRESS = _get_env_variable('GUNICORN_ADDRESS')
-    #     GUNICORN_WORKERS = int(_get_env_variable('GUNICORN_WORKERS'))
-    #     GUNICORN_THREADS = int(_get_env_variable('GUNICORN_THREADS'))
-    #
-    # class TaskQueue:
-    #     """任务队列配置"""
-    #     # 开发环境使用较少的进程
-    #     DRAMATIQ_PROCESSES = int(_get_env_variable('DRAMATIQ_PROCESSES'))
-    #     DRAMATIQ_THREADS = int(_get_env_variable('DRAMATIQ_THREADS'))
 
     class Course:
         """课程配置，在对应的环境文件中定义"""
@@ -130,7 +99,4 @@ class BaseConfig:
         config_dict = _convert_to_dict(self)
 
         config_dict['Cache']['FLASK_REDIS_URL'] = '******'
-        # config_dict['Security']['JWT_SECRET_KEY'] = '******'  # 隐藏JWT密钥
-        # config_dict['App']['SECRET_KEY'] = '******'  # 隐藏应用密钥
-
         return config_dict
