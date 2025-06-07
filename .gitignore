@@ -7,3 +7,6 @@ packages/
 transhub/
 /app_frontend_dist/dist/
 /project/
+*.log
+*.pid
+*.pyc

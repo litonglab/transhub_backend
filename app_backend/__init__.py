@@ -1,15 +1,16 @@
-import logging
 import os
 import secrets
 import threading
-from http.client import HTTPException
+from logging import getLogger
 
 from flask import Flask, render_template
 from flask_cors import CORS
 from flask_redis import FlaskRedis
 from flask_sqlalchemy import SQLAlchemy
+from werkzeug.exceptions import HTTPException
 
-from app_backend.config import USER_DIR_PATH, BASEDIR, ALL_CLASS_PATH
+from app_backend.config import USER_DIR_PATH, BASEDIR, ALL_CLASS
+from app_backend.utils.utils import setup_logger
 from app_backend.vo import HttpResponse
 
 # Initialize extensions
@@ -17,11 +18,8 @@ redis_client = FlaskRedis()
 db = SQLAlchemy()
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+setup_logger()
+logger = getLogger(__name__)
 
 # Global app instance and lock for singleton pattern
 _app_instance = None
@@ -76,7 +74,8 @@ def make_dir():
             logger.info(f'Created {dir_name}: {dir_path}')
 
     # Create class-specific directories
-    for name, dir_path in ALL_CLASS_PATH.items():
+    for name, _config in ALL_CLASS.items():
+        dir_path = _config['path']
         if not os.path.exists(dir_path):
             os.makedirs(dir_path, exist_ok=True)
             logger.info(f'Created class directory for {name}: {dir_path}')
@@ -96,9 +95,9 @@ def _configure_database(app):
     """Configure database connection."""
     # Build database URI
     db_uri = (
-        f"mysql+pymysql://{app.config['MYSQL_USERNAME']}:"
-        f"{app.config['MYSQL_PASSWORD']}@{app.config['MYSQL_ADDRESS']}/"
-        f"{app.config['MYSQL_DBNAME']}"
+        f"mysql+pymysql://{app.config['MYSQL_CONFIG']['MYSQL_USERNAME']}:"
+        f"{app.config['MYSQL_CONFIG']['MYSQL_PASSWORD']}@{app.config['MYSQL_CONFIG']['MYSQL_ADDRESS']}/"
+        f"{app.config['MYSQL_CONFIG']['MYSQL_DBNAME']}"
     )
     app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # Disable to save resources
@@ -271,7 +270,7 @@ def _configure_error_handlers(app):
 
     def handle_exception(e):
         """Handle general exceptions with JSON response."""
-        logger.error(f'Unhandled exception: {e}', exc_info=True)
+        logger.error(f'The Unhandled exception details: {e}', exc_info=True)
         return HttpResponse.error(500, "Internal Server Error")
 
     app.register_error_handler(HTTPException, handle_http_exception)

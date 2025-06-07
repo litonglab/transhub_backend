@@ -1,10 +1,15 @@
-from flask import send_file, Blueprint
+import time
+import logging
+
+from flask import send_file, Blueprint, current_app
 from flask_jwt_extended import jwt_required, get_jwt
 
-from app_backend.config import get_config_by_cname, cname_list
+from app_backend import ALL_CLASS
+from app_backend.config import CNAME_LIST
 from app_backend.vo import HttpResponse
 
 help_bp = Blueprint('help', __name__)
+logger = logging.getLogger(__name__)
 
 
 # @help_bp.route("/help_get_cca_guide", methods=["POST"])
@@ -29,14 +34,33 @@ help_bp = Blueprint('help', __name__)
 @jwt_required()
 def return_zhinan():
     cname = get_jwt().get('cname')
-    config = get_config_by_cname(cname)
+    logger.debug(f"Tutorial request for competition {cname}")
+    
+    config = ALL_CLASS[cname]
     if config:
-        return send_file(config.zhinan_path, as_attachment=True)
+        logger.info(f"Sending tutorial file: {config['zhinan_path']}")
+        return send_file(config['zhinan_path'], as_attachment=True)
         # return send_file(config.zhinan_path, mimetype="application/pdf")
     else:
+        logger.warning(f"Tutorial not found for competition {cname}")
         return HttpResponse.fail("No such tutorial!")
 
 
 @help_bp.route('/help_get_pantheon', methods=["GET"])
 def return_pantheon():
-    return HttpResponse.ok(pantheon=cname_list)
+    return HttpResponse.ok(pantheon=CNAME_LIST)
+
+
+@help_bp.route("/help_get_competition_time", methods=["GET"])
+@jwt_required()
+def return_competition_time():
+    """ Returns the start and end time of the competition for the current user.
+    """
+    cname = get_jwt().get('cname')
+    logger.debug(f"Competition time request for {cname}")
+    
+    config = ALL_CLASS[cname]
+    time_stmp = [int(time.mktime(time.strptime(config['start_time'], "%Y-%m-%d-%H-%M-%S"))),
+                 int(time.mktime(time.strptime(config['end_time'], "%Y-%m-%d-%H-%M-%S")))]
+    logger.debug(f"Competition time for {cname}: start={config['start_time']}, end={config['end_time']}")
+    return HttpResponse.ok(data=time_stmp)

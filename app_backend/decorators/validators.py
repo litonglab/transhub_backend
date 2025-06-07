@@ -1,6 +1,7 @@
 """
 请求参数验证装饰器
 """
+import logging
 from functools import wraps
 from typing import TypeVar, Type, Callable, Any, cast
 
@@ -12,6 +13,7 @@ from app_backend.vo import HttpResponse
 # 定义泛型类型变量
 T = TypeVar('T', bound=BaseModel)
 
+logger = logging.getLogger(__name__)
 
 def validate_request(schema_class: Type[T]) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
@@ -28,6 +30,7 @@ def validate_request(schema_class: Type[T]) -> Callable[[Callable[..., Any]], Ca
             username = data.username
             password = data.password
     """
+    logger.debug(f"Creating validation decorator for schema: {schema_class.__name__}")
 
     def decorator(f: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(f)
@@ -35,37 +38,46 @@ def validate_request(schema_class: Type[T]) -> Callable[[Callable[..., Any]], Ca
             try:
                 # 获取请求数据
                 if request.is_json:
+                    logger.debug("Processing JSON request data")
                     data = request.get_json() or {}
                 else:
+                    logger.debug("Processing form request data")
                     data = request.form.to_dict()
 
                 # 检查是否有文件上传
                 files = {}
                 if request.files:
+                    logger.debug(f"Processing file uploads: {list(request.files.keys())}")
                     for key, file in request.files.items():
                         files[key] = file
 
                 # 合并表单数据和文件数据
                 all_data = {**data, **files}
+                logger.debug(f"Combined request data keys: {list(all_data.keys())}")
 
                 # 验证数据并创建类型化实例
                 validated_data: T = schema_class(**all_data)
 
                 # 将验证后的数据添加到请求对象中，并保持类型信息
                 request.validated_data = validated_data
+                logger.debug("Request data validation successful")
 
                 return f(*args, **kwargs)
             except ValidationError as e:
                 # 处理验证错误
+                logger.warning(f"Validation error in {f.__name__}: {str(e)}")
                 error_messages = []
                 for error in e.errors():
                     field = error.get('loc', [''])[0]
                     message = error.get('msg', '')
                     error_messages.append(f"{field}: {message}")
+                    logger.debug(f"Validation error - Field: {field}, Message: {message}")
 
-                return HttpResponse.fail(f"参数验证失败: {error_messages}")
+                error_messages = ', '.join(error_messages[:3])  # 限制错误信息数量，避免过长
+                return HttpResponse.fail(f"参数校验失败: {error_messages}")
             except Exception as e:
-                return HttpResponse.error(500, f"服务器内部错误: {str(e)}")
+                logger.error(f"Unexpected error during validation in {f.__name__}: {str(e)}", exc_info=True)
+                return HttpResponse.error(500, f"参数校验时发生服务器内部错误: {str(e)}")
 
         return decorated_function
 
@@ -86,11 +98,13 @@ def get_validated_data(schema_class: Type[T]) -> T:
             username = data.username  # 编辑器提供类型提示
     """
     if not hasattr(request, 'validated_data'):
+        logger.error("No validated data found in request")
         raise RuntimeError("No validated data found. Make sure to use @validate_request decorator first.")
 
     # 验证类型匹配
     validated_data = request.validated_data
     if not isinstance(validated_data, schema_class):
+        logger.error(f"Type mismatch: Expected {schema_class.__name__}, got {type(validated_data).__name__}")
         raise TypeError(f"Expected {schema_class.__name__}, got {type(validated_data).__name__}")
 
     # 使用 cast 来告诉类型检查器这是正确的类型

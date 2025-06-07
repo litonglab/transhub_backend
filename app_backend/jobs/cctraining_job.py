@@ -1,33 +1,38 @@
-import os
-import uuid
-from redis import Redis
-from redis.lock import Lock
-from app_backend import db
-from app_backend.model.Task_model import Task_model
-from app_backend.model.User_model import User_model
-from app_backend.model.Rank_model import Rank_model
-from app_backend.model.graph_model import graph_model
-from app_backend.analysis.tunnel_graph import TunnelGraph
-from app_backend.utils import get_available_port, release_port
-from app_backend.config import get_config_by_cname
-from app_backend import get_app
-import subprocess
 import logging
+import os
+import subprocess
 import traceback
+import uuid
 
 import dramatiq
 from dramatiq.brokers.redis import RedisBroker
 from dramatiq.middleware import TimeLimit
+from redis import Redis
+from redis.lock import Lock
 
-redis_broker = RedisBroker(url="redis://localhost:6379/0")
+from app_backend import db, ALL_CLASS
+from app_backend import get_app
+from app_backend.config import REDIS_CONFIG
+from app_backend.model.Rank_model import Rank_model
+from app_backend.model.Task_model import Task_model
+from app_backend.model.User_model import User_model
+from app_backend.model.graph_model import graph_model
+from app_backend.utils.utils import get_available_port, release_port, setup_logger
+
+# 设置日志记录器
+setup_logger()
+logger = logging.getLogger(__name__)
+
+redis_broker = RedisBroker(
+    url=f"redis://{REDIS_CONFIG['REDIS_ADDRESS']}:{REDIS_CONFIG['REDIS_PORT']}/{REDIS_CONFIG['REDIS_DB']}")
 redis_broker.add_middleware(TimeLimit())
-redis_client = Redis(host='localhost', port=6379, db=0)
+redis_client = Redis(host=REDIS_CONFIG['REDIS_ADDRESS'], port=REDIS_CONFIG['REDIS_PORT'], db=REDIS_CONFIG['REDIS_DB'])
 dramatiq.set_broker(redis_broker)
 
 
 # 待续
 
-@dramatiq.actor(time_limit=1200000, max_retries=0) 
+@dramatiq.actor(time_limit=1200000, max_retries=0)
 def run_cc_training_task(task_id):
     app = get_app()
     with app.app_context():
@@ -36,59 +41,54 @@ def run_cc_training_task(task_id):
             db.session.expire_all()  # 刷新会话
             task = Task_model.query.filter_by(task_id=task_id).first()
             if not task:
-                # 任务不存在，写入全局日志
-                with open('run.log', 'a') as logf:
-                    logf.write(f"[ERROR] Task {task_id} not found\n")
+                logger.error(f"Task {task_id} not found")
                 return
 
             parent_dir = os.path.dirname(task.task_dir)
             log_path = f"{parent_dir}/run.log"
-            def log(msg):
-                with open(log_path, 'a') as logf:
-                    logf.write(msg + '\n')
-            log(f"[INFO] Start task {task_id}")
+
+            logger.info(f"Start task {task_id}")
             user = User_model.query.filter_by(user_id=task.user_id).first()
             lock_name = user.user_id
             lock = Lock(redis_client, lock_name, timeout=600)
             with lock:
                 # 如果上锁就等待
                 # 1. 将用户目录下的文件拷贝到用户目录对应的cc-training目录下
+                task.update(task_status='compling')
                 cc_training_dir = user.get_competition_project_dir(task.cname)
                 target_dir = cc_training_dir + "/datagrump"
-                log(f"[INFO] cc_training_dir: {cc_training_dir}, target_dir: {target_dir}")
+                logger.info(f"cc_training_dir: {cc_training_dir}, target_dir: {target_dir}")
                 if not os.path.exists(target_dir):
                     # 抛出异常，调用job_failure_call_back
-                    log(f"[ERROR] cc-training dir not found: {target_dir}")
+                    logger.error(f"cc-training dir not found: {target_dir}")
                     task.update(task_status='error')
                     return
                 # 拷贝文件
                 # 删除target_dir中的名为 controller.cc 的文件
                 if os.path.exists(target_dir + "/controller.cc"):
                     os.remove(target_dir + "/controller.cc")
-                    log(f"[INFO] Removed old controller.cc")
+                    logger.info(f"Removed old controller.cc")
                 parent_dir = os.path.dirname(task.task_dir)
                 if not os.path.exists(task.task_dir):
                     os.mkdir(task.task_dir)
-                    log(f"[INFO] Created task dir: {task.task_dir}")
-                # 将用户上传的文件拷贝到target_dir中
-                if not run_cmd(f'cp {parent_dir}/{task.algorithm}.cc {target_dir}', f'{task.task_dir}/error.log', task):
-                    log(f"[ERROR] cp failed: {parent_dir}/{task.algorithm}.cc -> {target_dir}")
-                    task.update(task_status='error')
-                    return
-                # 重命名
-                if not run_cmd(f'mv {target_dir}/{task.algorithm}.cc {target_dir}/controller.cc', f'{task.task_dir}/error.log', task):
-                    log(f"[ERROR] mv failed: {target_dir}/{task.algorithm}.cc -> controller.cc")
+                    logger.info(f"Created task dir: {task.task_dir}")
+                # 将用户上传的文件拷贝到target_dir中，并直接命名为 controller.cc，避免覆盖
+                if not run_cmd(f'cp {parent_dir}/{task.algorithm}.cc {target_dir}/controller.cc',
+                               f'{task.task_dir}/error.log', task):
+                    logger.error(f"cp failed: {parent_dir}/{task.algorithm}.cc -> {target_dir}")
                     task.update(task_status='error')
                     return
                 # 2. 编译并创建trace文件夹
                 if not run_cmd(f'cd {target_dir} && make clean && make', f'{task.task_dir}/error.log', task):
-                    log(f"[ERROR] make failed in {target_dir}")
+                    logger.error(f"make failed in {target_dir}")
                     task.update(task_status='error')
                     return
                 # 先在task.task_dir中创建对应的trace文件夹，再将targetdir下的sender,receiver拷贝到trace文件夹中
                 trace_dir = task.task_dir
-                if not run_cmd(f'mkdir -p {trace_dir} && cp {target_dir}/sender {trace_dir} && cp {target_dir}/receiver {trace_dir}', f'{task.task_dir}/error.log', task):
-                    log(f"[ERROR] copy sender/receiver failed to {trace_dir}")
+                if not run_cmd(
+                        f'mkdir -p {trace_dir} && cp {target_dir}/sender {trace_dir} && cp {target_dir}/receiver {trace_dir}',
+                        f'{task.task_dir}/error.log', task):
+                    logger.error(f"copy sender/receiver failed to {trace_dir}")
                     task.update(task_status='error')
                     return
             try:
@@ -101,12 +101,12 @@ def run_cc_training_task(task_id):
                 # downlink_file: 下行文件
                 # result_path: 结果路径
                 running_port = get_available_port()
-                log(f"[INFO] select port {running_port} for running {task.task_id}")
+                logger.info(f"select port {running_port} for running {task.task_id}")
                 task.update(task_status='running')
-                config = get_config_by_cname(task.cname)
+                config = ALL_CLASS[task.cname]
                 loss_rate = task.loss_rate
-                uplink_dir = config.uplink_dir
-                downlink_dir = config.downlink_dir
+                uplink_dir = config['uplink_dir']
+                downlink_dir = config['downlink_dir']
                 # 遍历所有的trace文件，执行
                 uplink_file = uplink_dir + "/" + task.trace_name + ".up"
                 downlink_file = downlink_dir + "/" + task.trace_name + ".down"
@@ -117,18 +117,22 @@ def run_cc_training_task(task_id):
                 # downlink_file} {result_path}')
                 retry_limit = 10
                 retry_time = 0
-                while not run_cmd(f"cd {target_dir} && {program_script} {running_port} {loss_rate} {uplink_file} {downlink_file} {result_path} {sender_path} {receiver_path} {task.buffer_size}", f'{task.task_dir}/error.log', task) and retry_time < retry_limit:
+                while not run_cmd(
+                        f"cd {target_dir} && {program_script} {running_port} {loss_rate} {uplink_file} {downlink_file} {result_path} {sender_path} {receiver_path} {task.buffer_size}",
+                        f'{task.task_dir}/error.log', task) and retry_time < retry_limit:
                     retry_time += 1
-                    log(f"[WARN] run-contest.sh failed, retry {retry_time}/{retry_limit}")
+                    logger.error(f"run-contest.sh failed, retry {retry_time}/{retry_limit}")
                     task.update(task_status='retrying')
                 if retry_time == retry_limit:
-                    log(f"[ERROR] run-contest.sh failed after {retry_limit} retries")
+                    logger.error(f"run-contest.sh failed after {retry_limit} retries")
                     task.update(task_status='error')
                     return
                 # 4. 解析结果
                 extract_program = "mm-throughput-graph"
-                if not run_cmd(f'{extract_program} 500 {result_path} 2> {task.task_dir}/{task.trace_name}.score > /dev/null', f'{task.task_dir}/error.log', task):
-                    log(f"[ERROR] mm-throughput-graph failed")
+                if not run_cmd(
+                        f'{extract_program} 500 {result_path} 2> {task.task_dir}/{task.trace_name}.score > /dev/null',
+                        f'{task.task_dir}/error.log', task):
+                    logger.error(f"mm-throughput-graph failed")
                     task.update(task_status='error')
                     return
                 total_score = evaluate_score(task, f'{task.task_dir}/{task.trace_name}.score')
@@ -140,19 +144,25 @@ def run_cc_training_task(task_id):
                 #     delay_graph=task.task_dir + "/" + task.trace_name + ".delay.png",
                 #     ms_per_bin=500)
                 # tunnel_graph.run()
-                if not run_cmd(f'mm-throughput-graph 500 {result_path} > ' +  task.task_dir + "/" + task.trace_name + ".throughput.svg", f'{task.task_dir}/error.log', task):
-                    log(f"[ERROR] throughput graph failed")
+                if not run_cmd(
+                        f'mm-throughput-graph 500 {result_path} > ' + task.task_dir + "/" + task.trace_name + ".throughput.svg",
+                        f'{task.task_dir}/error.log', task):
+                    logger.error(f"throughput graph failed")
                     task.update(task_status='error')
                     return
-                if not run_cmd(f'mm-delay-graph {result_path} > ' +  task.task_dir + "/" + task.trace_name + ".delay.svg", f'{task.task_dir}/error.log', task):
-                    log(f"[ERROR] delay graph failed")
+                if not run_cmd(
+                        f'mm-delay-graph {result_path} > ' + task.task_dir + "/" + task.trace_name + ".delay.svg",
+                        f'{task.task_dir}/error.log', task):
+                    logger.error(f"delay graph failed")
                     task.update(task_status='error')
                     return
                 # 6. 保存图
                 graph_id1 = uuid.uuid4().hex
                 graph_id2 = uuid.uuid4().hex
-                graph_model(task_id=task_id, graph_id=str(graph_id1), graph_type='throughput', graph_path=task.task_dir + "/" + task.trace_name + ".throughput.svg").insert()
-                graph_model(task_id=task_id, graph_id=str(graph_id2), graph_type='delay', graph_path=task.task_dir + "/" + task.trace_name + ".delay.svg").insert()
+                graph_model(task_id=task_id, graph_id=str(graph_id1), graph_type='throughput',
+                            graph_path=task.task_dir + "/" + task.trace_name + ".throughput.svg").insert()
+                graph_model(task_id=task_id, graph_id=str(graph_id2), graph_type='delay',
+                            graph_path=task.task_dir + "/" + task.trace_name + ".delay.svg").insert()
                 # uplink_file = cctraining_config.uplink_file
                 # downlink_file = cctraining_config.downlink_file
                 #
@@ -164,23 +174,26 @@ def run_cc_training_task(task_id):
                 rank_record = Rank_model.query.get(task.user_id)
                 if rank_record:
                     if rank_record.upload_id == task.upload_id:
-                        rank_record.update(task_score=total_score+rank_record.task_score)
-                        log(f"[INFO] Updated existing rank record: {rank_record.upload_id}")
+                        rank_record.update(task_score=total_score + rank_record.task_score)
+                        logger.info(f"Updated existing rank record: {rank_record.upload_id}")
                     else:
                         # Step 2: Record exists, update it
-                        rank_record.update(upload_id=task.upload_id, task_score=total_score, algorithm=task.algorithm, upload_time=task.created_time)
-                        log(f"[INFO] Updated rank record with new upload_id: {task.upload_id}")
+                        rank_record.update(upload_id=task.upload_id, task_score=total_score, algorithm=task.algorithm,
+                                           upload_time=task.created_time)
+                        logger.info(f"Updated rank record with new upload_id: {task.upload_id}")
                 else:
                     # Step 3: Record does not exist, create and add it
-                    Rank_model(user_id=task.user_id, upload_id=task.upload_id, task_score=total_score, algorithm=task.algorithm, upload_time=task.created_time, cname=task.cname, username=user.username).insert()
-                    log(f"[INFO] Created new rank record for user: {task.user_id}")
-                log(f"[INFO] task {task_id} finished, score: {total_score}")
+                    Rank_model(user_id=task.user_id, upload_id=task.upload_id, task_score=total_score,
+                               algorithm=task.algorithm, upload_time=task.created_time, cname=task.cname,
+                               username=user.username).insert()
+                    logger.info(f"Created new rank record for user: {task.user_id}")
+                logger.info(f"task {task_id} finished, score: {total_score}")
             except Exception as e:
                 err_msg = str(e)
                 tb = traceback.format_exc()
                 with open(f'{task.task_dir}/error.log', 'w') as f:
                     f.write(err_msg + "\n" + tb)
-                log(f"[ERROR] Exception in inner try: {err_msg}\n{tb}")
+                logger.error(f"Exception in inner try: {err_msg}\n{tb}", level="error")
                 task.update(task_status='error')
         except Exception as e:
             # 兜底异常
@@ -210,6 +223,7 @@ def run_cc_training_task(task_id):
 
 
 def run_cmd(cmd, error_file, task):
+    logger.info(f"Running command for task {task.task_id}: {cmd}")
     result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE)
     with open(error_file, 'a') as f:
@@ -218,14 +232,109 @@ def run_cmd(cmd, error_file, task):
         f.write(result.stderr.decode('utf-8'))
         f.write('\n\n')
     if result.returncode != 0:
+        logger.error(f"Command failed for task {task.task_id} with return code {result.returncode}")
+        logger.error(f"Command output: {result.stdout.decode('utf-8')}")
+        logger.error(f"Command error: {result.stderr.decode('utf-8')}")
         task.update(task_status='error')
         # 将错误信息写入task_dir/error.log
         return False
+    logger.debug(f"Command completed successfully for task {task.task_id}")
     return True
 
 
 def enqueue_cc_task(task_id):
-    run_cc_training_task.send(task_id)
+    """
+    将任务发送到队列
+
+    Args:
+        task_id (str): 任务ID
+
+    Returns:
+        dict: 包含发送状态的字典
+        {
+            'success': bool,
+            'message': str,
+            'message_id': str or None,
+            'task_id': str
+        }
+    """
+    logger.info(f"Enqueueing task {task_id}")
+    try:
+        # 发送任务到队列
+        message = run_cc_training_task.send(task_id)
+
+        # 检查消息是否成功创建
+        if message and hasattr(message, 'message_id'):
+            logger.info(f"Task {task_id} successfully enqueued with message ID: {message.message_id}")
+            return {
+                'success': True,
+                'message': 'Task successfully enqueued',
+                'message_id': message.message_id,
+                'task_id': task_id
+            }
+        else:
+            logger.error(f"Failed to enqueue task {task_id}: No message ID returned")
+            return {
+                'success': False,
+                'message': 'Failed to enqueue task: No message ID returned',
+                'message_id': None,
+                'task_id': task_id
+            }
+
+    except Exception as e:
+        logger.error(f"Failed to enqueue task {task_id}: {str(e)}", exc_info=True)
+        return {
+            'success': False,
+            'message': str(e),
+            'message_id': None,
+            'task_id': task_id
+        }
+
+
+def enqueue_multiple_tasks(task_ids):
+    """
+    批量发送多个任务到队列
+
+    Args:
+        task_ids (list): 任务ID列表
+
+    Returns:
+        dict: 批量入队结果
+        {
+            'success': bool,
+            'total_tasks': int,
+            'successful_enqueues': int,
+            'failed_enqueues': int,
+            'results': list,
+            'failed_tasks': list
+        }
+    """
+    logger.info(f"Enqueueing multiple tasks: {task_ids}")
+    results = []
+    failed_tasks = []
+
+    for task_id in task_ids:
+        result = enqueue_cc_task(task_id)
+        results.append(result)
+
+        if not result['success']:
+            failed_tasks.append({
+                'task_id': task_id,
+                'error': result['message']
+            })
+
+    successful_enqueues = sum(1 for result in results if result['success'])
+    total_tasks = len(task_ids)
+    logger.info(f"Enqueued {len(task_ids)} tasks, {sum(1 for r in results if r['success'])} successful")
+
+    return {
+        'success': len(failed_tasks) == 0,
+        'total_tasks': total_tasks,
+        'successful_enqueues': successful_enqueues,
+        'failed_enqueues': len(failed_tasks),
+        'results': results,
+        'failed_tasks': failed_tasks
+    }
 
 
 def evaluate_score(task: Task_model, score_file: str):

@@ -1,7 +1,12 @@
+import logging
 import os
 
-from app_backend import db
 from sqlalchemy.dialects.mysql import VARCHAR
+
+from app_backend import db
+
+logger = logging.getLogger(__name__)
+
 
 class Task_model(db.Model):
     __tablename__ = 'task'
@@ -24,22 +29,29 @@ class Task_model(db.Model):
         return f'<Task {self.task_id}>'
 
     def save(self):
+        logger.debug(f"Saving task {self.task_id} for user {self.user_id}")
         db.session.add(self)
         db.session.commit()
+        logger.info(f"Task {self.task_id} saved successfully")
 
     def update(self, **kwargs):
+        logger.debug(f"Updating task {self.task_id} with parameters: {kwargs}")
         try:
             with db.session.begin_nested():
                 for key, value in kwargs.items():
                     setattr(self, key, value)
                 db.session.commit()
+            logger.info(f"Task {self.task_id} updated successfully")
         except Exception as e:
+            logger.error(f"Error updating task {self.task_id}: {str(e)}", exc_info=True)
             db.session.rollback()
             raise e
 
     def delete(self):
+        logger.info(f"Deleting task {self.task_id}")
         db.session.delete(self)
         db.session.commit()
+        logger.info(f"Task {self.task_id} deleted successfully")
 
     def to_detail_dict(self):
 
@@ -56,7 +68,7 @@ class Task_model(db.Model):
                 'task_score': self.task_score,
                 'cname': self.cname,
                 'algorithm': self.algorithm,
-                'log':"success"
+                'log': "success"
             }
             return res
 
@@ -73,7 +85,7 @@ class Task_model(db.Model):
                 'task_score': 0,
                 'cname': self.cname,
                 'algorithm': self.algorithm,
-                'log':"running"
+                'log': "running"
             }
             return res
         elif self.task_status == 'error':
@@ -82,6 +94,9 @@ class Task_model(db.Model):
             if os.path.exists(logpath):
                 with open(logpath, 'r') as f:
                     log_content = f.read()
+            else:
+                logger.error(f"Error log file not found for task {self.task_id} at {logpath}")
+
             res = {
                 'user_id': self.user_id,
                 'task_id': self.task_id,
@@ -116,7 +131,7 @@ class Task_model(db.Model):
 
 
 def to_history_dict(tasks: list):
-    #将tasks按upload_id聚合,score求和。如果status有一个是error，则整体status是error，score是0，如果有一个是running，则整体是running，score是当前的score，否则是finished，score是求和的score
+    # 将tasks按upload_id聚合,score求和。如果status有一个是error，则整体status是error，score是0，如果有一个是running，则整体是running，score是当前的score，否则是finished，score是求和的score
     res = []
     upload_id_set = set()
 
@@ -145,4 +160,3 @@ def to_history_dict(tasks: list):
                         r['score'] += task.task_score
 
     return res
-

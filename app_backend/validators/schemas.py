@@ -2,12 +2,15 @@
 Pydantic schemas for API request validation.
 """
 import re
+import logging
 from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-from app_backend.config import cname_list
+from app_backend import ALL_CLASS
+from app_backend.config import CNAME_LIST, REGISTER_STUDENT_LIST
 
+logger = logging.getLogger(__name__)
 
 class UserLoginSchema(BaseModel):
     """用户登录请求参数验证"""
@@ -17,20 +20,29 @@ class UserLoginSchema(BaseModel):
 
     @field_validator('username')
     def validate_username(cls, v):
+        logger.debug(f"Validating username: {v}")
         if not re.match(r'^[a-zA-Z0-9_]+$', v):
+            logger.warning(f"Invalid username format: {v}")
             raise ValueError('用户名只能包含字母、数字和下划线')
         return v
 
     @field_validator('password')
     def validate_password(cls, v):
+        logger.debug("Validating password")
         if not re.match(r'^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?]+$', v):
+            logger.warning("Invalid password format")
             raise ValueError('密码包含非法字符')
         return v
 
     @field_validator('cname')
     def validate_cname(cls, v):
-        if v not in cname_list:
-            raise ValueError(f'比赛名称必须是以下之一: {", ".join(cname_list)}')
+        logger.debug(f"Validating competition name: {v}")
+        if v not in CNAME_LIST:
+            logger.warning(f"Invalid competition name: {v}")
+            raise ValueError(f'比赛名称必须是以下之一: {", ".join(CNAME_LIST)}')
+        if ALL_CLASS[v]['allow_login'] is False:
+            logger.warning(f"Competition {v} login not allowed")
+            raise ValueError(f'{v}：此课程（比赛）暂未开放登录')
         return v
 
 
@@ -43,42 +55,41 @@ class UserRegisterSchema(BaseModel):
 
     @field_validator('username')
     def validate_username(cls, v):
+        logger.debug(f"Validating registration username: {v}")
         if not re.match(r'^[a-zA-Z0-9_]+$', v):
+            logger.warning(f"Invalid registration username format: {v}")
             raise ValueError('用户名只能包含字母、数字和下划线')
         return v
 
     @field_validator('password')
     def validate_password(cls, v):
+        logger.debug("Validating registration password")
         if not re.match(r'^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?]+$', v):
+            logger.warning("Invalid registration password format")
             raise ValueError('密码包含非法字符')
         return v
 
     @field_validator('real_name')
     def validate_real_name(cls, v):
+        logger.debug(f"Validating real name: {v}")
         if not v.strip():
+            logger.warning("Empty real name")
             raise ValueError('真实姓名不能为空')
         return v.strip()
 
     @field_validator('sno')
     def validate_sno(cls, v):
+        logger.debug(f"Validating student number: {v}")
         if not v.isdecimal():
+            logger.warning(f"Invalid student number format: {v}")
             raise ValueError('学号必须是10位数字')
         if len(v) != 10:
+            logger.warning(f"Invalid student number length: {len(v)}")
             raise ValueError('学号必须是10位数字')
-        # 读取student_list.txt文件，文件每行是一个学号，表示允许注册的学号，如果学号不在列表中，则抛出异常
-        cls._validate_user_in_student_list(v)
-        return v
-
-    @classmethod
-    def _validate_user_in_student_list(cls, sno: str):
-        """
-        验证用户是否在允许注册的学号列表中
-        """
-        with open('app_backend/validators/student_list.txt', 'r') as f:
-            allowed_snos = {line.strip() for line in f if line.strip()}
-
-        if len(allowed_snos) > 0 and sno not in allowed_snos:
+        if len(REGISTER_STUDENT_LIST) > 0 and v not in REGISTER_STUDENT_LIST:
+            logger.warning(f"Student number {v} not in allowed list")
             raise ValueError('该学号不在允许注册的名单中，请确认你已选课或报名竞赛。')
+        return v
 
 
 class ChangePasswordSchema(BaseModel):
@@ -89,13 +100,17 @@ class ChangePasswordSchema(BaseModel):
 
     @field_validator('user_id')
     def validate_user_id(cls, v):
+        logger.debug(f"Validating user ID: {v}")
         if not v.strip():
+            logger.warning("Empty user ID")
             raise ValueError('用户ID不能为空')
         return v.strip()
 
     @field_validator('new_pwd')
     def validate_new_password(cls, v):
+        logger.debug("Validating new password")
         if not re.match(r'^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?]+$', v):
+            logger.warning("Invalid new password format")
             raise ValueError('新密码包含非法字符')
         return v
 
@@ -106,7 +121,9 @@ class UserChangeRealInfoSchema(BaseModel):
 
     @field_validator('real_name')
     def validate_real_name(cls, v):
+        logger.debug(f"Validating real name change: {v}")
         if not v.strip():
+            logger.warning("Empty real name in change request")
             raise ValueError('真实姓名不能为空')
         return v.strip()
 
@@ -117,7 +134,9 @@ class TaskInfoSchema(BaseModel):
 
     @field_validator('task_id')
     def validate_task_id(cls, v):
+        logger.debug(f"Validating task ID: {v}")
         if not v.strip():
+            logger.warning("Empty task ID")
             raise ValueError('任务ID不能为空')
         return v.strip()
 
@@ -128,7 +147,9 @@ class HistoryDetailSchema(BaseModel):
 
     @field_validator('upload_id')
     def validate_upload_id(cls, v):
+        logger.debug(f"Validating upload ID: {v}")
         if not v.strip():
+            logger.warning("Empty upload ID")
             raise ValueError('上传ID不能为空')
         return v.strip()
 
@@ -144,7 +165,9 @@ class SourceCodeSchema(BaseModel):
 
     @field_validator('upload_id')
     def validate_upload_id(cls, v):
+        logger.debug(f"Validating source code upload ID: {v}")
         if not v.strip():
+            logger.warning("Empty source code upload ID")
             raise ValueError('上传ID不能为空')
         return v.strip()
 
@@ -156,14 +179,18 @@ class GraphSchema(BaseModel):
 
     @field_validator('task_id')
     def validate_task_id(cls, v):
+        logger.debug(f"Validating graph task ID: {v}")
         if not v.strip():
+            logger.warning("Empty graph task ID")
             raise ValueError('任务ID不能为空')
         return v.strip()
 
     @field_validator('graph_type')
     def validate_graph_type(cls, v):
+        logger.debug(f"Validating graph type: {v}")
         allowed_types = ['throughput', 'delay']
         if v not in allowed_types:
+            logger.warning(f"Invalid graph type: {v}")
             raise ValueError(f'图表类型必须是以下之一: {", ".join(allowed_types)}')
         return v
 
@@ -179,13 +206,17 @@ class FileUploadSchema(BaseModel):
     @field_validator('file')
     def validate_file(cls, file):
         """验证上传的文件"""
+        logger.debug("Starting file validation")
         if not file:
+            logger.warning("No file received")
             raise ValueError("未接收到文件")
 
         if not hasattr(file, 'filename') or not file.filename:
+            logger.warning("Empty filename")
             raise ValueError("文件名为空")
 
         filename = file.filename
+        logger.debug(f"Validating file: {filename}")
 
         # 验证文件后缀名
         allowed_extensions = ['.c', '.cc', '.cpp']
@@ -196,20 +227,24 @@ class FileUploadSchema(BaseModel):
                 break
 
         if not file_extension:
+            logger.warning(f"Invalid file extension: {filename}")
             raise ValueError("文件必须是C程序(.c)或C++程序(.cc, .cpp)")
 
         # 验证文件名
         if filename == 'log.cc':
+            logger.warning("Attempted upload of log.cc")
             raise ValueError("非法文件名: log.cc")
 
         # 验证文件名格式（只允许字母、数字、下划线、点号）
         if not re.match(r'^[a-zA-Z0-9_.-]+$', filename):
+            logger.warning(f"Invalid filename format: {filename}")
             raise ValueError("文件名只能包含字母、数字、下划线、点号和连字符")
 
         # 验证文件大小（例如限制为2MB）
         max_size = 2 * 1024 * 1024  # 2MB
         if hasattr(file, 'content_length') and file.content_length:
             if file.content_length > max_size:
+                logger.warning(f"File too large: {file.content_length} bytes")
                 raise ValueError(f"文件大小不能超过{max_size // (1024 * 1024)}MB")
 
         # 如果文件有stream属性，检查实际内容大小
@@ -220,13 +255,17 @@ class FileUploadSchema(BaseModel):
             file.stream.seek(current_pos)  # 恢复原位置
 
             if file_size > max_size:
+                logger.warning(f"File stream too large: {file_size} bytes")
                 raise ValueError(f"文件大小不能超过{max_size // (1024 * 1024)}MB")
 
             if file_size == 0:
+                logger.warning("Empty file content")
                 raise ValueError("文件内容为空")
 
         # 验证文件内容安全性
+        logger.debug("Validating file content safety")
         cls._validate_file_content_safety(file)
+        logger.info(f"File validation successful: {filename}")
 
         return file
 
@@ -236,6 +275,7 @@ class FileUploadSchema(BaseModel):
         验证文件内容安全性
         检查是否包含危险函数调用
         """
+        logger.debug("Starting file content safety validation")
         dangerous_functions = [
             # 文件系统操作
             "fopen", "open", "creat", "remove", "unlink", "rename",
@@ -246,8 +286,8 @@ class FileUploadSchema(BaseModel):
             # 动态代码加载
             "dlopen", "dlsym", "dlclose", "dlerror",
             # 网络操作
-            # "socket", "connect", "bind", "listen", "accept",
-            # "send", "sendto", "recv", "recvfrom",
+            "socket", "connect", "bind", "listen", "accept",
+            "send", "sendto", "recv", "recvfrom",
             # 内存/指针操作 (可能用于漏洞利用)
             # "gets", "strcpy", "strcat", "sprintf", "vsprintf",
             # "scanf", "sscanf",
@@ -285,8 +325,11 @@ class FileUploadSchema(BaseModel):
                     raise ValueError(f"文件包含危险函数调用: {func}")
 
         except UnicodeDecodeError:
+            logger.warning("File content cannot be decoded, possibly not a valid text file")
             raise ValueError("文件内容无法解码，可能不是有效的文本文件")
         except Exception as e:
             if "危险函数调用" in str(e):
+                logger.warning(f"Dangerous function call found in file: {str(e)}")
                 raise e  # 重新抛出危险函数错误
+            logger.warning(f"File content check failed: {str(e)}")
             raise ValueError(f"文件内容检查失败: {str(e)}")
