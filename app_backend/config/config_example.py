@@ -1,5 +1,6 @@
 """
 环境配置示例
+复制此文件为 development.py （开发环境）或 production.py （生产环境），并根据需要修改配置。
 """
 
 from app_backend.config.base import BaseConfig
