@@ -1,24 +1,23 @@
-import secrets
 import logging
+import secrets
 
 from flask_jwt_extended import JWTManager
 from flask_jwt_extended.exceptions import NoAuthorizationError, InvalidHeaderError
 
-from app_backend.config import JWT_CONFIG
 from app_backend.vo import HttpResponse
 
 logger = logging.getLogger(__name__)
 
+
 def init_auth(app):
     logger.info("Initializing JWT authentication")
     # 配置JWT
-    app.config['JWT_SECRET_KEY'] = JWT_CONFIG['JWT_SECRET_KEY'] or secrets.token_hex(32)  # 在生产环境中应该使用环境变量
-    if not JWT_CONFIG['JWT_SECRET_KEY']:
+    if not app.config['JWT_SECRET_KEY']:
         logger.warning("JWT_SECRET_KEY not set in configuration. Using generated key.")
+        app.config['JWT_SECRET_KEY'] = secrets.token_hex(32)  # 在生产环境中应该使用环境变量
 
-    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = JWT_CONFIG['JWT_ACCESS_TOKEN_EXPIRES']  # token过期时间，单位秒
-    logger.debug(f"JWT access token expiration set to {JWT_CONFIG['JWT_ACCESS_TOKEN_EXPIRES']} seconds")
-    
+    logger.info(f"JWT access token expiration set to {app.config['JWT_ACCESS_TOKEN_EXPIRES']} seconds")
+
     # JWT存储在cookie
     app.config['JWT_TOKEN_LOCATION'] = ['cookies']
     app.config['JWT_COOKIE_SECURE'] = False  # 本地开发用False，生产建议True

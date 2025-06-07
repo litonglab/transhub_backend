@@ -1,16 +1,17 @@
 """
 Pydantic schemas for API request validation.
 """
-import re
 import logging
+import re
 from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-from app_backend import ALL_CLASS
-from app_backend.config import CNAME_LIST, REGISTER_STUDENT_LIST
+from app_backend import get_default_config
 
 logger = logging.getLogger(__name__)
+config = get_default_config()
+
 
 class UserLoginSchema(BaseModel):
     """用户登录请求参数验证"""
@@ -37,10 +38,10 @@ class UserLoginSchema(BaseModel):
     @field_validator('cname')
     def validate_cname(cls, v):
         logger.debug(f"Validating competition name: {v}")
-        if v not in CNAME_LIST:
+        if v not in config.Course.CNAME_LIST:
             logger.warning(f"Invalid competition name: {v}")
-            raise ValueError(f'比赛名称必须是以下之一: {", ".join(CNAME_LIST)}')
-        if ALL_CLASS[v]['allow_login'] is False:
+            raise ValueError(f'比赛名称必须是以下之一: {", ".join(config.Course.CNAME_LIST)}')
+        if config.Course.ALL_CLASS[v]['allow_login'] is False:
             logger.warning(f"Competition {v} login not allowed")
             raise ValueError(f'{v}：此课程（比赛）暂未开放登录')
         return v
@@ -86,7 +87,7 @@ class UserRegisterSchema(BaseModel):
         if len(v) != 10:
             logger.warning(f"Invalid student number length: {len(v)}")
             raise ValueError('学号必须是10位数字')
-        if len(REGISTER_STUDENT_LIST) > 0 and v not in REGISTER_STUDENT_LIST:
+        if len(config.Course.REGISTER_STUDENT_LIST) > 0 and v not in config.Course.REGISTER_STUDENT_LIST:
             logger.warning(f"Student number {v} not in allowed list")
             raise ValueError('该学号不在允许注册的名单中，请确认你已选课或报名竞赛。')
         return v

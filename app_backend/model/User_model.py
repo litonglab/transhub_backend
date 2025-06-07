@@ -1,13 +1,14 @@
-import os
 import logging
+import os
 
 from sqlalchemy.dialects.mysql import VARCHAR
 
-from app_backend import db
-from app_backend.config import USER_DIR_PATH, ALL_CLASS
+from app_backend import db, get_default_config
 from app_backend.model.Competition_model import Competition_model
 
 logger = logging.getLogger(__name__)
+config = get_default_config()
+
 
 class User_model(db.Model):
     __tablename__ = 'student'
@@ -36,7 +37,8 @@ class User_model(db.Model):
         :return: 可以直接使用的全局路径
         """
         logger.debug(f"Getting user directory for user {self.username} and competition {cname}")
-        _dir = os.path.join(USER_DIR_PATH, self.username + "_" + self.sno, ALL_CLASS[cname]["name"])
+        _dir = os.path.join(config.App.USER_DIR_PATH, self.username + "_" + self.sno,
+                            config.Course.ALL_CLASS[cname]["name"])
         if not os.path.exists(_dir):
             logger.info(f"Creating user directory: {_dir}")
             os.makedirs(_dir)
@@ -49,13 +51,13 @@ class User_model(db.Model):
         if not os.path.exists(user_dir):
             logger.info(f"Creating user directory: {user_dir}")
             os.makedirs(user_dir)
-        
+
         # 由当前时间生成文件夹
         filedir = user_dir + "/" + nowtime
         if not os.path.exists(filedir):
             logger.info(f"Creating file directory: {filedir}")
             os.makedirs(filedir)
-        
+
         file_path = filedir + "/" + file.filename
         logger.debug(f"Saving file to: {file_path}")
         file.save(file_path)
@@ -95,7 +97,7 @@ class User_model(db.Model):
             logger.debug(f"Creating new competition entry for user {self.username}")
             com = Competition_model(user_id=self.user_id, cname=cname)
             # 2. get competition dir and workdir
-            com_dir = ALL_CLASS[cname]["path"]
+            com_dir = config.Course.ALL_CLASS[cname]["path"]
             work_dir = self.get_competition_project_dir(cname)  # 用户目录下的竞赛目录下的竞赛文件目录
             if not os.path.exists(work_dir):
                 logger.info(f"Creating work directory: {work_dir}")

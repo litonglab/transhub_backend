@@ -7,12 +7,10 @@ import uuid
 import dramatiq
 from dramatiq.brokers.redis import RedisBroker
 from dramatiq.middleware import TimeLimit
-from redis import Redis
 from redis.lock import Lock
 
-from app_backend import db, ALL_CLASS
+from app_backend import db, redis_client, get_default_config
 from app_backend import get_app
-from app_backend.config import REDIS_CONFIG
 from app_backend.model.Rank_model import Rank_model
 from app_backend.model.Task_model import Task_model
 from app_backend.model.User_model import User_model
@@ -22,11 +20,9 @@ from app_backend.utils.utils import get_available_port, release_port, setup_logg
 # 设置日志记录器
 setup_logger()
 logger = logging.getLogger(__name__)
-
-redis_broker = RedisBroker(
-    url=f"redis://{REDIS_CONFIG['REDIS_ADDRESS']}:{REDIS_CONFIG['REDIS_PORT']}/{REDIS_CONFIG['REDIS_DB']}")
+config = get_default_config()
+redis_broker = RedisBroker(url=config.Cache.FLASK_REDIS_URL)
 redis_broker.add_middleware(TimeLimit())
-redis_client = Redis(host=REDIS_CONFIG['REDIS_ADDRESS'], port=REDIS_CONFIG['REDIS_PORT'], db=REDIS_CONFIG['REDIS_DB'])
 dramatiq.set_broker(redis_broker)
 
 
@@ -100,13 +96,13 @@ def run_cc_training_task(task_id):
                 # uplink_file: 上行文件
                 # downlink_file: 下行文件
                 # result_path: 结果路径
-                running_port = get_available_port()
+                running_port = get_available_port(redis_client)
                 logger.info(f"select port {running_port} for running {task.task_id}")
                 task.update(task_status='running')
-                config = ALL_CLASS[task.cname]
+                _config = config.Course.ALL_CLASS[task.cname]
                 loss_rate = task.loss_rate
-                uplink_dir = config['uplink_dir']
-                downlink_dir = config['downlink_dir']
+                uplink_dir = _config['uplink_dir']
+                downlink_dir = _config['downlink_dir']
                 # 遍历所有的trace文件，执行
                 uplink_file = uplink_dir + "/" + task.trace_name + ".up"
                 downlink_file = downlink_dir + "/" + task.trace_name + ".down"
@@ -209,7 +205,7 @@ def run_cc_training_task(task_id):
                 task.update(task_status='error')
         finally:
             try:
-                release_port(locals().get('running_port', None))
+                release_port(locals().get('running_port', None), redis_client)
             except Exception as e:
                 if log_path:
                     with open(log_path, 'a') as logf:

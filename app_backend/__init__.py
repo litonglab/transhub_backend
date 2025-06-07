@@ -9,11 +9,13 @@ from flask_redis import FlaskRedis
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.exceptions import HTTPException
 
-from app_backend.config import USER_DIR_PATH, BASEDIR, ALL_CLASS
+from app_backend.config import get_config, get_default_config
 from app_backend.utils.utils import setup_logger
 from app_backend.vo import HttpResponse
 
+config = get_default_config()
 # Initialize extensions
+# Flask extensions for Redis and SQLAlchemy, init and used in app_context for safety
 redis_client = FlaskRedis()
 db = SQLAlchemy()
 
@@ -61,10 +63,9 @@ def singleton_app(func):
 
 def make_dir():
     """Create necessary directories for the application."""
-
     directories = [
-        (BASEDIR, 'base directory'),
-        (USER_DIR_PATH, 'user directory')
+        (config.App.BASEDIR, 'base directory'),
+        (config.App.USER_DIR_PATH, 'user directory')
     ]
 
     # Create base directories
@@ -74,7 +75,7 @@ def make_dir():
             logger.info(f'Created {dir_name}: {dir_path}')
 
     # Create class-specific directories
-    for name, _config in ALL_CLASS.items():
+    for name, _config in config.Course.ALL_CLASS.items():
         dir_path = _config['path']
         if not os.path.exists(dir_path):
             os.makedirs(dir_path, exist_ok=True)
@@ -83,9 +84,14 @@ def make_dir():
 
 def _configure_cors(app):
     """Configure CORS settings based on environment."""
-    # Get allowed origins from config
-    allowed_origins = app.config.get('CORS_ORIGINS', '*')
-    if allowed_origins == '*':
+
+    allowed_origins = config.Security.CORS_ORIGINS
+
+    # 处理逗号分隔的多个域名
+    if isinstance(allowed_origins, str) and ',' in allowed_origins:
+        allowed_origins = [origin.strip() for origin in allowed_origins.split(',')]
+
+    if allowed_origins == '*' or (isinstance(allowed_origins, list) and '*' in allowed_origins):
         logger.warning("CORS is configured to allow all origins. Consider restricting in production.")
 
     CORS(app, supports_credentials=True, origins=allowed_origins)
@@ -93,15 +99,6 @@ def _configure_cors(app):
 
 def _configure_database(app):
     """Configure database connection."""
-    # Build database URI
-    db_uri = (
-        f"mysql+pymysql://{app.config['MYSQL_CONFIG']['MYSQL_USERNAME']}:"
-        f"{app.config['MYSQL_CONFIG']['MYSQL_PASSWORD']}@{app.config['MYSQL_CONFIG']['MYSQL_ADDRESS']}/"
-        f"{app.config['MYSQL_CONFIG']['MYSQL_DBNAME']}"
-    )
-    app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # Disable to save resources
-
     db.init_app(app)
 
 
@@ -142,12 +139,10 @@ def get_app():
         logger.warning("Frontend dist folder not found, please deploy frontend separately")
 
     # Load configuration
-    app.config.from_object('app_backend.config')
-
-    # Generate secure secret key
-    app.secret_key = os.getenv('SECRET_KEY') or secrets.token_hex(32)
-    if not os.getenv('SECRET_KEY'):
-        logger.warning("SECRET_KEY not set in environment. Using generated key.")
+    app.config.from_prefixed_env()
+    if not app.config['SECRET_KEY']:
+        logger.warning("⚠️ SECRET_KEY 未设置，使用自动生成的密钥。请在生产环境中设置此变量以增强安全性。")
+        app.config['SECRET_KEY'] = secrets.token_hex(32)
 
     # Configure components
     _configure_cors(app)
@@ -155,8 +150,11 @@ def get_app():
 
     # Initialize Redis
     redis_client.init_app(app)
+    # 判断redis是否连接成功
+    redis_client.ping()
 
     end_time = time.time()
+
     logger.info(f"App initialized in {end_time - start_time:.3f} seconds")
     return app
 
@@ -314,5 +312,6 @@ def create_app():
 
         end_time = time.time()
         logger.info(f"App fully configured in {end_time - start_time:.3f} seconds")
+        # print(app.config)
 
     return app

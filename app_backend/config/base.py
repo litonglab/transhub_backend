@@ -1,0 +1,136 @@
+"""
+基础配置，读取环境变量，无需修改。
+需要在其他模块中使用的配置才写入此处。
+"""
+
+import os
+from typing import Dict, Any
+
+
+# 由于循环导入，此模块不允许使用logger
+
+
+def _get_env_variable(name: str) -> Any:
+    value = os.getenv(name)
+    if value is None:
+        raise ValueError(f"环境变量 {name} 未设置")
+    return value
+
+
+class BaseConfig:
+    """开发环境配置"""
+
+    class App:
+        """应用基础配置"""
+        NAME = _get_env_variable('APP_NAME')
+        # SECRET_KEY = os.getenv('SECRET_KEY') or secrets.token_hex(32)
+        # if os.getenv('SECRET_KEY') is None:
+        #     print("⚠️ SECRET_KEY 未设置，使用自动生成的密钥。请在生产环境中设置此变量以增强安全性。")
+        BASEDIR = _get_env_variable('BASEDIR')
+        USER_DIR_PATH = os.path.join(BASEDIR, "user_data")
+
+    # class Database:
+    #     """数据库配置"""
+    #     # MySQL 配置 - 开发环境使用开发数据库
+    #     MYSQL_USERNAME = _get_env_variable('MYSQL_USERNAME')
+    #     MYSQL_PASSWORD = _get_env_variable('MYSQL_PASSWORD')
+    #     MYSQL_ADDRESS = _get_env_variable('MYSQL_ADDRESS')
+    #     MYSQL_DBNAME = _get_env_variable('MYSQL_DBNAME')
+    #     SQLALCHEMY_DATABASE_URI = ""
+
+    class Cache:
+        """缓存配置"""
+        # Redis 配置 - 开发环境使用不同的数据库
+        FLASK_REDIS_URL = _get_env_variable('FLASK_REDIS_URL')
+
+    class Security:
+        """安全配置"""
+        # JWT 配置 - 开发环境使用较短的过期时间便于测试
+        # JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY') or secrets.token_hex(32)
+        # if os.getenv('JWT_SECRET_KEY') is None:
+        #     print("⚠️ JWT_SECRET_KEY 未设置，使用自动生成的密钥。请在生产环境中设置此变量以增强安全性。")
+        # JWT_ACCESS_TOKEN_EXPIRES = int(_get_env_variable('JWT_ACCESS_TOKEN_EXPIRES'))
+
+        # CORS 配置 - 开发环境允许所有来源
+        CORS_ORIGINS = _get_env_variable('CORS_ORIGINS')
+
+    class Logging:
+        """日志配置"""
+        # 开发环境使用更详细的日志
+        LOG_DIR = _get_env_variable('LOG_DIR')
+        LOG_LEVEL = _get_env_variable('LOG_LEVEL')
+        LOG_MAX_BYTES = int(_get_env_variable('LOG_MAX_BYTES'))
+        LOG_BACKUP_COUNT = int(_get_env_variable('LOG_BACKUP_COUNT'))
+        LOG_FILENAME = _get_env_variable('LOG_FILENAME')
+
+    # class Server:
+    #     """服务器配置"""
+    #     # 开发环境使用较少的进程
+    #     GUNICORN_ADDRESS = _get_env_variable('GUNICORN_ADDRESS')
+    #     GUNICORN_WORKERS = int(_get_env_variable('GUNICORN_WORKERS'))
+    #     GUNICORN_THREADS = int(_get_env_variable('GUNICORN_THREADS'))
+    #
+    # class TaskQueue:
+    #     """任务队列配置"""
+    #     # 开发环境使用较少的进程
+    #     DRAMATIQ_PROCESSES = int(_get_env_variable('DRAMATIQ_PROCESSES'))
+    #     DRAMATIQ_THREADS = int(_get_env_variable('DRAMATIQ_THREADS'))
+
+    class Course:
+        """课程配置，在对应的环境文件中定义"""
+        ALL_CLASS = {}
+        CNAME_LIST = list()
+        REGISTER_STUDENT_LIST = list()
+
+    def __init__(self):
+        """初始化配置"""
+        self._setup_class_config()
+
+    def _setup_class_config(self):
+        """设置课程配置"""
+        self.Course.CNAME_LIST = list(self.Course.ALL_CLASS.keys())
+        self.Course.REGISTER_STUDENT_LIST = set()
+
+        # 填充课程路径配置
+        for cname, config in self.Course.ALL_CLASS.items():
+            config["path"] = os.path.join(self.App.BASEDIR, config["name"])
+            config["zhinan_path"] = os.path.join(config["path"], 'help', 'zhinan.md')
+            config["downlink_dir"] = os.path.join(config["path"], 'test_data', 'downlink')
+            config["uplink_dir"] = os.path.join(config["path"], 'test_data', 'uplink')
+            config["student_list"] = []
+
+            # 读取学生列表
+            student_list_path = os.path.join(config["path"], 'student_list.txt')
+            if os.path.exists(student_list_path):
+                with open(student_list_path, 'r') as f:
+                    config["student_list"] = [line.strip() for line in f if line.strip()]
+                    self.Course.REGISTER_STUDENT_LIST.update(config["student_list"])
+        self.Course.REGISTER_STUDENT_LIST = list(self.Course.REGISTER_STUDENT_LIST)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """将配置转换为字典，包括嵌套类的属性"""
+
+        def _convert_to_dict(obj) -> Dict[str, Any]:
+            result = {}
+            for key in dir(obj):
+                if not key.startswith('_') and key != 'to_dict':
+                    value = getattr(obj, key)
+                    # 检查是否是类属性
+                    if isinstance(value, type) and hasattr(value, '__dict__'):
+                        # 获取类的所有属性
+                        class_dict = {}
+                        for attr_name in dir(value):
+                            if not attr_name.startswith('_') and not callable(getattr(value, attr_name)):
+                                class_dict[attr_name] = getattr(value, attr_name)
+                        result[key] = class_dict
+                    else:
+                        result[key] = value
+            return result
+
+        config_dict = _convert_to_dict(self)
+
+        config_dict['Cache']['FLASK_REDIS_URL'] = '******'
+        # config_dict['Security']['JWT_SECRET_KEY'] = '******'  # 隐藏JWT密钥
+        # config_dict['App']['SECRET_KEY'] = '******'  # 隐藏应用密钥
+
+        return config_dict
