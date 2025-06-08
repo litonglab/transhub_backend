@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class TaskStatus(Enum):
-    """任务状态枚举类"""
+    """任务状态枚举类，注意需要新添加状态时，需要更新状态优先级及状态转换等内容"""
     QUEUED = 'queued'  # 任务已入队
     COMPILING = 'compling'  # 正在编译
     RUNNING = 'running'  # 正在运行
@@ -18,6 +18,21 @@ class TaskStatus(Enum):
     FINISHED = 'finished'  # 已完成
     ERROR = 'error'  # 发生错误
     NOT_QUEUED = 'not_queued'  # 未能入队
+
+    @property
+    def priority(self):
+        """获取状态优先级，数字越小优先级越高，用于to_history_dict()
+           状态优先级：error > not_queued > compling > queued > running > finished
+        """
+        priority_map = {
+            TaskStatus.ERROR: 0,
+            TaskStatus.NOT_QUEUED: 1,
+            TaskStatus.COMPILING: 2,
+            TaskStatus.QUEUED: 3,
+            TaskStatus.RUNNING: 4,
+            TaskStatus.FINISHED: 5
+        }
+        return priority_map[self]
 
     @classmethod
     def get_valid_transitions(cls):
@@ -124,14 +139,12 @@ class Task_model(db.Model):
 
 
 def to_history_dict(tasks: list):
-    # 将tasks按upload_id聚合,score求和。如果status有一个是error，则整体status是error，score是0，如果有一个是running，则整体是running，score是当前的score，否则是finished，score是求和的score
-    res = []
-    upload_id_set = set()
+    # 将tasks按upload_id聚合，score求和。状态优先级：error > not_queued > compling > queued > running > finished
+    upload_id_dict = {}
 
     for task in tasks:
-        if task.upload_id not in upload_id_set:
-            upload_id_set.add(task.upload_id)
-            history = {
+        if task.upload_id not in upload_id_dict:
+            upload_id_dict[task.upload_id] = {
                 "cname": task.cname,
                 "algorithm": task.algorithm,
                 "created_time": task.created_time,
@@ -139,18 +152,24 @@ def to_history_dict(tasks: list):
                 "score": task.task_score,
                 "upload_id": task.upload_id
             }
-            res.append(history)
         else:
-            for r in res:
-                if r['upload_id'] == task.upload_id:
-                    task_status = TaskStatus(task.task_status)
-                    if task_status == TaskStatus.ERROR:
-                        r['status'] = TaskStatus.ERROR.value
-                        r['score'] = 0
-                    elif task_status == TaskStatus.RUNNING and r['status'] != TaskStatus.ERROR.value:
-                        r['status'] = TaskStatus.RUNNING.value
-                        r['score'] = task.task_score
-                    elif r['status'] not in [TaskStatus.ERROR.value, TaskStatus.RUNNING.value]:
-                        r['score'] += task.task_score
+            task_status = TaskStatus(task.task_status)
+            current_status = TaskStatus(upload_id_dict[task.upload_id]['status'])
 
-    return res
+            # 如果新状态优先级更高，则更新状态
+            if task_status.priority < current_status.priority:
+                upload_id_dict[task.upload_id]['status'] = task_status.value
+                # 如果是error或not_queued状态，score设为0
+                if task_status == TaskStatus.ERROR or task_status == TaskStatus.NOT_QUEUED:
+                    upload_id_dict[task.upload_id]['score'] = 0
+                # 如果是finished状态，累加score
+                elif task_status == TaskStatus.FINISHED:
+                    upload_id_dict[task.upload_id]['score'] += task.task_score
+            # 如果当前状态优先级更高，保持当前状态
+            elif task_status.priority > current_status.priority:
+                continue
+            # 如果优先级相同，且是finished状态，累加score
+            elif task_status == TaskStatus.FINISHED:
+                upload_id_dict[task.upload_id]['score'] += task.task_score
+
+    return list(upload_id_dict.values())
