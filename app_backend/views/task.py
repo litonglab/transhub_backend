@@ -10,7 +10,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from app_backend import get_default_config
 from app_backend.decorators.validators import validate_request, get_validated_data
 from app_backend.jobs.cctraining_job import enqueue_cc_task
-from app_backend.model.Task_model import Task_model
+from app_backend.model.Task_model import Task_model, TaskStatus
 from app_backend.model.User_model import User_model
 from app_backend.validators.schemas import TaskInfoSchema, FileUploadSchema
 from app_backend.vo import HttpResponse
@@ -78,7 +78,7 @@ def upload_project_file():
         for loss in _config['loss_rate']:
             for buffer_size in _config['buffer_size']:
                 task_id = str(uuid.uuid1())
-                task = Task_model(task_id=task_id, user_id=user_id, task_status='queued', task_score=0,
+                task = Task_model(task_id=task_id, user_id=user_id, task_status=TaskStatus.QUEUED.value, task_score=0,
                                   created_time=now.strftime("%Y-%m-%d-%H-%M-%S"), cname=cname,
                                   task_dir=temp_dir + "/" + trace_name + "_" + str(loss) + "_" + str(buffer_size),
                                   algorithm=algorithm, trace_name=trace_name, upload_id=upload_id, loss_rate=loss,
@@ -87,7 +87,8 @@ def upload_project_file():
                 # 保存任务到数据库
                 task.save()
                 task_ids.append(task_id)
-                logger.debug(f"Created task {task_id} for trace {trace_name}, loss {loss}, buffer {buffer_size}")
+                logger.debug(
+                    f"[task: {task_id}] Created task for trace {trace_name}, loss {loss}, buffer {buffer_size}")
 
                 # 发送任务到队列并检查结果
                 enqueue_result = enqueue_cc_task(task_id)
@@ -95,7 +96,7 @@ def upload_project_file():
 
                 if not enqueue_result['success']:
                     # 如果入队失败，更新任务状态为错误
-                    task.update(task_status='not_queued')
+                    task.update(task_status=TaskStatus.NOT_QUEUED.value)
                     failed_tasks.append({
                         'task_id': task_id,
                         'trace_name': trace_name,
@@ -103,9 +104,10 @@ def upload_project_file():
                         'buffer_size': buffer_size,
                         'error': enqueue_result['message']
                     })
-                    logger.error(f"Failed to enqueue task {task_id}: {enqueue_result['message']}")
+                    logger.error(f"[task: {task_id}] Failed to enqueue: {enqueue_result['message']}")
                 else:
-                    logger.info(f"Task {task_id} successfully enqueued with message ID: {enqueue_result['message_id']}")
+                    logger.info(
+                        f"[task: {task_id}] Successfully enqueued with message ID: {enqueue_result['message_id']}")
 
     # 统计入队结果
     successful_enqueues = sum(1 for result in enqueue_results if result['success'])
@@ -136,35 +138,36 @@ def upload_project_file():
 @task_bp.route("/task_get_task_info", methods=["POST"])
 @jwt_required()
 @validate_request(TaskInfoSchema)
+# not used now.
 def return_task():
     data = get_validated_data(TaskInfoSchema)
     task_id = data.task_id
     user_id = get_jwt_identity()
 
-    logger.debug(f"Task info request for task {task_id} by user {user_id}")
+    logger.debug(f"[task: {task_id}] Task info request by user {user_id}")
 
     # 保证只能查询自己的任务
     task_info = Task_model.query.filter_by(task_id=task_id, user_id=user_id).first()
     if not task_info:
-        logger.warning(f"Task info request failed: Task {task_id} not found for user {user_id}")
+        logger.warning(f"[task: {task_id}] Task info request failed: Task not found for user {user_id}")
         return HttpResponse.fail("Task not found.")
 
-    if task_info.task_status == 'queued':
-        logger.debug(f"Task {task_id} is still queued")
+    task_status = TaskStatus(task_info.task_status)
+    if task_status == TaskStatus.QUEUED:
+        logger.debug(f"[task: {task_id}] Task is still queued")
         return HttpResponse.ok("Task is queued.")
 
-    if task_info.task_status == 'error':
+    if task_status == TaskStatus.ERROR:
         # 从task_dir中读取error.log,返回给前端
         try:
             with open(f'{task_info.task_dir}/error.log', 'r') as f:
                 error_info = f.read()
-            logger.error(f"Task {task_id} error details: {error_info}")
+            logger.error(f"[task: {task_id}] Error details: {error_info}")
             return HttpResponse.ok("Task error", error_info=error_info)
         except Exception as e:
-            with open(f'{task_info.task_dir}/error.log', 'r') as f:
-                error_info = str(e)
+            error_info = str(e)
             return HttpResponse.ok("Task error", error_info=error_info)
 
     task_res = task_info.to_detail_dict()
-    logger.debug(f"Successfully retrieved task info for task {task_id}")
+    logger.debug(f"[task: {task_id}] Successfully retrieved task info")
     return HttpResponse.ok("Task info found.", task_res=task_res)

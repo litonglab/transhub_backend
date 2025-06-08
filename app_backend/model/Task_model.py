@@ -1,11 +1,42 @@
 import logging
 import os
+from enum import Enum
 
 from sqlalchemy.dialects.mysql import VARCHAR
 
 from app_backend import db
 
 logger = logging.getLogger(__name__)
+
+
+class TaskStatus(Enum):
+    """任务状态枚举类"""
+    QUEUED = 'queued'  # 任务已入队
+    COMPILING = 'compling'  # 正在编译
+    RUNNING = 'running'  # 正在运行
+    # RETRYING = 'retrying'       # 重试中
+    FINISHED = 'finished'  # 已完成
+    ERROR = 'error'  # 发生错误
+    NOT_QUEUED = 'not_queued'  # 未能入队
+
+    @classmethod
+    def get_valid_transitions(cls):
+        """获取有效的状态转换"""
+        return {
+            cls.QUEUED: [cls.COMPILING, cls.ERROR],
+            cls.COMPILING: [cls.RUNNING, cls.ERROR],
+            cls.RUNNING: [cls.FINISHED, cls.ERROR],
+            # cls.RETRYING: [cls.RUNNING, cls.ERROR],
+            cls.FINISHED: [],
+            cls.ERROR: [],
+            cls.NOT_QUEUED: []
+        }
+
+    def can_transition_to(self, new_status):
+        """检查是否可以转换到新状态"""
+        if not isinstance(new_status, TaskStatus):
+            new_status = TaskStatus(new_status)
+        return new_status in self.get_valid_transitions()[self]
 
 
 class Task_model(db.Model):
@@ -29,105 +60,67 @@ class Task_model(db.Model):
         return f'<Task {self.task_id}>'
 
     def save(self):
-        logger.debug(f"Saving task {self.task_id} for user {self.user_id}")
+        logger.debug(f"[task: {self.task_id}] Saving task for user {self.user_id}")
         db.session.add(self)
         db.session.commit()
-        logger.info(f"Task {self.task_id} saved successfully")
+        logger.info(f"[task: {self.task_id}] Task saved successfully")
 
     def update(self, **kwargs):
-        logger.debug(f"Updating task {self.task_id} with parameters: {kwargs}")
+        logger.debug(f"[task: {self.task_id}] Updating task with parameters: {kwargs}")
         try:
             with db.session.begin_nested():
+                # 检查状态转换是否有效
+                if 'task_status' in kwargs:
+                    current_status = TaskStatus(self.task_status)
+                    new_status = TaskStatus(kwargs['task_status'])
+                    if not current_status.can_transition_to(new_status):
+                        raise ValueError(f"Invalid status transition from {current_status.value} to {new_status.value}")
+                    logger.info(
+                        f"[task: {self.task_id}] Status changing from {current_status.value} to {new_status.value}")
+
                 for key, value in kwargs.items():
                     setattr(self, key, value)
                 db.session.commit()
-            logger.info(f"Task {self.task_id} updated successfully")
+            logger.info(f"[task: {self.task_id}] Task updated successfully")
         except Exception as e:
-            logger.error(f"Error updating task {self.task_id}: {str(e)}", exc_info=True)
+            logger.error(f"[task: {self.task_id}] Error updating task: {str(e)}", exc_info=True)
             db.session.rollback()
             raise e
 
     def delete(self):
-        logger.info(f"Deleting task {self.task_id}")
+        logger.info(f"[task: {self.task_id}] Deleting task")
         db.session.delete(self)
         db.session.commit()
-        logger.info(f"Task {self.task_id} deleted successfully")
+        logger.info(f"[task: {self.task_id}] Task deleted successfully")
 
     def to_detail_dict(self):
+        status = TaskStatus(self.task_status)
+        res = {
+            'user_id': self.user_id,
+            'task_id': self.task_id,
+            'upload_id': self.upload_id,
+            'loss_rate': self.loss_rate,
+            'buffer_size': self.buffer_size,
+            'trace_name': self.trace_name,
+            'task_status': self.task_status,
+            'created_time': self.created_time.strftime("%Y-%m-%d %H:%M:%S"),
+            'task_score': self.task_score,
+            'cname': self.cname,
+            'algorithm': self.algorithm,
+            'log': "No log available for this status, only error tasks have logs."
+        }
 
-        if self.task_status == 'finished':
-            res = {
-                'user_id': self.user_id,
-                'task_id': self.task_id,
-                'upload_id': self.upload_id,
-                'loss_rate': self.loss_rate,
-                'buffer_size': self.buffer_size,
-                'trace_name': self.trace_name,
-                'task_status': self.task_status,
-                'created_time': self.created_time.strftime("%Y-%m-%d %H:%M:%S"),
-                'task_score': self.task_score,
-                'cname': self.cname,
-                'algorithm': self.algorithm,
-                'log': "success"
-            }
-            return res
-
-        elif self.task_status == 'running':
-            res = {
-                'user_id': self.user_id,
-                'task_id': self.task_id,
-                'upload_id': self.upload_id,
-                'loss_rate': self.loss_rate,
-                'buffer_size': self.buffer_size,
-                'trace_name': self.trace_name,
-                'task_status': self.task_status,
-                'created_time': self.created_time.strftime("%Y-%m-%d %H:%M:%S"),
-                'task_score': 0,
-                'cname': self.cname,
-                'algorithm': self.algorithm,
-                'log': "running"
-            }
-            return res
-        elif self.task_status == 'error':
+        if status == TaskStatus.ERROR:
             logpath = self.task_dir + '/error.log'
-            log_content = ''
+            log_content = 'Not found error log file'
             if os.path.exists(logpath):
                 with open(logpath, 'r') as f:
                     log_content = f.read()
             else:
-                logger.error(f"Error log file not found for task {self.task_id} at {logpath}")
+                logger.error(f"[task: {self.task_id}] Error log file not found at {logpath}")
 
-            res = {
-                'user_id': self.user_id,
-                'task_id': self.task_id,
-                'upload_id': self.upload_id,
-                'loss_rate': self.loss_rate,
-                'buffer_size': self.buffer_size,
-                'trace_name': self.trace_name,
-                'task_status': self.task_status,
-                'created_time': self.created_time.strftime("%Y-%m-%d %H:%M:%S"),
-                'task_score': 0,
-                'cname': self.cname,
-                'algorithm': self.algorithm,
-                'log': log_content
-            }
-            return res
-        elif self.task_status == 'queued':
-            res = {
-                'user_id': self.user_id,
-                'task_id': self.task_id,
-                'upload_id': self.upload_id,
-                'loss_rate': self.loss_rate,
-                'buffer_size': self.buffer_size,
-                'trace_name': self.trace_name,
-                'task_status': self.task_status,
-                'created_time': self.created_time.strftime("%Y-%m-%d %H:%M:%S"),
-                'task_score': 0,
-                'cname': self.cname,
-                'algorithm': self.algorithm,
-                'log': "queued"
-            }
-            return res
+            res['log'] = log_content
+        return res
 
 
 def to_history_dict(tasks: list):
@@ -150,13 +143,14 @@ def to_history_dict(tasks: list):
         else:
             for r in res:
                 if r['upload_id'] == task.upload_id:
-                    if task.task_status == 'error':
-                        r['status'] = 'error'
+                    task_status = TaskStatus(task.task_status)
+                    if task_status == TaskStatus.ERROR:
+                        r['status'] = TaskStatus.ERROR.value
                         r['score'] = 0
-                    elif task.task_status == 'running' and r['status'] != 'error':
-                        r['status'] = 'running'
+                    elif task_status == TaskStatus.RUNNING and r['status'] != TaskStatus.ERROR.value:
+                        r['status'] = TaskStatus.RUNNING.value
                         r['score'] = task.task_score
-                    elif r['status'] not in ['error', 'running']:
+                    elif r['status'] not in [TaskStatus.ERROR.value, TaskStatus.RUNNING.value]:
                         r['score'] += task.task_score
 
     return res
