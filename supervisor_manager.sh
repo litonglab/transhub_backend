@@ -25,8 +25,18 @@ setup_environment() {
     fi
 
     # 确保日志目录存在
-    mkdir -p "$LOG_DIR" || { echo "❌ 无法创建日志目录: $LOG_DIR"; exit 1; }
-    echo "📁 日志目录已创建: $LOG_DIR"
+    if [ ! -d "$LOG_DIR" ]; then
+        echo "📁 将要创建日志目录: $LOG_DIR"
+        read -p "是否继续？(y/n): " confirm
+        if [[ $confirm != [yY] ]]; then
+            echo "❌ 用户取消创建目录"
+            exit 1
+        fi
+        mkdir -p "$LOG_DIR" || { echo "❌ 无法创建日志目录: $LOG_DIR"; exit 1; }
+        echo "✅ 日志目录已创建: $LOG_DIR"
+    else
+        echo "📁 日志目录已存在: $LOG_DIR"
+    fi
 }
 
 display_config() {
@@ -43,18 +53,28 @@ case "$1" in
         echo "🚀 启动服务..."
         setup_environment
         display_config
-        supervisord -c "$CONFIG"
+        if ! supervisord -c "$CONFIG"; then
+            echo "❌ supervisord 启动失败"
+            exit 1
+        fi
         echo "✅ 服务已启动，查看日志文件（$LOG_DIR）确认运行状态。"
         ;;
     stop)
         echo "🛑 停止服务..."
-        supervisorctl -c "$CONFIG" shutdown
+        if ! supervisorctl -c "$CONFIG" shutdown; then
+            echo "❌ 停止服务失败"
+            exit 1
+        fi
+        echo "✅ 服务已停止"
         ;;
     status)
         echo "🔍 检查服务状态..."
         setup_environment
         display_config
-        supervisorctl -c "$CONFIG" status
+        if ! supervisorctl -c "$CONFIG" status; then
+            echo "❌ 获取服务状态失败"
+            exit 1
+        fi
         ;;
     restart)
         $0 stop
