@@ -1,5 +1,6 @@
 import logging
 import os
+import shutil
 import subprocess
 import uuid
 
@@ -57,30 +58,26 @@ def run_cc_training_task(task_id):
                     task.update(task_status=TaskStatus.ERROR.value)
                     return
                 # 拷贝文件
-                # 删除target_dir中的名为 controller.cc 的文件
-                if os.path.exists(target_dir + "/controller.cc"):
-                    os.remove(target_dir + "/controller.cc")
-                    logger.info(f"[task: {task_id}] Removed old controller.cc")
                 parent_dir = os.path.dirname(task.task_dir)
                 if not os.path.exists(task.task_dir):
                     os.mkdir(task.task_dir)
                     logger.info(f"[task: {task_id}] Created task dir: {task.task_dir}")
-                # 将用户上传的文件拷贝到target_dir中，并直接命名为 controller.cc，避免覆盖
-                if not run_cmd(f'cp {parent_dir}/{task.algorithm}.cc {target_dir}/controller.cc',
-                               f'{task.task_dir}/error.log', task):
-                    logger.error(f"[task: {task_id}] cp failed: {parent_dir}/{task.algorithm}.cc -> {target_dir}")
-                    return
+                # 将用户上传的文件拷贝到target_dir中，并直接覆盖已有的 controller.cc，避免覆盖
+                logger.info(f"[task: {task_id}] Copying files from {parent_dir} to {target_dir}")
+                shutil.copy(f'{parent_dir}/{task.algorithm}.cc', f'{target_dir}/controller.cc')
                 # 2. 编译并创建trace文件夹
                 if not run_cmd(f'cd {target_dir} && make clean && make', f'{task.task_dir}/error.log', task):
                     logger.error(f"[task: {task_id}] make failed in {target_dir}")
                     return
                 # 先在task.task_dir中创建对应的trace文件夹，再将targetdir下的sender,receiver拷贝到trace文件夹中
                 trace_dir = task.task_dir
-                if not run_cmd(
-                        f'mkdir -p {trace_dir} && cp {target_dir}/sender {trace_dir} && cp {target_dir}/receiver {trace_dir}',
-                        f'{task.task_dir}/error.log', task):
-                    logger.error(f"[task: {task_id}] copy sender/receiver failed to {trace_dir}")
-                    return
+                if not os.path.exists(trace_dir):
+                    logger.info(f"[task: {task_id}] Creating trace directory: {trace_dir}")
+                    os.mkdir(trace_dir)
+                logger.info(
+                    f"[task: {task_id}] Copying sender and receiver to trace directory, from {target_dir} to {trace_dir}")
+                shutil.copy(f'{target_dir}/sender', trace_dir)
+                shutil.copy(f'{target_dir}/receiver', trace_dir)
             try:
                 # 3. 执行
                 program_script = "./run-contest.sh"
