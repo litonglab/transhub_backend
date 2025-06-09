@@ -3,6 +3,7 @@ import secrets
 import threading
 from logging import getLogger
 
+import dramatiq_dashboard
 from flask import Flask, render_template
 from flask_cors import CORS
 from flask_redis import FlaskRedis
@@ -10,6 +11,8 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.exceptions import HTTPException
 
 from app_backend.config import get_config, get_default_config
+from app_backend.security.auth import init_auth
+from app_backend.security.dramatiq_auth import create_auth_middleware
 from app_backend.utils.utils import setup_logger
 from app_backend.vo import HttpResponse
 
@@ -23,14 +26,14 @@ db = SQLAlchemy()
 setup_logger()
 logger = getLogger(__name__)
 
-# Global app instance and lock for singleton pattern
+# Global app instance and lock for the singleton pattern
 _app_instance = None
 _app_lock = threading.Lock()
 
 
 def singleton_app(func):
     """
-    Decorator to implement singleton pattern for Flask app creation.
+    Decorator to implement the singleton pattern for Flask app creation.
     Ensures thread-safe singleton behavior with optional force_new parameter.
     """
 
@@ -42,7 +45,7 @@ def singleton_app(func):
             logger.debug("Returning existing app instance")
             return _app_instance
 
-        # Use double-checked locking pattern for thread safety
+        # Use the double-checked locking pattern for thread safety
         with _app_lock:
             # Check again inside the lock in case another thread created the instance
             if _app_instance is not None and not force_new:
@@ -61,8 +64,8 @@ def singleton_app(func):
     return wrapper
 
 
-def make_dir():
-    """Create necessary directories for the application."""
+def _make_dir():
+    """Create the necessary directories for the application."""
     directories = [
         (config.App.BASEDIR, 'base directory'),
         (config.App.USER_DIR_PATH, 'user directory')
@@ -102,10 +105,26 @@ def _configure_database(app):
     db.init_app(app)
 
 
+def _configure_redis(app):
+    """Configure redis."""
+    # Initialize Redis
+    redis_client.init_app(app)
+    # 判断redis是否连接成功
+    redis_client.ping()
+
+
+def _configure_secret_key(app):
+    """Configure secret key for Flask app."""
+    if not app.config['SECRET_KEY']:
+        logger.warning("⚠️ SECRET_KEY 未设置，使用自动生成的密钥。请在生产环境中设置此变量以增强安全性。")
+        app.config['SECRET_KEY'] = secrets.token_hex(32)
+
+
+# get_app() used in dramatiq worker.
 @singleton_app
 def get_app():
     """
-    Get Flask application instance using singleton pattern.
+    Get Flask application instance using the singleton pattern.
 
     This function is decorated with @singleton_app to ensure only one
     instance of the Flask application exists throughout the application lifecycle.
@@ -140,18 +159,10 @@ def get_app():
 
     # Load configuration
     app.config.from_prefixed_env()
-    if not app.config['SECRET_KEY']:
-        logger.warning("⚠️ SECRET_KEY 未设置，使用自动生成的密钥。请在生产环境中设置此变量以增强安全性。")
-        app.config['SECRET_KEY'] = secrets.token_hex(32)
 
     # Configure components
-    _configure_cors(app)
     _configure_database(app)
-
-    # Initialize Redis
-    redis_client.init_app(app)
-    # 判断redis是否连接成功
-    redis_client.ping()
+    _configure_redis(app)
 
     end_time = time.time()
 
@@ -217,8 +228,8 @@ def get_app_info():
     }
 
 
-def _initialize_database(app):
-    """Initialize database tables."""
+def _create_tables(app):
+    """Create database tables."""
     try:
         # Import models to register them with SQLAlchemy
         from app_backend.model.User_model import User_model
@@ -251,7 +262,7 @@ def _register_blueprints(app):
         (help_bp, 'help'),
         (summary_bp, 'summary'),
         (source_code_bp, 'source_code'),
-        (graph_bp, 'graph')
+        (graph_bp, 'graph'),
     ]
 
     for blueprint, name in blueprints:
@@ -276,14 +287,31 @@ def _configure_error_handlers(app):
 
 
 def _initialize_auth(app):
-    """Initialize authentication system."""
+    """Initialize the authentication system."""
     try:
-        from app_backend.security.auth import init_auth
         init_auth(app)
         logger.info('Authentication system initialized')
     except Exception as e:
         logger.error(f'Failed to initialize authentication: {e}')
         raise
+
+
+def _configure_dramatiq_dashboard(app):
+    """配置 dramatiq dashboard 中间件"""
+    if not config.DramatiqDashboard.DRAMATIQ_DASHBOARD_ENABLED:
+        logger.warning("Dramatiq dashboard is disabled in the configuration.")
+        return
+    try:
+        # 创建 dramatiq dashboard 中间件
+        dashboard_middleware = dramatiq_dashboard.make_wsgi_middleware(config.DramatiqDashboard.DRAMATIQ_DASHBOARD_URL)
+
+        # 创建并应用带有认证的中间件
+        auth_middleware = create_auth_middleware(dashboard_middleware)
+        app.wsgi_app = auth_middleware(app.wsgi_app)
+
+        logger.info('Dramatiq dashboard middleware configured successfully')
+    except Exception as e:
+        logger.error(f'Failed to configure dramatiq dashboard middleware: {e}')
 
 
 def create_app():
@@ -295,20 +323,22 @@ def create_app():
     app = get_app()
 
     with app.app_context():
-        # Initialize database
-        _initialize_database(app)
-
-        # Create necessary directories
-        make_dir()
-
+        # Create database tables
+        _create_tables(app)
+        # Create the necessary directories
+        _make_dir()
         # Register blueprints
         _register_blueprints(app)
-
         # Initialize authentication
         _initialize_auth(app)
-
         # Configure error handlers
         _configure_error_handlers(app)
+        # Configure dramatiq dashboard middleware
+        _configure_dramatiq_dashboard(app)
+        # Configure secret key
+        _configure_secret_key(app)
+        # Configure cors
+        _configure_cors(app)
 
         end_time = time.time()
         logger.info(f"App fully configured in {end_time - start_time:.3f} seconds")

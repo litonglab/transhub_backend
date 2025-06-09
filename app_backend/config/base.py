@@ -51,6 +51,16 @@ class BaseConfig:
         CNAME_LIST = list()
         REGISTER_STUDENT_LIST = list()
 
+    class DramatiqDashboard:
+        """DRAMATIQ_DASHBOARD后台配置"""
+        DRAMATIQ_DASHBOARD_USERNAME = os.getenv('DRAMATIQ_DASHBOARD_USERNAME')
+        DRAMATIQ_DASHBOARD_PASSWORD = os.getenv('DRAMATIQ_DASHBOARD_PASSWORD')
+        DRAMATIQ_DASHBOARD_URL = os.getenv('DRAMATIQ_DASHBOARD_URL')
+        # 必须设置上述三个环境变量，且不能为空，否则不启用DRAMATIQ_DASHBOARD
+        DRAMATIQ_DASHBOARD_ENABLED = DRAMATIQ_DASHBOARD_USERNAME and DRAMATIQ_DASHBOARD_PASSWORD and DRAMATIQ_DASHBOARD_URL and len(
+            DRAMATIQ_DASHBOARD_USERNAME) > 0 and len(DRAMATIQ_DASHBOARD_PASSWORD) > 0 and len(
+            DRAMATIQ_DASHBOARD_URL) > 0
+
     def __init__(self):
         """初始化配置"""
         self._setup_class_config()
