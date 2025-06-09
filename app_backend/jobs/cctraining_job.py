@@ -1,7 +1,6 @@
 import logging
 import os
 import subprocess
-import traceback
 import uuid
 
 import dramatiq
@@ -32,7 +31,6 @@ dramatiq.set_broker(redis_broker)
 def run_cc_training_task(task_id):
     app = get_app()
     with app.app_context():
-        log_path = None
         try:
             db.session.expire_all()  # 刷新会话
             task = Task_model.query.filter_by(task_id=task_id).first()
@@ -41,7 +39,6 @@ def run_cc_training_task(task_id):
                 return
 
             parent_dir = os.path.dirname(task.task_dir)
-            log_path = f"{parent_dir}/run.log"
 
             logger.info(f"[task: {task_id}] Start task")
             user = User_model.query.filter_by(user_id=task.user_id).first()
@@ -154,6 +151,7 @@ def run_cc_training_task(task_id):
                 # 成功后的回调
                 task.update(task_status=TaskStatus.FINISHED.value, task_score=total_score)
                 # Step 1: Try to retrieve the Rank_model record
+                # todo: 建议所有任务结束后，统一更新用户的Rank_model记录，不然可能出现部分任务error，部分任务finished，仍然会更新Rank_model记录的情况
                 rank_record = Rank_model.query.get(task.user_id)
                 if rank_record:
                     if rank_record.upload_id == task.upload_id:
@@ -173,36 +171,25 @@ def run_cc_training_task(task_id):
                 logger.info(f"[task: {task_id}] Task finished, score: {total_score}")
             except Exception as e:
                 err_msg = str(e)
-                tb = traceback.format_exc()
                 with open(f'{task.task_dir}/error.log', 'w') as f:
-                    f.write(err_msg + "\n" + tb)
-                logger.error(f"[task: {task_id}] Exception in inner try: {err_msg}\n{tb}")
+                    f.write(f"Exception occurred: {err_msg}\n")
+                logger.error(f"[task: {task_id}] Exception in inner try: {err_msg}", exc_info=True)
                 task.update(task_status=TaskStatus.ERROR.value)
         except Exception as e:
             # 兜底异常
             err_msg = str(e)
-            tb = traceback.format_exc()
-            if log_path:
-                with open(log_path, 'a') as logf:
-                    logf.write(f"[FATAL] Exception in outer try: {err_msg}\n{tb}\n")
-            else:
-                with open('run.log', 'a') as logf:
-                    logf.write(f"[FATAL] Exception before task_dir: {err_msg}\n{tb}\n")
+            with open(f'{task.task_dir}/error.log', 'w') as f:
+                f.write(f"Exception occurred: {err_msg}\n")
+            logger.error(f"[task: {task_id}] Exception in outer try: {err_msg}", exc_info=True)
             if 'task' in locals() and task:
                 task.update(task_status=TaskStatus.ERROR.value)
+                logger.error(f"[task: {task_id}] Task status updated to ERROR due to exception")
         finally:
             try:
                 release_port(locals().get('running_port', None), redis_client)
-            except Exception as e:
-                if log_path:
-                    with open(log_path, 'a') as logf:
-                        logf.write(f"[WARN] Exception in release_port: {e}\n")
-            try:
                 db.session.remove()
             except Exception as e:
-                if log_path:
-                    with open(log_path, 'a') as logf:
-                        logf.write(f"[WARN] Exception in db.session.remove: {e}\n")
+                logger.error(f"[task: {task_id}] Error releasing port or closing session: {str(e)}", exc_info=True)
 
 
 def run_cmd(cmd, error_file, task):
