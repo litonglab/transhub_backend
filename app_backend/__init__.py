@@ -4,6 +4,7 @@ import threading
 from logging import getLogger
 
 import dramatiq_dashboard
+from dramatiq.brokers.redis import RedisBroker
 from flask import Flask, render_template
 from flask_cors import CORS
 from flask_redis import FlaskRedis
@@ -303,7 +304,10 @@ def _configure_dramatiq_dashboard(app):
         return
     try:
         # 创建 dramatiq dashboard 中间件
-        dashboard_middleware = dramatiq_dashboard.make_wsgi_middleware(config.DramatiqDashboard.DRAMATIQ_DASHBOARD_URL)
+        redis_broker = RedisBroker(url=config.Cache.FLASK_REDIS_URL)
+        redis_broker.declare_queue("default")
+        dashboard_middleware = dramatiq_dashboard.make_wsgi_middleware(
+            config.DramatiqDashboard.DRAMATIQ_DASHBOARD_URL, redis_broker)
 
         # 创建并应用带有认证的中间件
         auth_middleware = create_auth_middleware(dashboard_middleware)
