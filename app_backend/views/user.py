@@ -92,18 +92,11 @@ def user_register():
 
         logger.debug(f"Registration attempt for user: username={username}, real_name={real_name}, sno={sno}")
 
-        # 检测username，real_name,sno是否已经存在
-        user = User_model.query.filter_by(real_name=real_name, sno=sno).first()
-        if user:
-            logger.warning(f"Registration failed: User already exists with real_name={real_name}, sno={sno}")
-            return HttpResponse.fail("User already exists.")
+        # 检测username，sno是否已经存在
         user = User_model(username=username, password=password, real_name=real_name, sno=sno)
         if user.is_exist():
             logger.warning(f"Registration failed: Username {username} already exists")
-            return HttpResponse.fail("User already exists.")
-        elif user.is_null_info():
-            logger.warning(f"Registration failed: Incomplete information for user {username}")
-            return HttpResponse.fail("Information is not complete.")
+            return HttpResponse.fail("此用户名或学号已被注册，请更换用户名或学号。")
         else:
             user_id = str(uuid.uuid1())
             user.user_id = user_id

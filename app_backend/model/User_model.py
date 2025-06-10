@@ -64,18 +64,15 @@ class User_model(db.Model):
         logger.info(f"File saved successfully: {file_path}")
 
     def is_exist(self) -> bool:
-        logger.debug(f"Checking if user exists: {self.username}")
+        logger.debug(f"Checking if user exists: {self.username} with sno {self.sno}")
         # user_name is unique, sno is unique
-        user = User_model.query.filter_by(username=self.username)
-        if user.first():
+        if User_model.query.filter_by(username=self.username).first():
+            logger.warning(f"User with username {self.username} already exists.")
+            return True
+        elif User_model.query.filter_by(sno=self.sno).first():
+            logger.warning(f"User with sno {self.sno} already exists, but username {self.username} is not unique.")
             return True
         return False
-
-    def is_null_info(self):
-        logger.debug(f"Checking if user info is null for user: {self.username}")
-        is_null = self.real_name == '' or self.sno == '' or self.real_name == '' or self.sno == ''
-        logger.debug(f"User info null check result: {is_null}")
-        return is_null
 
     def update_real_info(self, real_name):
         logger.debug(f"Updating real name for user {self.username} to: {real_name}")
