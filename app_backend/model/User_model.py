@@ -84,7 +84,7 @@ class User_model(db.Model):
             logger.error(f"Error updating real name for user {self.username}: {str(e)}", exc_info=True)
             raise
 
-    def paticapate_competition(self, cname) -> bool:
+    def participate_competition(self, cname) -> bool:
         logger.info(f"User {self.username} attempting to participate in competition: {cname}")
         # 1. 参赛
         if Competition_model.query.filter_by(user_id=self.user_id, cname=cname).first():
@@ -99,20 +99,10 @@ class User_model(db.Model):
             if not os.path.exists(work_dir):
                 logger.info(f"Creating work directory: {work_dir}")
                 os.makedirs(work_dir)
-            # 3. run competion's init script
-            cmd = f'bash {com_dir}/init/gen_test.sh {com_dir}/project {work_dir} && exit 0'
-            try:
-                logger.debug(f"Running initialization script: {cmd}")
-                ret = os.system(cmd)
-                if ret != 0:
-                    logger.error(f"Initialization script failed with return code: {ret}")
-                    return False
-                com.save()
-                logger.info(f"Competition {cname} initialized successfully for user {self.username}")
-                return True
-            except Exception as e:
-                logger.error(f"Error running initialization script: {str(e)}", exc_info=True)
-                return False
+            # 由于已经改为公共目录编译，不再需要生成用户目录下的编译目录，简化代码逻辑
+            com.save()
+            logger.info(f"User {self.username} successfully participated in competition {cname}")
+            return True
 
     def get_competition_project_dir(self, cname):
         """

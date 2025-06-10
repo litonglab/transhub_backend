@@ -1,5 +1,4 @@
 import logging
-import os
 from enum import Enum
 
 from sqlalchemy.dialects.mysql import VARCHAR
@@ -13,6 +12,8 @@ class TaskStatus(Enum):
     """任务状态枚举类，注意需要新添加状态时，需要更新状态优先级及状态转换等内容"""
     QUEUED = 'queued'  # 任务已入队
     COMPILING = 'compling'  # 正在编译
+    COMPILED = 'compiled'  # 编译完成
+    COMPILED_FAILED = 'compile_failed'  # 编译失败
     RUNNING = 'running'  # 正在运行
     # RETRYING = 'retrying'       # 重试中
     FINISHED = 'finished'  # 已完成
@@ -22,15 +23,17 @@ class TaskStatus(Enum):
     @property
     def priority(self):
         """获取状态优先级，数字越小优先级越高，用于to_history_dict()
-           状态优先级：error > not_queued > compling > queued > running > finished
+           状态优先级：compiled_failed > error > not_queued > compiled > compling > queued > running > finished
         """
         priority_map = {
-            TaskStatus.ERROR: 0,
-            TaskStatus.NOT_QUEUED: 1,
-            TaskStatus.COMPILING: 2,
-            TaskStatus.QUEUED: 3,
-            TaskStatus.RUNNING: 4,
-            TaskStatus.FINISHED: 5
+            TaskStatus.COMPILED_FAILED: 0,
+            TaskStatus.ERROR: 1,
+            TaskStatus.NOT_QUEUED: 2,
+            TaskStatus.COMPILED: 3,
+            TaskStatus.COMPILING: 4,
+            TaskStatus.QUEUED: 5,
+            TaskStatus.RUNNING: 6,
+            TaskStatus.FINISHED: 7
         }
         return priority_map[self]
 
@@ -38,13 +41,15 @@ class TaskStatus(Enum):
     def get_valid_transitions(cls):
         """获取有效的状态转换"""
         return {
-            cls.QUEUED: [cls.COMPILING, cls.ERROR],
-            cls.COMPILING: [cls.RUNNING, cls.ERROR],
+            cls.QUEUED: [cls.COMPILING, cls.ERROR, cls.COMPILED],
+            cls.COMPILING: [cls.COMPILED, cls.ERROR, cls.COMPILED_FAILED],
+            cls.COMPILED: [cls.RUNNING, cls.ERROR],
             cls.RUNNING: [cls.FINISHED, cls.ERROR],
             # cls.RETRYING: [cls.RUNNING, cls.ERROR],
             cls.FINISHED: [],
             cls.ERROR: [],
-            cls.NOT_QUEUED: []
+            cls.NOT_QUEUED: [],
+            cls.COMPILED_FAILED: [cls.ERROR],
         }
 
     def can_transition_to(self, new_status):
@@ -62,7 +67,7 @@ class Task_model(db.Model):
     buffer_size = db.Column(db.Integer, nullable=False)  # 标识运行的环境,buffer_size
     trace_name = db.Column(db.String(50), nullable=False)  # 标识运行的trace
     user_id = db.Column(db.String(36), nullable=False)
-    task_status = db.Column(db.String(10), nullable=False)
+    task_status = db.Column(db.String(16), nullable=False)
     created_time = db.Column(db.DateTime, nullable=False)
     # running_port = db.Column(db.Integer)
     task_score = db.Column(db.Float)
@@ -70,6 +75,7 @@ class Task_model(db.Model):
     # cname = db.Column(db.String(50))  # 任务类型，可以表示是哪个比赛的任务
     task_dir = db.Column(db.String(256))  # 任务的文件夹, 用于存放用户上传的文件
     algorithm = db.Column(db.String(50))  # 算法名称
+    error_log = db.Column(VARCHAR(15000, charset='utf8mb4'), )  # 错误日志
 
     def __repr__(self):
         return f'<Task {self.task_id}>'
@@ -122,19 +128,11 @@ class Task_model(db.Model):
             'task_score': self.task_score,
             'cname': self.cname,
             'algorithm': self.algorithm,
-            'log': "No log available for this status, only error tasks have logs."
+            'log': "No log available for this status, only error tasks have logs.\n当前状态不可查询，只有错误状态的任务才可查询日志。",
         }
 
-        if status == TaskStatus.ERROR:
-            logpath = self.task_dir + '/error.log'
-            log_content = 'Not found error log file'
-            if os.path.exists(logpath):
-                with open(logpath, 'r') as f:
-                    log_content = f.read()
-            else:
-                logger.error(f"[task: {self.task_id}] Error log file not found at {logpath}")
-
-            res['log'] = log_content
+        if status == TaskStatus.ERROR or status == TaskStatus.COMPILED_FAILED:
+            res['log'] = self.error_log
         return res
 
 
@@ -159,8 +157,8 @@ def to_history_dict(tasks: list):
             # 如果新状态优先级更高，则更新状态
             if task_status.priority < current_status.priority:
                 upload_id_dict[task.upload_id]['status'] = task_status.value
-                # 如果是error或not_queued状态，score设为0
-                if task_status == TaskStatus.ERROR or task_status == TaskStatus.NOT_QUEUED:
+                # 如果是error或not_queued或compiled_failed状态，score设为0
+                if task_status == TaskStatus.ERROR or task_status == TaskStatus.NOT_QUEUED or task_status == TaskStatus.COMPILED_FAILED:
                     upload_id_dict[task.upload_id]['score'] = 0
                 # 如果是finished状态，累加score
                 elif task_status == TaskStatus.FINISHED:

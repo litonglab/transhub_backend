@@ -57,16 +57,14 @@ def user_login():
         return resp
     else:
         # 异步调用参赛函数，为用户报名
-        # 用 copy_current_app_context 包装你的函数
-        # todo: 加锁，用户频繁操作可能导致重复调用此函数
         @copy_current_request_context
-        def async_paticapate():
+        def async_participate():
             logger.info(f"Starting async participation for user {username} in {cname}")
-            user.paticapate_competition(cname)
+            user.participate_competition(cname)
             logger.info(f"Completed async participation for user {username} in {cname}")
 
-        executor.submit(async_paticapate)
-        message = "同学你好，欢迎加入【{}】课程（比赛），首次加入课程，系统需要后台为你创建项目工程，预计需要一分钟，请稍后再登录。\n如果长时间仍无法登录，请联系管理员。".format(
+        executor.submit(async_participate)
+        message = "同学你好，欢迎加入【{}】课程（比赛），首次加入课程（比赛），系统需要后台为你创建项目工程，预计需要数秒钟，请稍后再登录。\n如果长时间仍无法登录，请联系管理员。".format(
             cname)
         logger.info(f"New user {username} initiated participation in {cname}")
         return HttpResponse.error(201, message)
