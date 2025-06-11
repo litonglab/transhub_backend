@@ -1,6 +1,7 @@
 import logging
 import os
 import shutil
+import signal
 import subprocess
 import uuid
 
@@ -263,33 +264,71 @@ def run_cc_training_task(task_id):
 
 def run_cmd(cmd, task_id, raise_exception=True):
     logger.info(f"[task: {task_id}] Running command: {cmd}")
+    timeout = 600  # 设置超时时间为10分钟（600秒）
+    shell = True
+    commands_str = ""
 
-    # 处理命令输入
-    if isinstance(cmd, list):
-        # 如果是列表，直接使用subprocess.run
-        result = subprocess.run(cmd, capture_output=True, text=True)
-    else:
-        # 如果是字符串，使用shell=True
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    try:
+        if isinstance(cmd, list):
+            shell = False
+            commands_str = cmd[0]
+        else:
+            # 如果是字符串，分割成多个命令，不显示具体参数给用户
+            commands = [c.strip().split()[0] for c in cmd.split('&&')]
+            commands_str = '; '.join(commands)
 
-    # 捕获标准输出和错误输出
-    output = f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}\n"
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            shell=shell,
+            preexec_fn=os.setsid  # 创建新的进程组
+        )
 
-    if result.returncode != 0:
-        logger.error(f"[task: {task_id}] Command failed with return code {result.returncode}, output: {output}")
-        if raise_exception:
-            if isinstance(cmd, list):
-                # 如果是列表，直接使用第一个元素作为命令名
-                commands_str = cmd[0]
-            else:
-                # 如果是字符串，按 && 分割并提取命令名
-                # 展示给用户时，只展示第一个命令名
-                commands = [c.strip().split()[0] for c in cmd.split('&&')]
-                commands_str = '; '.join(commands)
-            raise RuntimeError(f"Command failed: {commands_str}\n\n{output}")
-        return False, output
-    logger.info(f"[task: {task_id}] Command completed successfully")
-    return True, output
+        try:
+            stdout, stderr = process.communicate(timeout=timeout)
+            output = f"stdout:\n{stdout}\nstderr:\n{stderr}\n"
+            logger.info(f"[task: {task_id}] Command output: {output}")
+
+            if process.returncode != 0:
+                logger.error(
+                    f"[task: {task_id}] Command failed with return code {process.returncode}")
+                if raise_exception:
+                    raise RuntimeError(f"Command failed: {commands_str}\n\n{output}")
+                return False, output
+
+            logger.info(f"[task: {task_id}] Command completed successfully")
+            return True, output
+
+        except subprocess.TimeoutExpired:
+            # 超时时，终止整个进程组
+            try:
+                logger.error(f"[task: {task_id}] Command timed out after {timeout} seconds, terminating process group")
+                os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+                # 等待进程组终止
+                process.wait(timeout=5)
+                logger.info(f"[task: {task_id}] Process group terminated successfully")
+            except:
+                # 如果SIGTERM没有效果，使用SIGKILL强制终止
+                try:
+                    logger.error(f"[task: {task_id}] Command still running after SIGTERM, using SIGKILL")
+                    os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+                    logger.info(f"[task: {task_id}] Process group killed successfully")
+                except:
+                    logger.error(f"[task: {task_id}] Failed to kill process group with SIGKILL", exc_info=True)
+            raise RuntimeError(f"Command timed out after {timeout} seconds: {commands_str}")
+
+    except Exception as e:
+        # 确保进程被终止
+        try:
+            assert 'process' in locals(), "Process object not found, cannot kill process group"
+            logger.error(f"[task: {task_id}] An error occurred, terminating process group")
+            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+            logger.info(f"[task: {task_id}] Process group killed successfully")
+        except:
+            logger.error(f"[task: {task_id}] Failed to kill process group after error", exc_info=True)
+        raise e
 
 
 def enqueue_cc_task(task_id):
