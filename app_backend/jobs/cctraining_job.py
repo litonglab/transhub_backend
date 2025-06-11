@@ -170,33 +170,70 @@ def _graph(task, result_path):
     logger.info(f"[task: {task_id}] is generating graphs successfully")
 
 
-def _update_rank(task, user, total_score):
+def _update_rank(task, user):
     """
     更新榜单
     :param task: Task_model对象
-    :param total_score: 总分
+    :param user: User_model对象
     :return: None
     """
     task_id = task.task_id
-    # Step 1: Try to retrieve the Rank_model record
-    # todo: 建议所有任务结束后，统一更新用户的Rank_model记录，不然可能出现部分任务error，部分任务finished，仍然会更新Rank_model记录的情况
-    rank_record = Rank_model.query.get(task.user_id)
-    if rank_record:
-        if rank_record.upload_id == task.upload_id:
-            rank_record.update(task_score=total_score + rank_record.task_score)
-            logger.info(f"[task: {task_id}] Updated existing rank record: {rank_record.upload_id}")
+    upload_id = task.upload_id
+
+    # 创建用户级别的分布式锁
+    lock_name = f'rank_update_lock_{task.user_id}_{task.cname}'
+    rank_lock = Lock(redis_client, lock_name, timeout=30)  # 30秒超时
+    logger.info(f"[task: {task_id}] Acquired rank update lock: {lock_name}")
+
+    with rank_lock:
+        logger.info(f"[task: {task_id}] try to update rank")
+        # 获取该 upload_id 下的所有任务
+        all_tasks = Task_model.query.filter_by(upload_id=upload_id).all()
+
+        # 检查是否所有任务都已完成
+        all_tasks_completed = all(t.task_status == TaskStatus.FINISHED.value for t in all_tasks)
+
+        if not all_tasks_completed:
+            logger.warning(f"[task: {task_id}] Not all tasks completed for upload_id {upload_id}, skipping rank update")
+            return
+
+        # 计算所有任务的总分
+        total_upload_score = sum(t.task_score for t in all_tasks if t.task_score is not None)
+
+        # 获取用户当前课程的榜单记录
+        rank_record = Rank_model.query.filter_by(user_id=task.user_id, cname=task.cname).first()
+
+        if rank_record:
+            # 如果已有记录，检查是否需要更新
+            if rank_record.upload_time < task.created_time:
+                # 当前上传时间更新，更新记录
+                rank_record.update(
+                    upload_id=upload_id,
+                    task_score=total_upload_score,
+                    algorithm=task.algorithm,
+                    upload_time=task.created_time
+                )
+                logger.info(
+                    f"[task: {task_id}] Updated rank record with newer upload_id: {upload_id}, score: {total_upload_score}")
+            else:
+                # 当前上传时间更早，不更新记录
+                logger.warning(
+                    f"[task: {task_id}] Skipping rank update as current upload is older than existing record")
         else:
-            # Step 2: Record exists, update it
-            rank_record.update(upload_id=task.upload_id, task_score=total_score, algorithm=task.algorithm,
-                               upload_time=task.created_time)
-            logger.info(f"[task: {task_id}] Updated rank record with new upload_id: {task.upload_id}")
-    else:
-        # Step 3: Record does not exist, create and add it
-        Rank_model(user_id=task.user_id, upload_id=task.upload_id, task_score=total_score,
-                   algorithm=task.algorithm, upload_time=task.created_time, cname=task.cname,
-                   username=user.username).insert()
-        logger.info(f"[task: {task_id}] Created new rank record for user: {task.user_id}")
-    logger.info(f"[task: {task_id}] Task finished, score: {total_score}")
+            # 没有记录，创建新记录
+            Rank_model(
+                user_id=task.user_id,
+                upload_id=upload_id,
+                task_score=total_upload_score,
+                algorithm=task.algorithm,
+                upload_time=task.created_time,
+                cname=task.cname,
+                username=user.username
+            ).insert()
+            logger.info(
+                f"[task: {task_id}] Created new rank record for user: {task.user_id}, score: {total_upload_score}")
+
+        logger.info(f"[task: {task_id}] Rank update completed for upload_id: {upload_id}")
 
 
 @dramatiq.actor(time_limit=1200000, max_retries=0)
@@ -240,7 +277,7 @@ def run_cc_training_task(task_id):
 
             _graph(task, result_path)
 
-            _update_rank(task, user, total_score)
+            _update_rank(task, user)
             task.update(task_status=TaskStatus.FINISHED.value, task_score=total_score)
             logger.info(f"[task: {task_id}] Task completed successfully, score: {total_score}")
         except Exception as e:
@@ -260,6 +297,24 @@ def run_cc_training_task(task_id):
                 db.session.remove()
             except Exception as e:
                 logger.error(f"[task: {task_id}] Error releasing port or closing session: {str(e)}", exc_info=True)
+
+
+def _force_kill_process_group(process, task_id):
+    """
+    使用 SIGKILL 强制终止进程组
+    :param process: subprocess.Popen 对象
+    :param task_id: 任务ID
+    :return: None
+    """
+    try:
+        logger.info(f"[task: {task_id}] Attempting to kill process group for PID: {process.pid}")
+        pgid = os.getpgid(process.pid)
+        os.killpg(pgid, signal.SIGKILL)
+        logger.info(f"[task: {task_id}] Process group killed successfully")
+    except ProcessLookupError:
+        logger.info(f"[task: {task_id}] Process group already terminated")
+    except Exception as e:
+        logger.error(f"[task: {task_id}] Failed to kill process group: {str(e)}")
 
 
 def run_cmd(cmd, task_id, raise_exception=True):
@@ -303,31 +358,15 @@ def run_cmd(cmd, task_id, raise_exception=True):
 
         except subprocess.TimeoutExpired:
             # 超时时，终止整个进程组
-            try:
-                logger.error(f"[task: {task_id}] Command timed out after {timeout} seconds, terminating process group")
-                os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-                # 等待进程组终止
-                process.wait(timeout=5)
-                logger.info(f"[task: {task_id}] Process group terminated successfully")
-            except:
-                # 如果SIGTERM没有效果，使用SIGKILL强制终止
-                try:
-                    logger.error(f"[task: {task_id}] Command still running after SIGTERM, using SIGKILL")
-                    os.killpg(os.getpgid(process.pid), signal.SIGKILL)
-                    logger.info(f"[task: {task_id}] Process group killed successfully")
-                except:
-                    logger.error(f"[task: {task_id}] Failed to kill process group with SIGKILL", exc_info=True)
+            logger.error(f"[task: {task_id}] Command timed out after {timeout} seconds, terminating process group")
+            _force_kill_process_group(process, task_id)
             raise RuntimeError(f"Command timed out after {timeout} seconds: {commands_str}")
 
     except Exception as e:
         # 确保进程被终止
-        try:
-            assert 'process' in locals(), "Process object not found, cannot kill process group"
-            logger.error(f"[task: {task_id}] An error occurred, terminating process group")
-            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
-            logger.info(f"[task: {task_id}] Process group killed successfully")
-        except:
-            logger.error(f"[task: {task_id}] Failed to kill process group after error", exc_info=True)
+        assert 'process' in locals(), "Process object not found, cannot terminate"
+        _force_kill_process_group(process, task_id)
+        # 抛出异常，保证任务状态正确更新
         raise e
 
 
