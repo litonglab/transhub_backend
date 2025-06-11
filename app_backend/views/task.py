@@ -62,7 +62,7 @@ def upload_project_file():
         return HttpResponse.fail("User not found.")
 
     now = datetime.now()
-    upload_dir_name = f"{now.strftime("%Y-%m-%d-%H-%M-%S")}_{generate_random_string(6)}"
+    upload_dir_name = f"{now.strftime('%Y-%m-%d-%H-%M-%S')}_{generate_random_string(6)}"
 
     temp_dir = user.save_file_to_user_dir(file, cname, upload_dir_name)
     upload_id = str(uuid.uuid1())
