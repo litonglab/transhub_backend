@@ -12,6 +12,7 @@ from app_backend.decorators.validators import validate_request, get_validated_da
 from app_backend.jobs.cctraining_job import enqueue_cc_task
 from app_backend.model.Task_model import Task_model, TaskStatus
 from app_backend.model.User_model import User_model
+from app_backend.utils.utils import generate_random_string
 from app_backend.validators.schemas import TaskInfoSchema, FileUploadSchema
 from app_backend.vo import HttpResponse
 
@@ -61,8 +62,9 @@ def upload_project_file():
         return HttpResponse.fail("User not found.")
 
     now = datetime.now()
-    user.save_file_to_user_dir(file, cname, now.strftime("%Y-%m-%d-%H-%M-%S"))
-    temp_dir = user.get_user_dir(cname) + "/" + now.strftime("%Y-%m-%d-%H-%M-%S")
+    upload_dir_name = f"{now.strftime("%Y-%m-%d-%H-%M-%S")}_{generate_random_string(6)}"
+
+    temp_dir = user.save_file_to_user_dir(file, cname, upload_dir_name)
     upload_id = str(uuid.uuid1())
     # 构建task,按trace和env构建多个task
     task_ids = []
@@ -80,7 +82,7 @@ def upload_project_file():
                 task_id = str(uuid.uuid1())
                 task = Task_model(task_id=task_id, user_id=user_id, task_status=TaskStatus.QUEUED.value, task_score=0,
                                   created_time=now.strftime("%Y-%m-%d-%H-%M-%S"), cname=cname,
-                                  task_dir=temp_dir + "/" + trace_name + "_" + str(loss) + "_" + str(buffer_size),
+                                  task_dir=os.path.join(temp_dir, f"{trace_name}_{loss}_{buffer_size}"),
                                   algorithm=algorithm, trace_name=trace_name, upload_id=upload_id, loss_rate=loss,
                                   buffer_size=buffer_size)
 

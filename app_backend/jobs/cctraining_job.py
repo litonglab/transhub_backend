@@ -80,7 +80,7 @@ def _compile_cc_file(task, course_project_dir, task_parent_dir, sender_path, rec
                 logger.error(f"[task: {task_id}] make failed in {course_project_dir}, compilation failed")
                 # 如果编译失败，在父级目录创建一个文件，文件名为compile_failed，后续同cc_file的其他trace任务不用再重复编译
                 with open(compile_failed_file, 'w') as f:
-                    f.writelines([task_id])
+                    pass
                 task.update(task_status=TaskStatus.COMPILED_FAILED.value, error_log=output)
                 return False
 

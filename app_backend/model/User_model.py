@@ -44,7 +44,7 @@ class User_model(db.Model):
             os.makedirs(_dir)
         return _dir
 
-    def save_file_to_user_dir(self, file, cname, nowtime):
+    def save_file_to_user_dir(self, file, cname, upload_dir_name):
         logger.debug(f"Saving file {file.filename} for user {self.username} in competition {cname}")
         user_dir = self.get_user_dir(cname)
 
@@ -53,15 +53,16 @@ class User_model(db.Model):
             os.makedirs(user_dir)
 
         # 由当前时间生成文件夹
-        filedir = user_dir + "/" + nowtime
+        filedir = f"{user_dir}/{upload_dir_name}"
         if not os.path.exists(filedir):
             logger.info(f"Creating file directory: {filedir}")
             os.makedirs(filedir)
 
-        file_path = filedir + "/" + file.filename
+        file_path = os.path.join(filedir, file.filename)
         logger.debug(f"Saving file to: {file_path}")
         file.save(file_path)
         logger.info(f"File saved successfully: {file_path}")
+        return filedir
 
     def is_exist(self) -> bool:
         logger.debug(f"Checking if user exists: {self.username} with sno {self.sno}")
