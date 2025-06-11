@@ -244,7 +244,7 @@ def run_cc_training_task(task_id):
             logger.info(f"[task: {task_id}] Task completed successfully, score: {total_score}")
         except Exception as e:
             # 理论上除了编译失败外，不应出现其他异常，如果出现，需要修复代码相关逻辑
-            err_msg = repr(e)  # str(e)
+            err_msg = f"{type(e).__name__}\n{str(e)}"
             task_error_log_content = f"发生意外错误，请将此信息反馈给管理员协助排查。\n[task_id: {task_id}]\nException occurred:\n{err_msg}\n"
             logger.error(f"[task: {task_id}] {task_error_log_content}", exc_info=True)
             if 'task' in locals() and task:
@@ -263,14 +263,30 @@ def run_cc_training_task(task_id):
 
 def run_cmd(cmd, task_id, raise_exception=True):
     logger.info(f"[task: {task_id}] Running command: {cmd}")
-    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
+    # 处理命令输入
+    if isinstance(cmd, list):
+        # 如果是列表，直接使用subprocess.run
+        result = subprocess.run(cmd, capture_output=True, text=True)
+    else:
+        # 如果是字符串，使用shell=True
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
     # 捕获标准输出和错误输出
     output = f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}\n"
 
     if result.returncode != 0:
         logger.error(f"[task: {task_id}] Command failed with return code {result.returncode}, output: {output}")
         if raise_exception:
-            raise RuntimeError(f"Command failed: {cmd.split()[0]}\nOutput:\n{output}")
+            if isinstance(cmd, list):
+                # 如果是列表，直接使用第一个元素作为命令名
+                commands_str = cmd[0]
+            else:
+                # 如果是字符串，按 && 分割并提取命令名
+                # 展示给用户时，只展示第一个命令名
+                commands = [c.strip().split()[0] for c in cmd.split('&&')]
+                commands_str = '; '.join(commands)
+            raise RuntimeError(f"Command failed: {commands_str}\n\n{output}")
         return False, output
     logger.info(f"[task: {task_id}] Command completed successfully")
     return True, output
