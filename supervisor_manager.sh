@@ -106,7 +106,8 @@ case "$1" in
         ;;
     restart)
         $0 stop
-        sleep 10
+        echo "即将重启服务..."
+        sleep 3
         $0 start
         ;;
     config)
