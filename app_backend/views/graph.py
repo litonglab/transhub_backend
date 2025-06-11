@@ -1,5 +1,5 @@
-import os
 import logging
+import os
 
 from flask import send_file, Blueprint
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -31,7 +31,8 @@ def get_graph():
     logger.debug(f"Graph request for task {task_id}, type {graph_type} by user {user_id}")
     graph = graph_model.query.filter_by(task_id=task_id, graph_type=graph_type).first()
     if not graph or not os.path.exists(graph.graph_path):
-        logger.warning(f"Graph not found or file missing: task_id={task_id}, type={graph_type}, path={graph.graph_path if graph else 'None'}")
+        logger.warning(
+            f"Graph not found or file missing: task_id={task_id}, type={graph_type}, path={graph.graph_path if graph else 'None'}")
         return HttpResponse.fail("No such graph or graph file does not exist.")
     print(graph.graph_path)
     logger.info(f"Sending graph file: {graph.graph_path}")

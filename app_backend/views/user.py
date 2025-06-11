@@ -111,8 +111,8 @@ def user_register():
 @validate_request(ChangePasswordSchema)
 def change_password():
     data = get_validated_data(ChangePasswordSchema)
-    user_id = data.user_id
-    old_pwd = data.oldpwd
+    user_id = get_jwt_identity()  # 用户id
+    old_pwd = data.old_pwd
     new_pwd = data.new_pwd
 
     logger.debug(f"Password change attempt for user_id={user_id}")
@@ -128,7 +128,7 @@ def change_password():
     return HttpResponse.ok("Change password success.")
 
 
-@user_bp.route("/user_get_real_info", methods=["POST"])
+@user_bp.route("/user_get_real_info", methods=["GET"])
 @jwt_required()
 def return_real_info():
     user_id = get_jwt_identity()

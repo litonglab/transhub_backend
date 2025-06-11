@@ -13,27 +13,100 @@ logger = logging.getLogger(__name__)
 config = get_default_config()
 
 
-class UserLoginSchema(BaseModel):
-    """用户登录请求参数验证"""
-    username: str = Field(..., min_length=4, max_length=16, description="用户名，4-16个字符")
-    password: str = Field(..., min_length=6, max_length=18, description="密码，6-18个字符")
-    cname: str = Field(..., description="比赛名称")
+class FieldRules:
+    """字段验证规则常量"""
+    USERNAME_MIN_LEN = 4
+    USERNAME_MAX_LEN = 16
+    PASSWORD_MIN_LEN = 6
+    PASSWORD_MAX_LEN = 18
+    REAL_NAME_MIN_LEN = 1
+    REAL_NAME_MAX_LEN = 50
+    STUDENT_ID_LEN = 10
 
-    @field_validator('username')
-    def validate_username(cls, v):
+
+class CommonValidators:
+    """公共验证器类，包含可重用的验证函数"""
+    
+    @staticmethod
+    def validate_username(v: str) -> str:
+        """验证用户名格式
+        规则：
+        1. 支持中文、字母、数字和下划线
+        2. 不能包含文件系统特殊字符
+        3. 不能以点号开头（避免隐藏文件）
+        4. 不能包含连续的点号（避免目录遍历）
+        """
         logger.debug(f"Validating username: {v}")
-        if not re.match(r'^[a-zA-Z0-9_]+$', v):
-            logger.warning(f"Invalid username format: {v}")
-            raise ValueError('用户名只能包含字母、数字和下划线')
+        
+        # 检查是否为空
+        v = CommonValidators.validate_not_empty(v, "用户名")
+            
+        # 检查是否以点号开头
+        if v.startswith('.'):
+            logger.warning(f"Username starts with dot: {v}")
+            raise ValueError('用户名不能以点号开头')
+            
+        # 检查是否包含连续的点号
+        if '..' in v:
+            logger.warning(f"Username contains consecutive dots: {v}")
+            raise ValueError('用户名不能包含连续的点号')
+            
+        # 检查是否包含文件系统特殊字符
+        invalid_chars = r'[<>:"/\\|?*]'
+        if re.search(invalid_chars, v):
+            logger.warning(f"Username contains invalid characters: {v}")
+            raise ValueError('用户名不能包含特殊字符: < > : " / \\ | ? *')
+            
+        # 检查是否只包含有效字符（中文、字母、数字、下划线、点号）
+        if not re.match(r'^[\u4e00-\u9fa5a-zA-Z0-9_.]+$', v):
+            logger.warning(f"Username contains invalid characters: {v}")
+            raise ValueError('用户名只能包含中文、字母、数字、下划线和点号')
+            
         return v
 
-    @field_validator('password')
-    def validate_password(cls, v):
+    @staticmethod
+    def validate_password(v: str) -> str:
+        """验证密码格式"""
         logger.debug("Validating password")
         if not re.match(r'^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?]+$', v):
             logger.warning("Invalid password format")
             raise ValueError('密码包含非法字符')
         return v
+
+    @staticmethod
+    def validate_real_name(v: str) -> str:
+        """验证真实姓名"""
+        logger.debug(f"Validating real name: {v}")
+        if not v.strip():
+            logger.warning("Empty real name")
+            raise ValueError('真实姓名不能为空')
+        return v.strip()
+
+    @staticmethod
+    def validate_not_empty(v: str, field_name: str) -> str:
+        """验证字段不能为空"""
+        logger.debug(f"Validating {field_name}: {v} is empty or not.")
+        if not v.strip():
+            logger.warning(f"{field_name} is empty, validation failed.")
+            raise ValueError(f'{field_name}不能为空')
+        return v.strip()
+
+
+class UserLoginSchema(BaseModel):
+    """用户登录请求参数验证"""
+    username: str = Field(..., min_length=FieldRules.USERNAME_MIN_LEN, max_length=FieldRules.USERNAME_MAX_LEN, 
+                         description=f"用户名，{FieldRules.USERNAME_MIN_LEN}-{FieldRules.USERNAME_MAX_LEN}个字符")
+    password: str = Field(..., min_length=FieldRules.PASSWORD_MIN_LEN, max_length=FieldRules.PASSWORD_MAX_LEN, 
+                         description=f"密码，{FieldRules.PASSWORD_MIN_LEN}-{FieldRules.PASSWORD_MAX_LEN}个字符")
+    cname: str = Field(..., description="比赛名称")
+
+    @field_validator('username')
+    def validate_username(cls, v):
+        return CommonValidators.validate_username(v)
+
+    @field_validator('password')
+    def validate_password(cls, v):
+        return CommonValidators.validate_password(v)
 
     @field_validator('cname')
     def validate_cname(cls, v):
@@ -49,34 +122,26 @@ class UserLoginSchema(BaseModel):
 
 class UserRegisterSchema(BaseModel):
     """用户注册请求参数验证"""
-    username: str = Field(..., min_length=4, max_length=16, description="用户名，4-16个字符")
-    password: str = Field(..., min_length=6, max_length=18, description="密码，6-18个字符")
-    real_name: str = Field(..., min_length=1, max_length=50, description="真实姓名")
-    sno: str = Field(..., min_length=10, max_length=10, description="学号，10位数字")
+    username: str = Field(..., min_length=FieldRules.USERNAME_MIN_LEN, max_length=FieldRules.USERNAME_MAX_LEN, 
+                         description=f"用户名，{FieldRules.USERNAME_MIN_LEN}-{FieldRules.USERNAME_MAX_LEN}个字符")
+    password: str = Field(..., min_length=FieldRules.PASSWORD_MIN_LEN, max_length=FieldRules.PASSWORD_MAX_LEN, 
+                         description=f"密码，{FieldRules.PASSWORD_MIN_LEN}-{FieldRules.PASSWORD_MAX_LEN}个字符")
+    real_name: str = Field(..., min_length=FieldRules.REAL_NAME_MIN_LEN, max_length=FieldRules.REAL_NAME_MAX_LEN, 
+                          description=f"真实姓名，{FieldRules.REAL_NAME_MIN_LEN}-{FieldRules.REAL_NAME_MAX_LEN}个字符")
+    sno: str = Field(..., min_length=FieldRules.STUDENT_ID_LEN, max_length=FieldRules.STUDENT_ID_LEN, 
+                    description=f"学号，{FieldRules.STUDENT_ID_LEN}位数字")
 
     @field_validator('username')
     def validate_username(cls, v):
-        logger.debug(f"Validating registration username: {v}")
-        if not re.match(r'^[a-zA-Z0-9_]+$', v):
-            logger.warning(f"Invalid registration username format: {v}")
-            raise ValueError('用户名只能包含字母、数字和下划线')
-        return v
+        return CommonValidators.validate_username(v)
 
     @field_validator('password')
     def validate_password(cls, v):
-        logger.debug("Validating registration password")
-        if not re.match(r'^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?]+$', v):
-            logger.warning("Invalid registration password format")
-            raise ValueError('密码包含非法字符')
-        return v
+        return CommonValidators.validate_password(v)
 
     @field_validator('real_name')
     def validate_real_name(cls, v):
-        logger.debug(f"Validating real name: {v}")
-        if not v.strip():
-            logger.warning("Empty real name")
-            raise ValueError('真实姓名不能为空')
-        return v.strip()
+        return CommonValidators.validate_real_name(v)
 
     @field_validator('sno')
     def validate_sno(cls, v):
@@ -84,9 +149,9 @@ class UserRegisterSchema(BaseModel):
         if not v.isdecimal():
             logger.warning(f"Invalid student number format: {v}")
             raise ValueError('学号必须是10位数字')
-        if len(v) != 10:
+        if len(v) != FieldRules.STUDENT_ID_LEN:
             logger.warning(f"Invalid student number length: {len(v)}")
-            raise ValueError('学号必须是10位数字')
+            raise ValueError(f'学号必须是{FieldRules.STUDENT_ID_LEN}位数字')
         if len(config.Course.REGISTER_STUDENT_LIST) > 0 and v not in config.Course.REGISTER_STUDENT_LIST:
             logger.warning(f"Student number {v} not in allowed list")
             raise ValueError('该学号不在允许注册的名单中，请确认你已选课或报名竞赛。')
@@ -95,38 +160,28 @@ class UserRegisterSchema(BaseModel):
 
 class ChangePasswordSchema(BaseModel):
     """修改密码请求参数验证"""
-    user_id: str = Field(..., description="用户ID")
-    oldpwd: str = Field(..., min_length=6, max_length=18, description="旧密码")
-    new_pwd: str = Field(..., min_length=6, max_length=18, description="新密码，6-18个字符")
+    old_pwd: str = Field(..., min_length=FieldRules.PASSWORD_MIN_LEN, max_length=FieldRules.PASSWORD_MAX_LEN, 
+                        description=f"旧密码，{FieldRules.PASSWORD_MIN_LEN}-{FieldRules.PASSWORD_MAX_LEN}个字符")
+    new_pwd: str = Field(..., min_length=FieldRules.PASSWORD_MIN_LEN, max_length=FieldRules.PASSWORD_MAX_LEN, 
+                        description=f"新密码，{FieldRules.PASSWORD_MIN_LEN}-{FieldRules.PASSWORD_MAX_LEN}个字符")
 
-    @field_validator('user_id')
-    def validate_user_id(cls, v):
-        logger.debug(f"Validating user ID: {v}")
-        if not v.strip():
-            logger.warning("Empty user ID")
-            raise ValueError('用户ID不能为空')
-        return v.strip()
+    @field_validator('old_pwd')
+    def validate_old_password(cls, v):
+        return CommonValidators.validate_password(v)
 
     @field_validator('new_pwd')
     def validate_new_password(cls, v):
-        logger.debug("Validating new password")
-        if not re.match(r'^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?]+$', v):
-            logger.warning("Invalid new password format")
-            raise ValueError('新密码包含非法字符')
-        return v
+        return CommonValidators.validate_password(v)
 
 
 class UserChangeRealInfoSchema(BaseModel):
-    """用户注册请求参数验证"""
-    real_name: str = Field(..., min_length=1, max_length=50, description="真实姓名")
+    """用户信息修改请求参数验证"""
+    real_name: str = Field(..., min_length=FieldRules.REAL_NAME_MIN_LEN, max_length=FieldRules.REAL_NAME_MAX_LEN, 
+                          description=f"真实姓名，{FieldRules.REAL_NAME_MIN_LEN}-{FieldRules.REAL_NAME_MAX_LEN}个字符")
 
     @field_validator('real_name')
     def validate_real_name(cls, v):
-        logger.debug(f"Validating real name change: {v}")
-        if not v.strip():
-            logger.warning("Empty real name in change request")
-            raise ValueError('真实姓名不能为空')
-        return v.strip()
+        return CommonValidators.validate_real_name(v)
 
 
 class TaskInfoSchema(BaseModel):
@@ -135,11 +190,7 @@ class TaskInfoSchema(BaseModel):
 
     @field_validator('task_id')
     def validate_task_id(cls, v):
-        logger.debug(f"Validating task ID: {v}")
-        if not v.strip():
-            logger.warning("Empty task ID")
-            raise ValueError('任务ID不能为空')
-        return v.strip()
+        return CommonValidators.validate_not_empty(v, "task_id")
 
 
 class HistoryDetailSchema(BaseModel):
@@ -148,16 +199,16 @@ class HistoryDetailSchema(BaseModel):
 
     @field_validator('upload_id')
     def validate_upload_id(cls, v):
-        logger.debug(f"Validating upload ID: {v}")
-        if not v.strip():
-            logger.warning("Empty upload ID")
-            raise ValueError('上传ID不能为空')
-        return v.strip()
+        return CommonValidators.validate_not_empty(v, "upload_id")
 
 
 class SummaryRanksSchema(BaseModel):
     """获取排行榜请求参数验证"""
-    cname: Optional[str] = Field(None, description="比赛名称")
+    cname: str = Field(..., description="比赛名称")
+
+    @field_validator('cname')
+    def validate_cname(cls, v):
+        return CommonValidators.validate_not_empty(v, "比赛名称")
 
 
 class SourceCodeSchema(BaseModel):
@@ -166,11 +217,7 @@ class SourceCodeSchema(BaseModel):
 
     @field_validator('upload_id')
     def validate_upload_id(cls, v):
-        logger.debug(f"Validating source code upload ID: {v}")
-        if not v.strip():
-            logger.warning("Empty source code upload ID")
-            raise ValueError('上传ID不能为空')
-        return v.strip()
+        return CommonValidators.validate_not_empty(v, "upload_id")
 
 
 class GraphSchema(BaseModel):
@@ -180,11 +227,7 @@ class GraphSchema(BaseModel):
 
     @field_validator('task_id')
     def validate_task_id(cls, v):
-        logger.debug(f"Validating graph task ID: {v}")
-        if not v.strip():
-            logger.warning("Empty graph task ID")
-            raise ValueError('任务ID不能为空')
-        return v.strip()
+        return CommonValidators.validate_not_empty(v, "task_id")
 
     @field_validator('graph_type')
     def validate_graph_type(cls, v):
@@ -230,11 +273,6 @@ class FileUploadSchema(BaseModel):
         if not file_extension:
             logger.warning(f"Invalid file extension: {filename}")
             raise ValueError("文件必须是C程序(.c)或C++程序(.cc, .cpp)")
-
-        # 验证文件名
-        if filename == 'log.cc':
-            logger.warning("Attempted upload of log.cc")
-            raise ValueError("非法文件名: log.cc")
 
         # 验证文件名格式（只允许字母、数字、下划线、点号）
         if not re.match(r'^[a-zA-Z0-9_.-]+$', filename):
