@@ -279,8 +279,9 @@ def run_cc_training_task(task_id):
 
             _graph(task, result_path)
 
-            _update_rank(task, user)
             task.update(task_status=TaskStatus.FINISHED.value, task_score=total_score)
+            # 更新完状态后再更新榜单，如果榜单更新失败，任务状态会回退至ERROR
+            _update_rank(task, user)
             logger.info(f"[task: {task_id}] Task completed successfully, score: {total_score}")
         except Exception as e:
             # 理论上除了编译失败外，不应出现其他异常，如果出现，需要修复代码相关逻辑

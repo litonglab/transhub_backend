@@ -46,7 +46,7 @@ class TaskStatus(Enum):
             cls.COMPILED: [cls.RUNNING, cls.ERROR],
             cls.RUNNING: [cls.FINISHED, cls.ERROR],
             # cls.RETRYING: [cls.RUNNING, cls.ERROR],
-            cls.FINISHED: [],
+            cls.FINISHED: [cls.ERROR],
             cls.ERROR: [],
             cls.NOT_QUEUED: [],
             cls.COMPILED_FAILED: [cls.ERROR],
