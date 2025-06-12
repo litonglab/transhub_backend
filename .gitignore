@@ -10,6 +10,9 @@ transhub/
 *.log
 *.pid
 *.pyc
+.DS_Store
+**/.DS_Store
+.DS_Store?
 
 # 环境配置文件
 .env

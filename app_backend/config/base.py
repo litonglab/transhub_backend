@@ -35,6 +35,7 @@ class BaseConfig:
         """安全配置"""
         # CORS 配置 - 开发环境允许所有来源
         CORS_ORIGINS = _get_env_variable('CORS_ORIGINS')
+        JWT_ACCESS_TOKEN_EXPIRES = int(_get_env_variable('FLASK_JWT_ACCESS_TOKEN_EXPIRES'))
 
     class Logging:
         """日志配置"""

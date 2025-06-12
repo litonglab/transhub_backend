@@ -53,7 +53,7 @@ def user_login():
         additional_claims = {"cname": cname}
         access_token = create_access_token(identity=user.user_id, additional_claims=additional_claims)
         resp = make_response(HttpResponse.ok(user_id=user.user_id))
-        set_access_cookies(resp, access_token)
+        set_access_cookies(resp, access_token, max_age=config.Security.JWT_ACCESS_TOKEN_EXPIRES)
         return resp
     else:
         # 异步调用参赛函数，为用户报名
