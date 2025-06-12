@@ -6,6 +6,7 @@ from logging import getLogger
 import dramatiq_dashboard
 from dramatiq.brokers.redis import RedisBroker
 from flask import Flask, render_template
+from flask_caching import Cache
 from flask_cors import CORS
 from flask_redis import FlaskRedis
 from flask_sqlalchemy import SQLAlchemy
@@ -22,6 +23,7 @@ config = get_default_config()
 # Flask extensions for Redis and SQLAlchemy, init and used in app_context for safety
 redis_client = FlaskRedis()
 db = SQLAlchemy()
+cache = Cache()
 
 # Configure logging
 setup_logger()
@@ -114,6 +116,21 @@ def _configure_redis(app):
     redis_client.ping()
 
 
+def _configure_cache(app):
+    """Configure Flask-Caching."""
+    cache.init_app(app, config={
+        'CACHE_TYPE': 'redis',
+        'CACHE_REDIS_URL': config.Cache.FLASK_REDIS_URL,
+        'CACHE_DEFAULT_TIMEOUT': 10,  # 默认缓存时间为10秒
+        'CACHE_OPTIONS': {
+            'socket_timeout': 5,  # Redis连接超时时间
+            'socket_connect_timeout': 5,  # Redis连接建立超时时间
+            'retry_on_timeout': True  # 超时时重试
+        }
+    })
+    logger.info("Cache configured with Redis backend")
+
+
 def _configure_secret_key(app):
     """Configure secret key for Flask app."""
     if not app.config['SECRET_KEY']:
@@ -164,6 +181,7 @@ def get_app():
     # Configure components
     _configure_database(app)
     _configure_redis(app)
+    _configure_cache(app)
 
     end_time = time.time()
 
