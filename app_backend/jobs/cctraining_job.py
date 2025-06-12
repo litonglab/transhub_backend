@@ -205,8 +205,10 @@ def _update_rank(task, user):
 
         if rank_record:
             # 如果已有记录，检查是否需要更新
-            if rank_record.upload_time < task.created_time:
-                # 当前上传时间更新，更新记录
+            # if rank_record.upload_time < task.created_time:
+            # 如果已有记录，检查是否需要更新（基于分数而不是时间）
+            if total_upload_score > rank_record.task_score:
+                # 当前分数更高，更新记录
                 rank_record.update(
                     upload_id=upload_id,
                     task_score=total_upload_score,
@@ -214,11 +216,11 @@ def _update_rank(task, user):
                     upload_time=task.created_time
                 )
                 logger.info(
-                    f"[task: {task_id}] Updated rank record with newer upload_id: {upload_id}, score: {total_upload_score}")
+                    f"[task: {task_id}] Updated rank record with higher score: {total_upload_score} (previous: {rank_record.task_score})")
             else:
-                # 当前上传时间更早，不更新记录
+                # 当前分数更低，不更新记录
                 logger.warning(
-                    f"[task: {task_id}] Skipping rank update as current upload is older than existing record")
+                    f"[task: {task_id}] Skipping rank update as current score {total_upload_score} is lower than existing score {rank_record.task_score}")
         else:
             # 没有记录，创建新记录
             Rank_model(
