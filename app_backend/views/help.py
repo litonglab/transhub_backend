@@ -1,15 +1,15 @@
-import time
 import logging
+import time
 
-from flask import send_file, Blueprint, current_app
+from flask import send_file, Blueprint
 from flask_jwt_extended import jwt_required, get_jwt
 
-from app_backend import ALL_CLASS
-from app_backend.config import CNAME_LIST
+from app_backend import get_default_config
 from app_backend.vo import HttpResponse
 
 help_bp = Blueprint('help', __name__)
 logger = logging.getLogger(__name__)
+config = get_default_config()
 
 
 # @help_bp.route("/help_get_cca_guide", methods=["POST"])
@@ -35,11 +35,11 @@ logger = logging.getLogger(__name__)
 def return_zhinan():
     cname = get_jwt().get('cname')
     logger.debug(f"Tutorial request for competition {cname}")
-    
-    config = ALL_CLASS[cname]
-    if config:
-        logger.info(f"Sending tutorial file: {config['zhinan_path']}")
-        return send_file(config['zhinan_path'], as_attachment=True)
+
+    _config = config.Course.ALL_CLASS[cname]
+    if _config:
+        logger.info(f"Sending tutorial file: {_config['zhinan_path']}")
+        return send_file(_config['zhinan_path'], as_attachment=True)
         # return send_file(config.zhinan_path, mimetype="application/pdf")
     else:
         logger.warning(f"Tutorial not found for competition {cname}")
@@ -48,7 +48,7 @@ def return_zhinan():
 
 @help_bp.route('/help_get_pantheon', methods=["GET"])
 def return_pantheon():
-    return HttpResponse.ok(pantheon=CNAME_LIST)
+    return HttpResponse.ok(pantheon=config.Course.CNAME_LIST)
 
 
 @help_bp.route("/help_get_competition_time", methods=["GET"])
@@ -58,9 +58,9 @@ def return_competition_time():
     """
     cname = get_jwt().get('cname')
     logger.debug(f"Competition time request for {cname}")
-    
-    config = ALL_CLASS[cname]
-    time_stmp = [int(time.mktime(time.strptime(config['start_time'], "%Y-%m-%d-%H-%M-%S"))),
-                 int(time.mktime(time.strptime(config['end_time'], "%Y-%m-%d-%H-%M-%S")))]
-    logger.debug(f"Competition time for {cname}: start={config['start_time']}, end={config['end_time']}")
+
+    _config = config.Course.ALL_CLASS[cname]
+    time_stmp = [int(time.mktime(time.strptime(_config['start_time'], "%Y-%m-%d-%H-%M-%S"))),
+                 int(time.mktime(time.strptime(_config['end_time'], "%Y-%m-%d-%H-%M-%S")))]
+    logger.debug(f"Competition time for {cname}: start={_config['start_time']}, end={_config['end_time']}")
     return HttpResponse.ok(data=time_stmp)

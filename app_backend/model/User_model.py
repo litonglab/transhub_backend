@@ -1,13 +1,14 @@
-import os
 import logging
+import os
 
 from sqlalchemy.dialects.mysql import VARCHAR
 
-from app_backend import db
-from app_backend.config import USER_DIR_PATH, ALL_CLASS
+from app_backend import db, get_default_config
 from app_backend.model.Competition_model import Competition_model
 
 logger = logging.getLogger(__name__)
+config = get_default_config()
+
 
 class User_model(db.Model):
     __tablename__ = 'student'
@@ -36,7 +37,8 @@ class User_model(db.Model):
         :return: 可以直接使用的全局路径
         """
         logger.debug(f"Getting user directory for user {self.username} and competition {cname}")
-        _dir = os.path.join(USER_DIR_PATH, self.username + "_" + self.sno, ALL_CLASS[cname]["name"])
+        _dir = os.path.join(config.App.USER_DIR_PATH, self.username + "_" + self.sno,
+                            config.Course.ALL_CLASS[cname]["name"])
         if not os.path.exists(_dir):
             logger.info(f"Creating user directory: {_dir}")
             os.makedirs(_dir)
@@ -49,31 +51,28 @@ class User_model(db.Model):
         if not os.path.exists(user_dir):
             logger.info(f"Creating user directory: {user_dir}")
             os.makedirs(user_dir)
-        
+
         # 由当前时间生成文件夹
         filedir = user_dir + "/" + nowtime
         if not os.path.exists(filedir):
             logger.info(f"Creating file directory: {filedir}")
             os.makedirs(filedir)
-        
+
         file_path = filedir + "/" + file.filename
         logger.debug(f"Saving file to: {file_path}")
         file.save(file_path)
         logger.info(f"File saved successfully: {file_path}")
 
     def is_exist(self) -> bool:
-        logger.debug(f"Checking if user exists: {self.username}")
+        logger.debug(f"Checking if user exists: {self.username} with sno {self.sno}")
         # user_name is unique, sno is unique
-        user = User_model.query.filter_by(username=self.username)
-        if user.first():
+        if User_model.query.filter_by(username=self.username).first():
+            logger.warning(f"User with username {self.username} already exists.")
+            return True
+        elif User_model.query.filter_by(sno=self.sno).first():
+            logger.warning(f"User with sno {self.sno} already exists, but username {self.username} is not unique.")
             return True
         return False
-
-    def is_null_info(self):
-        logger.debug(f"Checking if user info is null for user: {self.username}")
-        is_null = self.real_name == '' or self.sno == '' or self.real_name == '' or self.sno == ''
-        logger.debug(f"User info null check result: {is_null}")
-        return is_null
 
     def update_real_info(self, real_name):
         logger.debug(f"Updating real name for user {self.username} to: {real_name}")
@@ -95,7 +94,7 @@ class User_model(db.Model):
             logger.debug(f"Creating new competition entry for user {self.username}")
             com = Competition_model(user_id=self.user_id, cname=cname)
             # 2. get competition dir and workdir
-            com_dir = ALL_CLASS[cname]["path"]
+            com_dir = config.Course.ALL_CLASS[cname]["path"]
             work_dir = self.get_competition_project_dir(cname)  # 用户目录下的竞赛目录下的竞赛文件目录
             if not os.path.exists(work_dir):
                 logger.info(f"Creating work directory: {work_dir}")
