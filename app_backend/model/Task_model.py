@@ -117,7 +117,7 @@ class Task_model(db.Model):
     def to_detail_dict(self):
         status = TaskStatus(self.task_status)
         res = {
-            'user_id': self.user_id,
+            # 'user_id': self.user_id,
             'task_id': self.task_id,
             'upload_id': self.upload_id,
             'loss_rate': self.loss_rate,
