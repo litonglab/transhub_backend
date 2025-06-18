@@ -34,6 +34,5 @@ def get_graph():
         logger.warning(
             f"Graph not found or file missing: task_id={task_id}, type={graph_type}, path={graph.graph_path if graph else 'None'}")
         return HttpResponse.fail("No such graph or graph file does not exist.")
-    print(graph.graph_path)
     logger.info(f"Sending graph file: {graph.graph_path}")
     return send_file(graph.graph_path, mimetype='image/svg+xml', as_attachment=True)
