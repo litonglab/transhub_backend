@@ -4,8 +4,8 @@ import os
 from flask import Blueprint, send_file
 from flask_jwt_extended import get_jwt_identity, jwt_required
 
-from app_backend.decorators.validators import validate_request, get_validated_data
 from app_backend.model.task_model import TaskModel
+from app_backend.validators.decorators import validate_request, get_validated_data
 from app_backend.validators.schemas import SourceCodeSchema
 from app_backend.vo import HttpResponse
 

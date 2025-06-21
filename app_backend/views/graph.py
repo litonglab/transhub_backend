@@ -1,11 +1,11 @@
 import logging
 import os
 
-from app_backend.model.graph_model import GraphModel
 from flask import send_file, Blueprint
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
-from app_backend.decorators.validators import validate_request, get_validated_data
+from app_backend.model.graph_model import GraphModel
+from app_backend.validators.decorators import validate_request, get_validated_data
 from app_backend.validators.schemas import GraphSchema
 from app_backend.vo import HttpResponse
 

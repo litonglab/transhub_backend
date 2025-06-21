@@ -6,9 +6,9 @@ from flask_jwt_extended import create_access_token, set_access_cookies, unset_jw
     get_jwt_identity, get_jwt
 
 from app_backend import get_default_config
-from app_backend.decorators.validators import validate_request, get_validated_data
 from app_backend.model.competition_model import CompetitionModel
 from app_backend.model.user_model import UserModel
+from app_backend.validators.decorators import validate_request, get_validated_data
 from app_backend.validators.schemas import UserLoginSchema, UserRegisterSchema, ChangePasswordSchema, \
     UserChangeRealInfoSchema
 from app_backend.vo import HttpResponse
