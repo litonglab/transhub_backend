@@ -1,11 +1,11 @@
 import logging
 import os
 
+from app_backend.model.graph_model import GraphModel
 from flask import send_file, Blueprint
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from app_backend.decorators.validators import validate_request, get_validated_data
-from app_backend.model.graph_model import graph_model
 from app_backend.validators.schemas import GraphSchema
 from app_backend.vo import HttpResponse
 
@@ -24,7 +24,7 @@ def get_graph():
 
     # 性能图所有用户都可查询，无需验证user_id
     logger.debug(f"Graph request for task {task_id}, type {graph_type} by user {user_id}")
-    graph = graph_model.query.filter_by(task_id=task_id, graph_type=graph_type).first()
+    graph = GraphModel.query.filter_by(task_id=task_id, graph_type=graph_type).first()
     if not graph or not os.path.exists(graph.graph_path):
         logger.warning(
             f"Graph not found or file missing: task_id={task_id}, type={graph_type}, path={graph.graph_path if graph else 'None'}")

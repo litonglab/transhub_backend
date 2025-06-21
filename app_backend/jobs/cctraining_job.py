@@ -12,10 +12,10 @@ from redis.lock import Lock
 
 from app_backend import db, redis_client, get_default_config
 from app_backend import get_app
-from app_backend.model.Rank_model import Rank_model
-from app_backend.model.Task_model import Task_model, TaskStatus
-from app_backend.model.User_model import User_model
-from app_backend.model.graph_model import graph_model
+from app_backend.model.graph_model import GraphModel
+from app_backend.model.rank_model import RankModel
+from app_backend.model.task_model import TaskModel, TaskStatus
+from app_backend.model.user_model import UserModel
 from app_backend.utils.utils import get_available_port, release_port, setup_logger
 
 # 设置日志记录器
@@ -163,10 +163,10 @@ def _graph(task, result_path):
     # 6. 保存图
     graph_id1 = uuid.uuid4().hex
     graph_id2 = uuid.uuid4().hex
-    graph_model(task_id=task_id, graph_id=str(graph_id1), graph_type='throughput',
-                graph_path=task.task_dir + "/" + task.trace_name + ".throughput.svg").insert()
-    graph_model(task_id=task_id, graph_id=str(graph_id2), graph_type='delay',
-                graph_path=task.task_dir + "/" + task.trace_name + ".delay.svg").insert()
+    GraphModel(task_id=task_id, graph_id=str(graph_id1), graph_type='throughput',
+               graph_path=task.task_dir + "/" + task.trace_name + ".throughput.svg").insert()
+    GraphModel(task_id=task_id, graph_id=str(graph_id2), graph_type='delay',
+               graph_path=task.task_dir + "/" + task.trace_name + ".delay.svg").insert()
     logger.info(f"[task: {task_id}] is generating graphs successfully")
 
 
@@ -188,7 +188,7 @@ def _update_rank(task, user):
     with rank_lock:
         logger.info(f"[task: {task_id}] try to update rank")
         # 获取该 upload_id 下的所有任务
-        all_tasks = Task_model.query.filter_by(upload_id=upload_id).all()
+        all_tasks = TaskModel.query.filter_by(upload_id=upload_id).all()
 
         # 检查是否所有任务都已完成
         all_tasks_completed = all(t.task_status == TaskStatus.FINISHED.value for t in all_tasks)
@@ -201,7 +201,7 @@ def _update_rank(task, user):
         total_upload_score = sum(t.task_score for t in all_tasks if t.task_score is not None)
 
         # 获取用户当前课程的榜单记录
-        rank_record = Rank_model.query.filter_by(user_id=task.user_id, cname=task.cname).first()
+        rank_record = RankModel.query.filter_by(user_id=task.user_id, cname=task.cname).first()
 
         if rank_record:
             # 如果已有记录，检查是否需要更新
@@ -223,7 +223,7 @@ def _update_rank(task, user):
                     f"[task: {task_id}] Skipping rank update as current score {total_upload_score} is lower than existing score {rank_record.task_score}")
         else:
             # 没有记录，创建新记录
-            Rank_model(
+            RankModel(
                 user_id=task.user_id,
                 upload_id=upload_id,
                 task_score=total_upload_score,
@@ -244,14 +244,14 @@ def run_cc_training_task(task_id):
     with (app.app_context()):
         try:
             db.session.expire_all()  # 刷新会话
-            task = Task_model.query.filter_by(task_id=task_id).first()
+            task = TaskModel.query.filter_by(task_id=task_id).first()
             if not task:
                 logger.error(f"[task: {task_id}] Task not found")
                 return
 
             logger.info(f"[task: {task_id}] Start task")
             assert task.task_status == TaskStatus.QUEUED.value, "Task status must be QUEUED to run"
-            user = User_model.query.filter_by(user_id=task.user_id).first()
+            user = UserModel.query.filter_by(user_id=task.user_id).first()
 
             # 课程的项目目录，公共目录
             course_project_dir = os.path.join(config.Course.ALL_CLASS[task.cname]['path'], 'project', 'datagrump')
@@ -468,7 +468,7 @@ def enqueue_multiple_tasks(task_ids):
     }
 
 
-def evaluate_score(task: Task_model, score_file: str):
+def evaluate_score(task: TaskModel, score_file: str):
     # 评分
     """
     Average capacity: 5.04 Mbits/s

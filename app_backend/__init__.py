@@ -251,11 +251,11 @@ def _create_tables(app):
     """Create database tables."""
     try:
         # Import models to register them with SQLAlchemy
-        from app_backend.model.User_model import User_model
-        from app_backend.model.Task_model import Task_model
-        from app_backend.model.Rank_model import Rank_model
-        from app_backend.model.graph_model import graph_model
-        from app_backend.model.Competition_model import Competition_model
+        from app_backend.model.user_model import UserModel
+        from app_backend.model.task_model import TaskModel
+        from app_backend.model.rank_model import RankModel
+        from app_backend.model.graph_model import GraphModel
+        from app_backend.model.competition_model import CompetitionModel
 
         db.create_all()
         logger.info('Database tables created successfully')

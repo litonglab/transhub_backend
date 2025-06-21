@@ -10,8 +10,8 @@ from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from app_backend import get_default_config
 from app_backend.decorators.validators import validate_request, get_validated_data
 from app_backend.jobs.cctraining_job import enqueue_cc_task
-from app_backend.model.Task_model import Task_model, TaskStatus
-from app_backend.model.User_model import User_model
+from app_backend.model.task_model import TaskModel, TaskStatus
+from app_backend.model.user_model import UserModel
 from app_backend.utils.utils import generate_random_string
 from app_backend.validators.schemas import FileUploadSchema
 from app_backend.vo import HttpResponse
@@ -56,7 +56,7 @@ def upload_project_file():
 
     logger.info(f"Processing upload for user {user_id}, file: {filename}, algorithm: {algorithm}")
 
-    user = User_model.query.get(user_id)
+    user = UserModel.query.get(user_id)
     if not user:
         logger.warning(f"Upload failed: User {user_id} not found")
         return HttpResponse.fail("User not found.")
@@ -80,11 +80,11 @@ def upload_project_file():
         for loss in _config['loss_rate']:
             for buffer_size in _config['buffer_size']:
                 task_id = str(uuid.uuid1())
-                task = Task_model(task_id=task_id, user_id=user_id, task_status=TaskStatus.QUEUED.value, task_score=0,
-                                  created_time=now.strftime("%Y-%m-%d-%H-%M-%S"), cname=cname,
-                                  task_dir=os.path.join(temp_dir, f"{trace_name}_{loss}_{buffer_size}"),
-                                  algorithm=algorithm, trace_name=trace_name, upload_id=upload_id, loss_rate=loss,
-                                  buffer_size=buffer_size)
+                task = TaskModel(task_id=task_id, user_id=user_id, task_status=TaskStatus.QUEUED.value, task_score=0,
+                                 created_time=now.strftime("%Y-%m-%d-%H-%M-%S"), cname=cname,
+                                 task_dir=os.path.join(temp_dir, f"{trace_name}_{loss}_{buffer_size}"),
+                                 algorithm=algorithm, trace_name=trace_name, upload_id=upload_id, loss_rate=loss,
+                                 buffer_size=buffer_size)
 
                 # 保存任务到数据库
                 task.save()

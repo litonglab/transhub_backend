@@ -7,8 +7,8 @@ from flask_jwt_extended import create_access_token, set_access_cookies, unset_jw
 
 from app_backend import get_default_config
 from app_backend.decorators.validators import validate_request, get_validated_data
-from app_backend.model.Competition_model import Competition_model
-from app_backend.model.User_model import User_model
+from app_backend.model.competition_model import CompetitionModel
+from app_backend.model.user_model import UserModel
 from app_backend.validators.schemas import UserLoginSchema, UserRegisterSchema, ChangePasswordSchema, \
     UserChangeRealInfoSchema
 from app_backend.vo import HttpResponse
@@ -28,7 +28,7 @@ def user_login():
 
     logger.debug(f"User login attempt: username={username}, cname={cname}")
 
-    user = User_model.query.filter_by(username=username, password=password).first()
+    user = UserModel.query.filter_by(username=username, password=password).first()
     if not user:
         logger.warning(f"Login failed: User not found or credentials invalid for username={username}")
         return HttpResponse.fail("User not found or Username error or Password error.")
@@ -43,7 +43,7 @@ def user_login():
     if len(class_student_list) > 0 and user.sno not in class_student_list:
         logger.warning(f"Login failed: Student {user.sno} not in class list for {cname}")
         return HttpResponse.fail("该学号不在此课程（比赛）的名单中，请确认你已选课或报名竞赛。")
-    if Competition_model.query.filter_by(user_id=user.user_id, cname=cname).first():
+    if CompetitionModel.query.filter_by(user_id=user.user_id, cname=cname).first():
         logger.info(f"User {username} successfully logged in to {cname}")
         # 生成带自定义内容的JWT
         additional_claims = {"cname": cname}
@@ -86,7 +86,7 @@ def user_register():
         logger.debug(f"Registration attempt for user: username={username}, real_name={real_name}, sno={sno}")
 
         # 检测username，sno是否已经存在
-        user = User_model(username=username, password=password, real_name=real_name, sno=sno)
+        user = UserModel(username=username, password=password, real_name=real_name, sno=sno)
         if user.is_exist():
             logger.warning(f"Registration failed: Username {username} already exists")
             return HttpResponse.fail("此用户名或学号已被注册，请更换用户名或学号。")
@@ -112,7 +112,7 @@ def change_password():
 
     logger.debug(f"Password change attempt for user_id={user_id}")
 
-    user = User_model.query.filter_by(user_id=user_id, password=old_pwd).first()
+    user = UserModel.query.filter_by(user_id=user_id, password=old_pwd).first()
     if not user:
         logger.warning(f"Password change failed: Invalid old password for user_id={user_id}")
         return HttpResponse.fail("Password error.")
@@ -129,7 +129,7 @@ def return_real_info():
     user_id = get_jwt_identity()
     logger.debug(f"Fetching real info for user_id={user_id}")
 
-    user = User_model.query.filter_by(user_id=user_id).first()
+    user = UserModel.query.filter_by(user_id=user_id).first()
     real_info = {"cname": get_jwt().get('cname'),
                  "real_name": user.real_name,
                  "sno": user.sno}
@@ -154,7 +154,7 @@ def change_real_info():
 
     logger.info(f"Updating real info for user_id={user_id}, new real_name={real_name}")
 
-    user = User_model.query.filter_by(user_id=user_id).first()
+    user = UserModel.query.filter_by(user_id=user_id).first()
     user.update_real_info(real_name)
     logger.info(f"Successfully updated real info for user_id={user_id}")
     return HttpResponse.ok("Set real info success.")
