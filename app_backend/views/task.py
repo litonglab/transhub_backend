@@ -8,12 +8,13 @@ from flask import Blueprint
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 
 from app_backend import get_default_config
-from app_backend.decorators.validators import validate_request, get_validated_data
 from app_backend.jobs.cctraining_job import enqueue_cc_task
-from app_backend.model.Task_model import Task_model, TaskStatus
-from app_backend.model.User_model import User_model
-from app_backend.validators.schemas import TaskInfoSchema, FileUploadSchema
-from app_backend.vo import HttpResponse
+from app_backend.model.task_model import TaskModel, TaskStatus
+from app_backend.model.user_model import UserModel
+from app_backend.utils.utils import generate_random_string
+from app_backend.validators.decorators import validate_request, get_validated_data
+from app_backend.validators.schemas import FileUploadSchema
+from app_backend.vo.http_response import HttpResponse
 
 task_bp = Blueprint('task', __name__)
 logger = logging.getLogger(__name__)
@@ -55,14 +56,15 @@ def upload_project_file():
 
     logger.info(f"Processing upload for user {user_id}, file: {filename}, algorithm: {algorithm}")
 
-    user = User_model.query.get(user_id)
+    user = UserModel.query.get(user_id)
     if not user:
         logger.warning(f"Upload failed: User {user_id} not found")
         return HttpResponse.fail("User not found.")
 
     now = datetime.now()
-    user.save_file_to_user_dir(file, cname, now.strftime("%Y-%m-%d-%H-%M-%S"))
-    temp_dir = user.get_user_dir(cname) + "/" + now.strftime("%Y-%m-%d-%H-%M-%S")
+    upload_dir_name = f"{now.strftime('%Y-%m-%d-%H-%M-%S')}_{generate_random_string(6)}"
+
+    temp_dir = user.save_file_to_user_dir(file, cname, upload_dir_name)
     upload_id = str(uuid.uuid1())
     # 构建task,按trace和env构建多个task
     task_ids = []
@@ -78,11 +80,11 @@ def upload_project_file():
         for loss in _config['loss_rate']:
             for buffer_size in _config['buffer_size']:
                 task_id = str(uuid.uuid1())
-                task = Task_model(task_id=task_id, user_id=user_id, task_status=TaskStatus.QUEUED.value, task_score=0,
-                                  created_time=now.strftime("%Y-%m-%d-%H-%M-%S"), cname=cname,
-                                  task_dir=temp_dir + "/" + trace_name + "_" + str(loss) + "_" + str(buffer_size),
-                                  algorithm=algorithm, trace_name=trace_name, upload_id=upload_id, loss_rate=loss,
-                                  buffer_size=buffer_size)
+                task = TaskModel(task_id=task_id, user_id=user_id, task_status=TaskStatus.QUEUED.value, task_score=0,
+                                 created_time=now.strftime("%Y-%m-%d-%H-%M-%S"), cname=cname,
+                                 task_dir=os.path.join(temp_dir, f"{trace_name}_{loss}_{buffer_size}"),
+                                 algorithm=algorithm, trace_name=trace_name, upload_id=upload_id, loss_rate=loss,
+                                 buffer_size=buffer_size)
 
                 # 保存任务到数据库
                 task.save()
@@ -133,41 +135,3 @@ def upload_project_file():
             'failed_tasks': failed_tasks
         }
     )
-
-
-@task_bp.route("/task_get_task_info", methods=["POST"])
-@jwt_required()
-@validate_request(TaskInfoSchema)
-# not used now.
-def return_task():
-    data = get_validated_data(TaskInfoSchema)
-    task_id = data.task_id
-    user_id = get_jwt_identity()
-
-    logger.debug(f"[task: {task_id}] Task info request by user {user_id}")
-
-    # 保证只能查询自己的任务
-    task_info = Task_model.query.filter_by(task_id=task_id, user_id=user_id).first()
-    if not task_info:
-        logger.warning(f"[task: {task_id}] Task info request failed: Task not found for user {user_id}")
-        return HttpResponse.fail("Task not found.")
-
-    task_status = TaskStatus(task_info.task_status)
-    if task_status == TaskStatus.QUEUED:
-        logger.debug(f"[task: {task_id}] Task is still queued")
-        return HttpResponse.ok("Task is queued.")
-
-    if task_status == TaskStatus.ERROR:
-        # 从task_dir中读取error.log,返回给前端
-        try:
-            with open(f'{task_info.task_dir}/error.log', 'r') as f:
-                error_info = f.read()
-            logger.error(f"[task: {task_id}] Error details: {error_info}")
-            return HttpResponse.ok("Task error", error_info=error_info)
-        except Exception as e:
-            error_info = str(e)
-            return HttpResponse.ok("Task error", error_info=error_info)
-
-    task_res = task_info.to_detail_dict()
-    logger.debug(f"[task: {task_id}] Successfully retrieved task info")
-    return HttpResponse.ok("Task info found.", task_res=task_res)

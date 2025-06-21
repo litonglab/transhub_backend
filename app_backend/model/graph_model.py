@@ -4,12 +4,13 @@ from app_backend import db
 
 logger = logging.getLogger(__name__)
 
-class graph_model(db.Model):
+
+class GraphModel(db.Model):
     __tablename__ = 'graph'
     task_id = db.Column(db.String(36), primary_key=False)
     # user_id = db.Column(db.String(36), primary_key=False)
     graph_id = db.Column(db.String(36), primary_key=True)
-    graph_type = db.Column(db.String(20)) # throughput, delay
+    graph_type = db.Column(db.String(20))  # throughput, delay
     graph_path = db.Column(db.String(255))
 
     def update(self, **kwargs):
@@ -30,4 +31,3 @@ class graph_model(db.Model):
         db.session.add(self)
         db.session.commit()
         logger.info(f"Graph {self.graph_id} inserted successfully")
-

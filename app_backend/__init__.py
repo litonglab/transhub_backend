@@ -6,6 +6,7 @@ from logging import getLogger
 import dramatiq_dashboard
 from dramatiq.brokers.redis import RedisBroker
 from flask import Flask, render_template
+from flask_caching import Cache
 from flask_cors import CORS
 from flask_redis import FlaskRedis
 from flask_sqlalchemy import SQLAlchemy
@@ -15,13 +16,14 @@ from app_backend.config import get_config, get_default_config
 from app_backend.security.auth import init_auth
 from app_backend.security.dramatiq_auth import create_auth_middleware
 from app_backend.utils.utils import setup_logger
-from app_backend.vo import HttpResponse
+from app_backend.vo.http_response import HttpResponse
 
 config = get_default_config()
 # Initialize extensions
 # Flask extensions for Redis and SQLAlchemy, init and used in app_context for safety
 redis_client = FlaskRedis()
 db = SQLAlchemy()
+cache = Cache()
 
 # Configure logging
 setup_logger()
@@ -114,6 +116,21 @@ def _configure_redis(app):
     redis_client.ping()
 
 
+def _configure_cache(app):
+    """Configure Flask-Caching."""
+    cache.init_app(app, config={
+        'CACHE_TYPE': 'redis',
+        'CACHE_REDIS_URL': config.Cache.FLASK_REDIS_URL,
+        'CACHE_DEFAULT_TIMEOUT': 10,  # 默认缓存时间为10秒
+        'CACHE_OPTIONS': {
+            'socket_timeout': 5,  # Redis连接超时时间
+            'socket_connect_timeout': 5,  # Redis连接建立超时时间
+            'retry_on_timeout': True  # 超时时重试
+        }
+    })
+    logger.info("Cache configured with Redis backend")
+
+
 def _configure_secret_key(app):
     """Configure secret key for Flask app."""
     if not app.config['SECRET_KEY']:
@@ -164,6 +181,7 @@ def get_app():
     # Configure components
     _configure_database(app)
     _configure_redis(app)
+    _configure_cache(app)
 
     end_time = time.time()
 
@@ -233,11 +251,11 @@ def _create_tables(app):
     """Create database tables."""
     try:
         # Import models to register them with SQLAlchemy
-        from app_backend.model.User_model import User_model
-        from app_backend.model.Task_model import Task_model
-        from app_backend.model.Rank_model import Rank_model
-        from app_backend.model.graph_model import graph_model
-        from app_backend.model.Competition_model import Competition_model
+        from app_backend.model.user_model import UserModel
+        from app_backend.model.task_model import TaskModel
+        from app_backend.model.rank_model import RankModel
+        from app_backend.model.graph_model import GraphModel
+        from app_backend.model.competition_model import CompetitionModel
 
         db.create_all()
         logger.info('Database tables created successfully')
@@ -281,7 +299,7 @@ def _configure_error_handlers(app):
     def handle_exception(e):
         """Handle general exceptions with JSON response."""
         logger.error(f'The Unhandled exception details: {e}', exc_info=True)
-        return HttpResponse.error(500, "Internal Server Error")
+        return HttpResponse.internal_error()
 
     app.register_error_handler(HTTPException, handle_http_exception)
     app.register_error_handler(Exception, handle_exception)

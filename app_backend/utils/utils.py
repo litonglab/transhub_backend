@@ -1,6 +1,8 @@
 import logging
 import os
+import random
 import socket
+import string
 import threading
 from logging.config import dictConfig
 
@@ -120,3 +122,32 @@ def setup_logger():
     }
     dictConfig(config)
     logger.info("Logging configuration completed")
+
+
+def generate_random_string(length: int, include_digits: bool = True, include_special_chars: bool = False) -> str:
+    """
+    生成指定长度的随机字符串
+
+    Args:
+        length (int): 需要生成的字符串长度
+        include_digits (bool): 是否包含数字，默认为True
+        include_special_chars (bool): 是否包含特殊字符，默认为False
+
+    Returns:
+        str: 生成的随机字符串
+
+    Examples:
+        >>> generate_random_string(8)
+        'aB3cD4eF'
+        >>> generate_random_string(12, include_special_chars=True)
+        'aB3cD4eF@#$%'
+    """
+    # 定义字符集
+    chars = string.ascii_letters
+    if include_digits:
+        chars += string.digits
+    if include_special_chars:
+        chars += string.punctuation
+
+    # 生成随机字符串
+    return ''.join(random.choice(chars) for _ in range(length))

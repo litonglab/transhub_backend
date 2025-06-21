@@ -1,21 +1,17 @@
 import logging
 import uuid
-from concurrent.futures import ThreadPoolExecutor
 
-from flask import Blueprint, make_response, copy_current_request_context
+from flask import Blueprint, make_response
 from flask_jwt_extended import create_access_token, set_access_cookies, unset_jwt_cookies, jwt_required, \
     get_jwt_identity, get_jwt
 
 from app_backend import get_default_config
-from app_backend.decorators.validators import validate_request, get_validated_data
-from app_backend.model.Competition_model import Competition_model
-from app_backend.model.User_model import User_model
+from app_backend.model.competition_model import CompetitionModel
+from app_backend.model.user_model import UserModel
+from app_backend.validators.decorators import validate_request, get_validated_data
 from app_backend.validators.schemas import UserLoginSchema, UserRegisterSchema, ChangePasswordSchema, \
     UserChangeRealInfoSchema
-from app_backend.vo import HttpResponse
-
-# 创建线程池执行器
-executor = ThreadPoolExecutor(2)
+from app_backend.vo.http_response import HttpResponse
 
 user_bp = Blueprint('user', __name__)
 logger = logging.getLogger(__name__)
@@ -32,7 +28,7 @@ def user_login():
 
     logger.debug(f"User login attempt: username={username}, cname={cname}")
 
-    user = User_model.query.filter_by(username=username, password=password).first()
+    user = UserModel.query.filter_by(username=username, password=password).first()
     if not user:
         logger.warning(f"Login failed: User not found or credentials invalid for username={username}")
         return HttpResponse.fail("User not found or Username error or Password error.")
@@ -47,26 +43,23 @@ def user_login():
     if len(class_student_list) > 0 and user.sno not in class_student_list:
         logger.warning(f"Login failed: Student {user.sno} not in class list for {cname}")
         return HttpResponse.fail("该学号不在此课程（比赛）的名单中，请确认你已选课或报名竞赛。")
-    if Competition_model.query.filter_by(user_id=user.user_id, cname=cname).first():
+    if CompetitionModel.query.filter_by(user_id=user.user_id, cname=cname).first():
         logger.info(f"User {username} successfully logged in to {cname}")
         # 生成带自定义内容的JWT
         additional_claims = {"cname": cname}
         access_token = create_access_token(identity=user.user_id, additional_claims=additional_claims)
         resp = make_response(HttpResponse.ok(user_id=user.user_id))
-        set_access_cookies(resp, access_token)
+        set_access_cookies(resp, access_token, max_age=config.Security.JWT_ACCESS_TOKEN_EXPIRES)
         return resp
     else:
+        # 更新：在编译目录统一使用公共目录后，实际上此逻辑已不再必要，这里保留下来作为首次登录的欢迎界面
         # 异步调用参赛函数，为用户报名
-        # 用 copy_current_app_context 包装你的函数
-        # todo: 加锁，用户频繁操作可能导致重复调用此函数
-        @copy_current_request_context
-        def async_paticapate():
-            logger.info(f"Starting async participation for user {username} in {cname}")
-            user.paticapate_competition(cname)
-            logger.info(f"Completed async participation for user {username} in {cname}")
-
-        executor.submit(async_paticapate)
-        message = "同学你好，欢迎加入【{}】课程（比赛），首次加入课程，系统需要后台为你创建项目工程，预计需要一分钟，请稍后再登录。\n如果长时间仍无法登录，请联系管理员。".format(
+        # @copy_current_request_context
+        # def async_participate():
+        #     user.participate_competition(cname)
+        # executor.submit(async_participate)
+        user.participate_competition(cname)
+        message = "同学你好，欢迎加入【{}】课程（比赛），首次加入课程（比赛），系统需要后台为你创建项目工程，预计需要数秒钟，请稍后再登录。".format(
             cname)
         logger.info(f"New user {username} initiated participation in {cname}")
         return HttpResponse.error(201, message)
@@ -93,7 +86,7 @@ def user_register():
         logger.debug(f"Registration attempt for user: username={username}, real_name={real_name}, sno={sno}")
 
         # 检测username，sno是否已经存在
-        user = User_model(username=username, password=password, real_name=real_name, sno=sno)
+        user = UserModel(username=username, password=password, real_name=real_name, sno=sno)
         if user.is_exist():
             logger.warning(f"Registration failed: Username {username} already exists")
             return HttpResponse.fail("此用户名或学号已被注册，请更换用户名或学号。")
@@ -105,7 +98,7 @@ def user_register():
             return HttpResponse.ok("Register success.", user_id=user_id)
     except Exception as e:
         logger.error(f"Registration error: {str(e)}", exc_info=True)
-        return HttpResponse.error(500, "Register failed.")
+        return HttpResponse.internal_error()
 
 
 @user_bp.route("/user_change_password", methods=['POST'])
@@ -113,13 +106,13 @@ def user_register():
 @validate_request(ChangePasswordSchema)
 def change_password():
     data = get_validated_data(ChangePasswordSchema)
-    user_id = data.user_id
-    old_pwd = data.oldpwd
+    user_id = get_jwt_identity()  # 用户id
+    old_pwd = data.old_pwd
     new_pwd = data.new_pwd
 
     logger.debug(f"Password change attempt for user_id={user_id}")
 
-    user = User_model.query.filter_by(user_id=user_id, password=old_pwd).first()
+    user = UserModel.query.filter_by(user_id=user_id, password=old_pwd).first()
     if not user:
         logger.warning(f"Password change failed: Invalid old password for user_id={user_id}")
         return HttpResponse.fail("Password error.")
@@ -130,13 +123,13 @@ def change_password():
     return HttpResponse.ok("Change password success.")
 
 
-@user_bp.route("/user_get_real_info", methods=["POST"])
+@user_bp.route("/user_get_real_info", methods=["GET"])
 @jwt_required()
 def return_real_info():
     user_id = get_jwt_identity()
     logger.debug(f"Fetching real info for user_id={user_id}")
 
-    user = User_model.query.filter_by(user_id=user_id).first()
+    user = UserModel.query.filter_by(user_id=user_id).first()
     real_info = {"cname": get_jwt().get('cname'),
                  "real_name": user.real_name,
                  "sno": user.sno}
@@ -161,7 +154,7 @@ def change_real_info():
 
     logger.info(f"Updating real info for user_id={user_id}, new real_name={real_name}")
 
-    user = User_model.query.filter_by(user_id=user_id).first()
+    user = UserModel.query.filter_by(user_id=user_id).first()
     user.update_real_info(real_name)
     logger.info(f"Successfully updated real info for user_id={user_id}")
     return HttpResponse.ok("Set real info success.")

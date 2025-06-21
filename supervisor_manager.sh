@@ -61,11 +61,39 @@ case "$1" in
         ;;
     stop)
         echo "🛑 停止服务..."
-        if ! supervisorctl -c "$CONFIG" shutdown; then
-            echo "❌ 停止服务失败"
+        
+        # 先停止 dramatiq worker
+        echo "⏳ 正在停止 dramatiq worker..."
+        if ! supervisorctl -c "$CONFIG" stop dramatiq_worker; then
+            echo "❌ 停止 dramatiq worker 失败"
             exit 1
         fi
-        echo "✅ 服务已停止"
+        
+        # 等待 dramatiq 任务完成
+        echo "⏳ 等待 dramatiq 任务完成..."
+        echo "请等待执行中的任务完成，预计最多需要几分钟，强行停止可能导致任务和成绩异常..."
+        while true; do
+            if ! pgrep -f "dramatiq app_backend.jobs.cctraining_job" > /dev/null; then
+                break
+            fi
+            sleep 1
+        done
+        echo "✅ dramatiq worker 已停止"
+        
+        # 然后停止 flask 应用
+        echo "⏳ 正在停止 flask 应用..."
+        if ! supervisorctl -c "$CONFIG" stop flask_app; then
+            echo "❌ 停止 flask 应用失败"
+            exit 1
+        fi
+        
+        # 最后关闭 supervisor
+        if ! supervisorctl -c "$CONFIG" shutdown; then
+            echo "❌ 关闭 supervisor 失败"
+            exit 1
+        fi
+        
+        echo "✅ 所有服务已停止"
         ;;
     status)
         echo "🔍 检查服务状态..."
@@ -78,7 +106,8 @@ case "$1" in
         ;;
     restart)
         $0 stop
-        sleep 10
+        echo "即将重启服务..."
+        sleep 3
         $0 start
         ;;
     config)

@@ -5,7 +5,7 @@ from flask import send_file, Blueprint
 from flask_jwt_extended import jwt_required, get_jwt
 
 from app_backend import get_default_config
-from app_backend.vo import HttpResponse
+from app_backend.vo.http_response import HttpResponse
 
 help_bp = Blueprint('help', __name__)
 logger = logging.getLogger(__name__)

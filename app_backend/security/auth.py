@@ -4,7 +4,7 @@ import secrets
 from flask_jwt_extended import JWTManager
 from flask_jwt_extended.exceptions import NoAuthorizationError, InvalidHeaderError
 
-from app_backend.vo import HttpResponse
+from app_backend.vo.http_response import HttpResponse
 
 logger = logging.getLogger(__name__)
 

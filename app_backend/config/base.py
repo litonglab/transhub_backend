@@ -6,6 +6,8 @@
 import os
 from typing import Dict, Any
 
+from app_backend.config import env_file
+
 
 # 由于循环导入，此模块不允许使用logger
 
@@ -13,7 +15,7 @@ from typing import Dict, Any
 def _get_env_variable(name: str) -> Any:
     value = os.getenv(name)
     if value is None:
-        raise ValueError(f"环境变量 {name} 未设置")
+        raise ValueError(f"环境变量 {name} 未配置，请在 {env_file} 文件中配置")
     return value
 
 
@@ -35,6 +37,7 @@ class BaseConfig:
         """安全配置"""
         # CORS 配置 - 开发环境允许所有来源
         CORS_ORIGINS = _get_env_variable('CORS_ORIGINS')
+        JWT_ACCESS_TOKEN_EXPIRES = int(_get_env_variable('FLASK_JWT_ACCESS_TOKEN_EXPIRES'))
 
     class Logging:
         """日志配置"""

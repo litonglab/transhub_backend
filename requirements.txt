@@ -17,3 +17,4 @@ pydantic~=2.11.5
 concurrent-log-handler==0.9.26
 python-dotenv~=1.0.0
 flask-redis~=0.4.0
+Flask-Caching~=2.1.0
