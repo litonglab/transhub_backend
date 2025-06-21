@@ -23,7 +23,7 @@ class TaskStatus(Enum):
     @property
     def priority(self):
         """获取状态优先级，数字越小优先级越高，用于to_history_dict()
-           状态优先级：compiled_failed > error > not_queued > compiled > compling > queued > running > finished
+           状态优先级：compiled_failed > error > not_queued > compiled > compling > running > queued > finished
         """
         priority_map = {
             TaskStatus.COMPILED_FAILED: 0,
@@ -31,8 +31,8 @@ class TaskStatus(Enum):
             TaskStatus.NOT_QUEUED: 2,
             TaskStatus.COMPILED: 3,
             TaskStatus.COMPILING: 4,
-            TaskStatus.QUEUED: 5,
-            TaskStatus.RUNNING: 6,
+            TaskStatus.RUNNING: 5,
+            TaskStatus.QUEUED: 6,
             TaskStatus.FINISHED: 7
         }
         return priority_map[self]
