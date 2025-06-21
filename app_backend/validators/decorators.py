@@ -8,12 +8,13 @@ from typing import TypeVar, Type, Callable, Any, cast
 from flask import request
 from pydantic import BaseModel, ValidationError
 
-from app_backend.vo import HttpResponse
+from app_backend.vo.http_response import HttpResponse
 
 # 定义泛型类型变量
 T = TypeVar('T', bound=BaseModel)
 
 logger = logging.getLogger(__name__)
+
 
 def validate_request(schema_class: Type[T]) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
@@ -77,7 +78,7 @@ def validate_request(schema_class: Type[T]) -> Callable[[Callable[..., Any]], Ca
                 return HttpResponse.fail(f"参数校验失败: {error_messages}")
             except Exception as e:
                 logger.error(f"Unexpected error during validation in {f.__name__}: {str(e)}", exc_info=True)
-                return HttpResponse.error(500, f"参数校验时发生服务器内部错误: {str(e)}")
+                return HttpResponse.internal_error(f"参数校验时发生服务器内部错误: {str(e)}")
 
         return decorated_function
 

@@ -11,7 +11,7 @@ from app_backend.model.user_model import UserModel
 from app_backend.validators.decorators import validate_request, get_validated_data
 from app_backend.validators.schemas import UserLoginSchema, UserRegisterSchema, ChangePasswordSchema, \
     UserChangeRealInfoSchema
-from app_backend.vo import HttpResponse
+from app_backend.vo.http_response import HttpResponse
 
 user_bp = Blueprint('user', __name__)
 logger = logging.getLogger(__name__)
@@ -98,7 +98,7 @@ def user_register():
             return HttpResponse.ok("Register success.", user_id=user_id)
     except Exception as e:
         logger.error(f"Registration error: {str(e)}", exc_info=True)
-        return HttpResponse.error(500, "Register failed.")
+        return HttpResponse.internal_error()
 
 
 @user_bp.route("/user_change_password", methods=['POST'])

@@ -14,7 +14,7 @@ from app_backend.model.user_model import UserModel
 from app_backend.utils.utils import generate_random_string
 from app_backend.validators.decorators import validate_request, get_validated_data
 from app_backend.validators.schemas import FileUploadSchema
-from app_backend.vo import HttpResponse
+from app_backend.vo.http_response import HttpResponse
 
 task_bp = Blueprint('task', __name__)
 logger = logging.getLogger(__name__)

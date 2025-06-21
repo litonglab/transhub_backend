@@ -7,7 +7,7 @@ from flask_jwt_extended import get_jwt_identity, jwt_required
 from app_backend.model.task_model import TaskModel
 from app_backend.validators.decorators import validate_request, get_validated_data
 from app_backend.validators.schemas import SourceCodeSchema
-from app_backend.vo import HttpResponse
+from app_backend.vo.http_response import HttpResponse
 
 source_code_bp = Blueprint('app_backend', __name__)
 logger = logging.getLogger(__name__)

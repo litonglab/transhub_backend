@@ -5,7 +5,7 @@ from flask_jwt_extended import jwt_required, get_jwt
 
 from app_backend import cache
 from app_backend.model.rank_model import RankModel
-from app_backend.vo import HttpResponse
+from app_backend.vo.http_response import HttpResponse
 
 summary_bp = Blueprint('summary', __name__)
 logger = logging.getLogger(__name__)

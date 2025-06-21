@@ -16,7 +16,7 @@ from app_backend.config import get_config, get_default_config
 from app_backend.security.auth import init_auth
 from app_backend.security.dramatiq_auth import create_auth_middleware
 from app_backend.utils.utils import setup_logger
-from app_backend.vo import HttpResponse
+from app_backend.vo.http_response import HttpResponse
 
 config = get_default_config()
 # Initialize extensions
@@ -299,7 +299,7 @@ def _configure_error_handlers(app):
     def handle_exception(e):
         """Handle general exceptions with JSON response."""
         logger.error(f'The Unhandled exception details: {e}', exc_info=True)
-        return HttpResponse.error(500, "Internal Server Error")
+        return HttpResponse.internal_error()
 
     app.register_error_handler(HTTPException, handle_http_exception)
     app.register_error_handler(Exception, handle_exception)

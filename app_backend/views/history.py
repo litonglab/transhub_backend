@@ -6,7 +6,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from app_backend.model.task_model import TaskModel, to_history_dict
 from app_backend.validators.decorators import validate_request, get_validated_data
 from app_backend.validators.schemas import HistoryDetailSchema
-from app_backend.vo import HttpResponse
+from app_backend.vo.http_response import HttpResponse
 
 history_bp = Blueprint('history', __name__)
 logger = logging.getLogger(__name__)

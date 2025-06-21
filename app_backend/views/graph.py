@@ -7,7 +7,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from app_backend.model.graph_model import GraphModel
 from app_backend.validators.decorators import validate_request, get_validated_data
 from app_backend.validators.schemas import GraphSchema
-from app_backend.vo import HttpResponse
+from app_backend.vo.http_response import HttpResponse
 
 graph_bp = Blueprint('graph', __name__)
 logger = logging.getLogger(__name__)
