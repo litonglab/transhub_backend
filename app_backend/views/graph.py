@@ -22,11 +22,6 @@ def get_graph():
     graph_type = data.graph_type
     user_id = get_jwt_identity()
 
-    # if not check_user_state(user_id):
-    #     return abort(400, "Please login firstly.")
-    #
-    # if not check_task_auth(user_id, task_id):
-    #     return abort(400, "User is not authorized to access this task.")
     # 性能图所有用户都可查询，无需验证user_id
     logger.debug(f"Graph request for task {task_id}, type {graph_type} by user {user_id}")
     graph = graph_model.query.filter_by(task_id=task_id, graph_type=graph_type).first()

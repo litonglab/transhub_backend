@@ -13,7 +13,7 @@ from app_backend.jobs.cctraining_job import enqueue_cc_task
 from app_backend.model.Task_model import Task_model, TaskStatus
 from app_backend.model.User_model import User_model
 from app_backend.utils.utils import generate_random_string
-from app_backend.validators.schemas import TaskInfoSchema, FileUploadSchema
+from app_backend.validators.schemas import FileUploadSchema
 from app_backend.vo import HttpResponse
 
 task_bp = Blueprint('task', __name__)
@@ -135,41 +135,3 @@ def upload_project_file():
             'failed_tasks': failed_tasks
         }
     )
-
-
-@task_bp.route("/task_get_task_info", methods=["POST"])
-@jwt_required()
-@validate_request(TaskInfoSchema)
-# not used now.
-def return_task():
-    data = get_validated_data(TaskInfoSchema)
-    task_id = data.task_id
-    user_id = get_jwt_identity()
-
-    logger.debug(f"[task: {task_id}] Task info request by user {user_id}")
-
-    # 保证只能查询自己的任务
-    task_info = Task_model.query.filter_by(task_id=task_id, user_id=user_id).first()
-    if not task_info:
-        logger.warning(f"[task: {task_id}] Task info request failed: Task not found for user {user_id}")
-        return HttpResponse.fail("Task not found.")
-
-    task_status = TaskStatus(task_info.task_status)
-    if task_status == TaskStatus.QUEUED:
-        logger.debug(f"[task: {task_id}] Task is still queued")
-        return HttpResponse.ok("Task is queued.")
-
-    if task_status == TaskStatus.ERROR:
-        # 从task_dir中读取error.log,返回给前端
-        try:
-            with open(f'{task_info.task_dir}/error.log', 'r') as f:
-                error_info = f.read()
-            logger.error(f"[task: {task_id}] Error details: {error_info}")
-            return HttpResponse.ok("Task error", error_info=error_info)
-        except Exception as e:
-            error_info = str(e)
-            return HttpResponse.ok("Task error", error_info=error_info)
-
-    task_res = task_info.to_detail_dict()
-    logger.debug(f"[task: {task_id}] Successfully retrieved task info")
-    return HttpResponse.ok("Task info found.", task_res=task_res)

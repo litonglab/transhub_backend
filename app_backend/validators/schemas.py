@@ -26,7 +26,7 @@ class FieldRules:
 
 class CommonValidators:
     """公共验证器类，包含可重用的验证函数"""
-    
+
     @staticmethod
     def validate_username(v: str) -> str:
         """验证用户名格式
@@ -37,31 +37,31 @@ class CommonValidators:
         4. 不能包含连续的点号（避免目录遍历）
         """
         logger.debug(f"Validating username: {v}")
-        
+
         # 检查是否为空
         v = CommonValidators.validate_not_empty(v, "用户名")
-            
+
         # 检查是否以点号开头
         if v.startswith('.'):
             logger.warning(f"Username starts with dot: {v}")
             raise ValueError('用户名不能以点号开头')
-            
+
         # 检查是否包含连续的点号
         if '..' in v:
             logger.warning(f"Username contains consecutive dots: {v}")
             raise ValueError('用户名不能包含连续的点号')
-            
+
         # 检查是否包含文件系统特殊字符
         invalid_chars = r'[<>:"/\\|?*]'
         if re.search(invalid_chars, v):
             logger.warning(f"Username contains invalid characters: {v}")
             raise ValueError('用户名不能包含特殊字符: < > : " / \\ | ? *')
-            
+
         # 检查是否只包含有效字符（中文、字母、数字、下划线、点号）
         if not re.match(r'^[\u4e00-\u9fa5a-zA-Z0-9_.]+$', v):
             logger.warning(f"Username contains invalid characters: {v}")
             raise ValueError('用户名只能包含中文、字母、数字、下划线和点号')
-            
+
         return v
 
     @staticmethod
@@ -94,10 +94,10 @@ class CommonValidators:
 
 class UserLoginSchema(BaseModel):
     """用户登录请求参数验证"""
-    username: str = Field(..., min_length=FieldRules.USERNAME_MIN_LEN, max_length=FieldRules.USERNAME_MAX_LEN, 
-                         description=f"用户名，{FieldRules.USERNAME_MIN_LEN}-{FieldRules.USERNAME_MAX_LEN}个字符")
-    password: str = Field(..., min_length=FieldRules.PASSWORD_MIN_LEN, max_length=FieldRules.PASSWORD_MAX_LEN, 
-                         description=f"密码，{FieldRules.PASSWORD_MIN_LEN}-{FieldRules.PASSWORD_MAX_LEN}个字符")
+    username: str = Field(..., min_length=FieldRules.USERNAME_MIN_LEN, max_length=FieldRules.USERNAME_MAX_LEN,
+                          description=f"用户名，{FieldRules.USERNAME_MIN_LEN}-{FieldRules.USERNAME_MAX_LEN}个字符")
+    password: str = Field(..., min_length=FieldRules.PASSWORD_MIN_LEN, max_length=FieldRules.PASSWORD_MAX_LEN,
+                          description=f"密码，{FieldRules.PASSWORD_MIN_LEN}-{FieldRules.PASSWORD_MAX_LEN}个字符")
     cname: str = Field(..., description="比赛名称")
 
     @field_validator('username')
@@ -122,14 +122,14 @@ class UserLoginSchema(BaseModel):
 
 class UserRegisterSchema(BaseModel):
     """用户注册请求参数验证"""
-    username: str = Field(..., min_length=FieldRules.USERNAME_MIN_LEN, max_length=FieldRules.USERNAME_MAX_LEN, 
-                         description=f"用户名，{FieldRules.USERNAME_MIN_LEN}-{FieldRules.USERNAME_MAX_LEN}个字符")
-    password: str = Field(..., min_length=FieldRules.PASSWORD_MIN_LEN, max_length=FieldRules.PASSWORD_MAX_LEN, 
-                         description=f"密码，{FieldRules.PASSWORD_MIN_LEN}-{FieldRules.PASSWORD_MAX_LEN}个字符")
-    real_name: str = Field(..., min_length=FieldRules.REAL_NAME_MIN_LEN, max_length=FieldRules.REAL_NAME_MAX_LEN, 
-                          description=f"真实姓名，{FieldRules.REAL_NAME_MIN_LEN}-{FieldRules.REAL_NAME_MAX_LEN}个字符")
-    sno: str = Field(..., min_length=FieldRules.STUDENT_ID_LEN, max_length=FieldRules.STUDENT_ID_LEN, 
-                    description=f"学号，{FieldRules.STUDENT_ID_LEN}位数字")
+    username: str = Field(..., min_length=FieldRules.USERNAME_MIN_LEN, max_length=FieldRules.USERNAME_MAX_LEN,
+                          description=f"用户名，{FieldRules.USERNAME_MIN_LEN}-{FieldRules.USERNAME_MAX_LEN}个字符")
+    password: str = Field(..., min_length=FieldRules.PASSWORD_MIN_LEN, max_length=FieldRules.PASSWORD_MAX_LEN,
+                          description=f"密码，{FieldRules.PASSWORD_MIN_LEN}-{FieldRules.PASSWORD_MAX_LEN}个字符")
+    real_name: str = Field(..., min_length=FieldRules.REAL_NAME_MIN_LEN, max_length=FieldRules.REAL_NAME_MAX_LEN,
+                           description=f"真实姓名，{FieldRules.REAL_NAME_MIN_LEN}-{FieldRules.REAL_NAME_MAX_LEN}个字符")
+    sno: str = Field(..., min_length=FieldRules.STUDENT_ID_LEN, max_length=FieldRules.STUDENT_ID_LEN,
+                     description=f"学号，{FieldRules.STUDENT_ID_LEN}位数字")
 
     @field_validator('username')
     def validate_username(cls, v):
@@ -160,10 +160,10 @@ class UserRegisterSchema(BaseModel):
 
 class ChangePasswordSchema(BaseModel):
     """修改密码请求参数验证"""
-    old_pwd: str = Field(..., min_length=FieldRules.PASSWORD_MIN_LEN, max_length=FieldRules.PASSWORD_MAX_LEN, 
-                        description=f"旧密码，{FieldRules.PASSWORD_MIN_LEN}-{FieldRules.PASSWORD_MAX_LEN}个字符")
-    new_pwd: str = Field(..., min_length=FieldRules.PASSWORD_MIN_LEN, max_length=FieldRules.PASSWORD_MAX_LEN, 
-                        description=f"新密码，{FieldRules.PASSWORD_MIN_LEN}-{FieldRules.PASSWORD_MAX_LEN}个字符")
+    old_pwd: str = Field(..., min_length=FieldRules.PASSWORD_MIN_LEN, max_length=FieldRules.PASSWORD_MAX_LEN,
+                         description=f"旧密码，{FieldRules.PASSWORD_MIN_LEN}-{FieldRules.PASSWORD_MAX_LEN}个字符")
+    new_pwd: str = Field(..., min_length=FieldRules.PASSWORD_MIN_LEN, max_length=FieldRules.PASSWORD_MAX_LEN,
+                         description=f"新密码，{FieldRules.PASSWORD_MIN_LEN}-{FieldRules.PASSWORD_MAX_LEN}个字符")
 
     @field_validator('old_pwd')
     def validate_old_password(cls, v):
@@ -176,21 +176,12 @@ class ChangePasswordSchema(BaseModel):
 
 class UserChangeRealInfoSchema(BaseModel):
     """用户信息修改请求参数验证"""
-    real_name: str = Field(..., min_length=FieldRules.REAL_NAME_MIN_LEN, max_length=FieldRules.REAL_NAME_MAX_LEN, 
-                          description=f"真实姓名，{FieldRules.REAL_NAME_MIN_LEN}-{FieldRules.REAL_NAME_MAX_LEN}个字符")
+    real_name: str = Field(..., min_length=FieldRules.REAL_NAME_MIN_LEN, max_length=FieldRules.REAL_NAME_MAX_LEN,
+                           description=f"真实姓名，{FieldRules.REAL_NAME_MIN_LEN}-{FieldRules.REAL_NAME_MAX_LEN}个字符")
 
     @field_validator('real_name')
     def validate_real_name(cls, v):
         return CommonValidators.validate_real_name(v)
-
-
-class TaskInfoSchema(BaseModel):
-    """获取任务信息请求参数验证"""
-    task_id: str = Field(..., description="任务ID")
-
-    @field_validator('task_id')
-    def validate_task_id(cls, v):
-        return CommonValidators.validate_not_empty(v, "task_id")
 
 
 class HistoryDetailSchema(BaseModel):

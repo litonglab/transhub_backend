@@ -1,8 +1,7 @@
 import logging
 import uuid
-from concurrent.futures import ThreadPoolExecutor
 
-from flask import Blueprint, make_response, copy_current_request_context
+from flask import Blueprint, make_response
 from flask_jwt_extended import create_access_token, set_access_cookies, unset_jwt_cookies, jwt_required, \
     get_jwt_identity, get_jwt
 
@@ -13,9 +12,6 @@ from app_backend.model.User_model import User_model
 from app_backend.validators.schemas import UserLoginSchema, UserRegisterSchema, ChangePasswordSchema, \
     UserChangeRealInfoSchema
 from app_backend.vo import HttpResponse
-
-# 创建线程池执行器
-executor = ThreadPoolExecutor(2)
 
 user_bp = Blueprint('user', __name__)
 logger = logging.getLogger(__name__)
@@ -56,15 +52,14 @@ def user_login():
         set_access_cookies(resp, access_token, max_age=config.Security.JWT_ACCESS_TOKEN_EXPIRES)
         return resp
     else:
+        # 更新：在编译目录统一使用公共目录后，实际上此逻辑已不再必要，这里保留下来作为首次登录的欢迎界面
         # 异步调用参赛函数，为用户报名
-        @copy_current_request_context
-        def async_participate():
-            logger.info(f"Starting async participation for user {username} in {cname}")
-            user.participate_competition(cname)
-            logger.info(f"Completed async participation for user {username} in {cname}")
-
-        executor.submit(async_participate)
-        message = "同学你好，欢迎加入【{}】课程（比赛），首次加入课程（比赛），系统需要后台为你创建项目工程，预计需要数秒钟，请稍后再登录。\n如果长时间仍无法登录，请联系管理员。".format(
+        # @copy_current_request_context
+        # def async_participate():
+        #     user.participate_competition(cname)
+        # executor.submit(async_participate)
+        user.participate_competition(cname)
+        message = "同学你好，欢迎加入【{}】课程（比赛），首次加入课程（比赛），系统需要后台为你创建项目工程，预计需要数秒钟，请稍后再登录。".format(
             cname)
         logger.info(f"New user {username} initiated participation in {cname}")
         return HttpResponse.error(201, message)

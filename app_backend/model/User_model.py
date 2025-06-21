@@ -94,24 +94,15 @@ class User_model(db.Model):
         else:
             logger.debug(f"Creating new competition entry for user {self.username}")
             com = Competition_model(user_id=self.user_id, cname=cname)
-            # 2. get competition dir and workdir
-            com_dir = config.Course.ALL_CLASS[cname]["path"]
-            work_dir = self.get_competition_project_dir(cname)  # 用户目录下的竞赛目录下的竞赛文件目录
-            if not os.path.exists(work_dir):
-                logger.info(f"Creating work directory: {work_dir}")
-                os.makedirs(work_dir)
+            # 2. create user directory
+            user_dir = self.get_user_dir(cname)  # 用户目录下的竞赛目录下的竞赛文件目录
+            if not os.path.exists(user_dir):
+                logger.info(f"Creating work directory: {user_dir}")
+                os.makedirs(user_dir)
             # 由于已经改为公共目录编译，不再需要生成用户目录下的编译目录，简化代码逻辑
             com.save()
             logger.info(f"User {self.username} successfully participated in competition {cname}")
             return True
-
-    def get_competition_project_dir(self, cname):
-        """
-        获取用户参赛的项目目录下的竞赛文件目录，每个用户的每个竞赛项目目录只会有一个竞赛文件目录，因此每个用户只能串行编译
-        :param cname: 比赛名称
-        :return: dirpath
-        """
-        return self.get_user_dir(cname) + "/project"
 
     def lock(self):
         logger.debug(f"Locking user: {self.username}")
