@@ -94,7 +94,7 @@ def _compile_cc_file(task, course_project_dir, task_parent_dir, sender_path, rec
             return True
 
 
-def _run_contest(task, course_project_dir, sender_path, receiver_path, result_path):
+def _run_contest(task, course_project_dir, sender_path, receiver_path, result_path, running_port):
     """
     运行竞赛脚本，执行编译好的CC文件
     :return: bool, 是否运行成功
@@ -108,8 +108,6 @@ def _run_contest(task, course_project_dir, sender_path, receiver_path, result_pa
     # uplink_file: 上行文件
     # downlink_file: 下行文件
     # result_path: 结果路径
-    running_port = get_available_port(redis_client)
-    logger.info(f"[task: {task_id}] select port {running_port} for running")
     _config = config.Course.ALL_CLASS[task.cname]
     loss_rate = task.loss_rate
     uplink_dir = _config['uplink_dir']
@@ -273,7 +271,9 @@ def run_cc_training_task(task_id):
 
             result_path = os.path.join(task.task_dir, task.trace_name + ".log")
 
-            _run_contest(task, course_project_dir, sender_path, receiver_path, result_path)
+            running_port = get_available_port(redis_client)
+            logger.info(f"[task: {task_id}] select port {running_port} for running")
+            _run_contest(task, course_project_dir, sender_path, receiver_path, result_path, running_port)
 
             total_score = _get_score(task, result_path)
 
@@ -296,7 +296,7 @@ def run_cc_training_task(task_id):
                 logger.error(f"[task: {task_id}] Task status updated to ERROR due to exception")
         finally:
             try:
-                release_port(locals().get('running_port', None), redis_client)
+                release_port(running_port, redis_client)
                 db.session.remove()
             except Exception as e:
                 logger.error(f"[task: {task_id}] Error releasing port or closing session: {str(e)}", exc_info=True)
