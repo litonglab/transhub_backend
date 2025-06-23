@@ -120,6 +120,23 @@ def _run_contest(task, course_project_dir, sender_path, receiver_path, result_pa
     logger.info(f"[task: {task_id}] run-contest.sh completed successfully")
 
 
+def _remove_binary_files(task_id, sender_path, receiver_path):
+    """
+    删除编译生成的二进制文件
+    :param task_id: 任务ID
+    :param sender_path: 发送端路径
+    :param receiver_path: 接收端路径
+    :return: None
+    """
+    logger.debug(f"[task: {task_id}] Removing sender and receiver binary files")
+    if os.path.exists(sender_path):
+        os.remove(sender_path)
+        logger.info(f"[task: {task_id}] Removed sender binary file: {sender_path}")
+    if os.path.exists(receiver_path):
+        os.remove(receiver_path)
+        logger.info(f"[task: {task_id}] Removed receiver binary file: {receiver_path}")
+
+
 def _get_score(task, result_path):
     """
     获取评分
@@ -173,7 +190,7 @@ def _update_rank(task, user):
     更新榜单
     :param task: Task_model对象
     :param user: User_model对象
-    :return: None
+    :return: True if all tasks are completed and tried to update rank, False otherwise
     """
     task_id = task.task_id
     upload_id = task.upload_id
@@ -193,7 +210,7 @@ def _update_rank(task, user):
 
         if not all_tasks_completed:
             logger.warning(f"[task: {task_id}] Not all tasks completed for upload_id {upload_id}, skipping rank update")
-            return
+            return False
 
         # 计算所有任务的总分
         total_upload_score = sum(t.task_score for t in all_tasks if t.task_score is not None)
@@ -234,6 +251,7 @@ def _update_rank(task, user):
                 f"[task: {task_id}] Created new rank record for user: {task.user_id}, score: {total_upload_score}")
 
         logger.info(f"[task: {task_id}] Rank update completed for upload_id: {upload_id}")
+        return True
 
 
 @dramatiq.actor(time_limit=1200000, max_retries=0)
@@ -281,7 +299,9 @@ def run_cc_training_task(task_id):
 
             task.update(task_status=TaskStatus.FINISHED.value, task_score=total_score)
             # 更新完状态后再更新榜单，如果榜单更新失败，任务状态会回退至ERROR
-            _update_rank(task, user)
+            all_tasks_completed = _update_rank(task, user)
+            if all_tasks_completed:
+                _remove_binary_files(task_id, sender_path, receiver_path)
             logger.info(f"[task: {task_id}] Task completed successfully, score: {total_score}")
         except Exception as e:
             # 理论上除了编译失败外，不应出现其他异常，如果出现，需要修复代码相关逻辑
@@ -294,10 +314,14 @@ def run_cc_training_task(task_id):
                     task_error_log_content = task_error_log_content[:8000] + '...'
                 task.update(task_status=TaskStatus.ERROR.value, error_log=task_error_log_content)
                 logger.error(f"[task: {task_id}] Task status updated to ERROR due to exception")
+            # 删除编译生成的二进制文件，注意不在finally中删除，因为正常结束的任务不一定需要删除，其他任务可能会复用
+            if 'sender_path' in locals() and 'receiver_path' in locals():
+                _remove_binary_files(task_id, sender_path, receiver_path)
         finally:
             try:
-                release_port(running_port, redis_client)
                 db.session.remove()
+                if 'running_port' in locals():
+                    release_port(running_port, redis_client)
                 # remove log file if exists
                 if 'result_path' in locals() and os.path.exists(result_path):
                     os.remove(result_path)
