@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 
 from flask import Blueprint
@@ -37,11 +38,11 @@ def return_zhinan():
     logger.debug(f"Tutorial request for competition {cname}")
 
     _config = config.Course.ALL_CLASS[cname]
-    if _config:
+    if _config and os.path.exists(_config['zhinan_path']):
         logger.info(f"Sending tutorial file: {_config['zhinan_path']}")
         return HttpResponse.send_attachment_file(_config['zhinan_path'])
     else:
-        logger.warning(f"Tutorial not found for competition {cname}")
+        logger.error(f"Tutorial not found for competition {cname}")
         return HttpResponse.not_found("文档不存在")
 
 
