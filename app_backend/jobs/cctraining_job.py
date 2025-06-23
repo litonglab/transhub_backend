@@ -298,8 +298,13 @@ def run_cc_training_task(task_id):
             try:
                 release_port(running_port, redis_client)
                 db.session.remove()
+                # remove log file if exists
+                if 'result_path' in locals() and os.path.exists(result_path):
+                    os.remove(result_path)
+                    logger.info(f"[task: {task_id}] Removed result file: {result_path}")
+
             except Exception as e:
-                logger.error(f"[task: {task_id}] Error releasing port or closing session: {str(e)}", exc_info=True)
+                logger.error(f"[task: {task_id}] Error when finally cleanup: {str(e)}", exc_info=True)
 
 
 def _force_kill_process_group(process, task_id):
