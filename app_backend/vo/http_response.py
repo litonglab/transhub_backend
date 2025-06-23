@@ -1,4 +1,4 @@
-from flask import jsonify
+from flask import jsonify, send_file
 
 
 class HttpResponse:
@@ -140,3 +140,15 @@ class HttpResponse:
             flask.Response: Flask JSON响应对象
         """
         return cls(code=500, message=message, **kwargs).to_json()
+
+    @staticmethod
+    def send_attachment_file(file, mimetype=None):
+        """
+        发送文件作为附件响应
+        Args:
+            file (str): 文件路径或文件对象
+            mimetype (str): 文件的MIME类型
+        Returns:
+            flask.Response: 以附件形式发送的文件响应
+        """
+        return send_file(file, mimetype=mimetype, as_attachment=True)

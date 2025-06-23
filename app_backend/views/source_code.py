@@ -1,7 +1,7 @@
 import logging
 import os
 
-from flask import Blueprint, send_file
+from flask import Blueprint
 from flask_jwt_extended import get_jwt_identity, jwt_required
 
 from app_backend.model.task_model import TaskModel
@@ -35,4 +35,4 @@ def return_code():
         return HttpResponse.fail("File not found")
 
     logger.info(f"Sending source code file: {file_path}")
-    return send_file(file_path, as_attachment=True, download_name=task_info.algorithm + ".cc")
+    return HttpResponse.send_attachment_file(file_path)

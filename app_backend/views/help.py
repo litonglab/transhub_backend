@@ -1,7 +1,7 @@
 import logging
 import time
 
-from flask import send_file, Blueprint
+from flask import Blueprint
 from flask_jwt_extended import jwt_required, get_jwt
 
 from app_backend import get_default_config
@@ -39,8 +39,7 @@ def return_zhinan():
     _config = config.Course.ALL_CLASS[cname]
     if _config:
         logger.info(f"Sending tutorial file: {_config['zhinan_path']}")
-        return send_file(_config['zhinan_path'], as_attachment=True)
-        # return send_file(config.zhinan_path, mimetype="application/pdf")
+        return HttpResponse.send_attachment_file(_config['zhinan_path'])
     else:
         logger.warning(f"Tutorial not found for competition {cname}")
         return HttpResponse.fail("No such tutorial!")

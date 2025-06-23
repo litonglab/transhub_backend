@@ -1,7 +1,7 @@
 import logging
 import os
 
-from flask import send_file, Blueprint
+from flask import Blueprint
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from app_backend.model.graph_model import GraphModel
@@ -30,4 +30,4 @@ def get_graph():
             f"Graph not found or file missing: task_id={task_id}, type={graph_type}, path={graph.graph_path if graph else 'None'}")
         return HttpResponse.fail("No such graph or graph file does not exist.")
     logger.info(f"Sending graph file: {graph.graph_path}")
-    return send_file(graph.graph_path, mimetype='image/svg+xml', as_attachment=True)
+    return HttpResponse.send_attachment_file(graph.graph_path)
