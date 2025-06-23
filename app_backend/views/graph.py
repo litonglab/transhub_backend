@@ -28,6 +28,6 @@ def get_graph():
     if not graph or not os.path.exists(graph.graph_path):
         logger.warning(
             f"Graph not found or file missing: task_id={task_id}, type={graph_type}, path={graph.graph_path if graph else 'None'}")
-        return HttpResponse.fail("No such graph or graph file does not exist.")
+        return HttpResponse.not_found("图片不存在或已被删除")
     logger.info(f"Sending graph file: {graph.graph_path}")
     return HttpResponse.send_attachment_file(graph.graph_path)

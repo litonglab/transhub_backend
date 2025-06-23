@@ -30,8 +30,8 @@ config = get_default_config()
 def upload_project_file():
     cname = get_jwt().get('cname')
     _config = config.Course.ALL_CLASS[cname]
-    start_time = time.mktime(time.strptime(_config['start_time'], "%Y-%m-%d-%H-%M-%S"))
-    ddl_time = time.mktime(time.strptime(_config['end_time'], "%Y-%m-%d-%H-%M-%S"))
+    start_time = time.mktime(time.strptime(_config['start_time'], "%Y-%m-%d %H:%M:%S"))
+    ddl_time = time.mktime(time.strptime(_config['end_time'], "%Y-%m-%d %H:%M:%S"))
     now_time = time.time()
 
     logger.debug(f"File upload attempt for competition {cname}")
@@ -40,8 +40,7 @@ def upload_project_file():
     if not (start_time <= now_time <= ddl_time):
         logger.warning(
             f"Upload rejected: Outside competition period. Current time: {now_time}, Start: {start_time}, End: {ddl_time}")
-        return HttpResponse.fail(f"Current time is not within the competition period. "
-                                 f"Competition starts at {_config['start_time']} and ends at {_config['end_time']}.")
+        return HttpResponse.fail(f"比赛尚未开始或已截止，请在比赛时间内上传代码。")
 
     # 获取验证后的数据
     data = get_validated_data(FileUploadSchema)
@@ -59,7 +58,7 @@ def upload_project_file():
     user = UserModel.query.get(user_id)
     if not user:
         logger.warning(f"Upload failed: User {user_id} not found")
-        return HttpResponse.fail("User not found.")
+        return HttpResponse.not_found("用户不存在")
 
     now = datetime.now()
     upload_dir_name = f"{now.strftime('%Y-%m-%d-%H-%M-%S')}_{generate_random_string(6)}"

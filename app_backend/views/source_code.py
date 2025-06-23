@@ -27,12 +27,12 @@ def return_code():
     task_info = TaskModel.query.filter_by(upload_id=upload_id, user_id=user_id).first()
     if not task_info:
         logger.warning(f"Source code request failed: Task not found for upload {upload_id} and user {user_id}")
-        return HttpResponse.fail("Task not found")
+        return HttpResponse.not_found("记录不存在")
 
     file_path = task_info.task_dir + "/../" + task_info.algorithm + ".cc"
     if not os.path.exists(file_path):
         logger.warning(f"Source code file not found: {file_path}")
-        return HttpResponse.fail("File not found")
+        return HttpResponse.not_found("源代码文件不存在，可能已被删除")
 
     logger.info(f"Sending source code file: {file_path}")
     return HttpResponse.send_attachment_file(file_path)

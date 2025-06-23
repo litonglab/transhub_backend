@@ -31,13 +31,13 @@ def user_login():
     user = UserModel.query.filter_by(username=username, password=password).first()
     if not user:
         logger.warning(f"Login failed: User not found or credentials invalid for username={username}")
-        return HttpResponse.fail("User not found or Username error or Password error.")
+        return HttpResponse.fail("用户名或密码错误，请检查后重新输入。")
     # 参赛
     # 检测用户是否已经参加了比赛
     # 判断cname是否存在配置文件中
     if cname not in config.Course.CNAME_LIST:
         logger.warning(f"Login failed: Invalid competition name {cname}")
-        return HttpResponse.fail("Competition not found or cname error.")
+        return HttpResponse.not_found("该课程（比赛）不存在，请重试。")
 
     class_student_list = config.Course.ALL_CLASS[cname]['student_list']
     if len(class_student_list) > 0 and user.sno not in class_student_list:
@@ -95,7 +95,7 @@ def user_register():
             user.user_id = user_id
             user.save()
             logger.info(f"User {username} successfully registered with ID {user_id}")
-            return HttpResponse.ok("Register success.", user_id=user_id)
+            return HttpResponse.ok("注册成功", user_id=user_id)
     except Exception as e:
         logger.error(f"Registration error: {str(e)}", exc_info=True)
         return HttpResponse.internal_error()
@@ -115,12 +115,12 @@ def change_password():
     user = UserModel.query.filter_by(user_id=user_id, password=old_pwd).first()
     if not user:
         logger.warning(f"Password change failed: Invalid old password for user_id={user_id}")
-        return HttpResponse.fail("Password error.")
+        return HttpResponse.fail("旧密码错误，请检查后重新输入。")
 
     user.password = new_pwd
     user.save()
     logger.info(f"Password successfully changed for user_id={user_id}")
-    return HttpResponse.ok("Change password success.")
+    return HttpResponse.ok("修改密码成功")
 
 
 @user_bp.route("/user_get_real_info", methods=["GET"])
@@ -133,7 +133,7 @@ def return_real_info():
     real_info = {"cname": get_jwt().get('cname'),
                  "real_name": user.real_name,
                  "sno": user.sno}
-    return HttpResponse.ok("Get real info success.", real_info=real_info)
+    return HttpResponse.ok(real_info=real_info)
 
 
 @user_bp.route("/user_check_login", methods=["GET"])
@@ -157,4 +157,4 @@ def change_real_info():
     user = UserModel.query.filter_by(user_id=user_id).first()
     user.update_real_info(real_name)
     logger.info(f"Successfully updated real info for user_id={user_id}")
-    return HttpResponse.ok("Set real info success.")
+    return HttpResponse.ok("修改个人信息成功")

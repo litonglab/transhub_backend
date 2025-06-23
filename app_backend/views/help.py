@@ -42,7 +42,7 @@ def return_zhinan():
         return HttpResponse.send_attachment_file(_config['zhinan_path'])
     else:
         logger.warning(f"Tutorial not found for competition {cname}")
-        return HttpResponse.fail("No such tutorial!")
+        return HttpResponse.not_found("文档不存在")
 
 
 @help_bp.route('/help_get_pantheon', methods=["GET"])
@@ -59,7 +59,7 @@ def return_competition_time():
     logger.debug(f"Competition time request for {cname}")
 
     _config = config.Course.ALL_CLASS[cname]
-    time_stmp = [int(time.mktime(time.strptime(_config['start_time'], "%Y-%m-%d-%H-%M-%S"))),
-                 int(time.mktime(time.strptime(_config['end_time'], "%Y-%m-%d-%H-%M-%S")))]
+    time_stmp = [int(time.mktime(time.strptime(_config['start_time'], "%Y-%m-%d %H:%M:%S"))),
+                 int(time.mktime(time.strptime(_config['end_time'], "%Y-%m-%d %H:%M:%S")))]
     logger.debug(f"Competition time for {cname}: start={_config['start_time']}, end={_config['end_time']}")
     return HttpResponse.ok(data=time_stmp)
