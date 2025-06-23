@@ -13,7 +13,7 @@ graph_bp = Blueprint('graph', __name__)
 logger = logging.getLogger(__name__)
 
 
-@graph_bp.route("/graph_get_graph", methods=["POST"])
+@graph_bp.route("/graph_get_graph", methods=["GET"])
 @jwt_required()
 @validate_request(GraphSchema)
 def get_graph():

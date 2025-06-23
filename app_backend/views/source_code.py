@@ -13,7 +13,7 @@ source_code_bp = Blueprint('app_backend', __name__)
 logger = logging.getLogger(__name__)
 
 
-@source_code_bp.route("/src_get_code", methods=["POST"])
+@source_code_bp.route("/src_get_code", methods=["GET"])
 @jwt_required()
 @validate_request(SourceCodeSchema)
 def return_code():
