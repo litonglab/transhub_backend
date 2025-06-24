@@ -257,22 +257,26 @@ case "$1" in
         echo "📋 查看日志文件..."
         echo "请选择要查看的日志:"
         echo "1) Supervisor主日志"
-        echo "2) Flask应用错误日志"
-        echo "3) Flask应用输出日志"
-        echo "4) Dramatiq错误日志"
-        echo "5) Dramatiq输出日志"
-        echo "6) 查看所有最新日志"
-        
-        read -p "请选择 (1-6): " choice
-        
+        echo "2) App日志"
+        echo "3) Flask应用错误日志"
+        echo "4) Flask应用输出日志"
+        echo "5) Flask access日志"
+        echo "6) Dramatiq错误日志"
+        echo "7) Dramatiq输出日志"
+        echo "8) 查看所有最新错误日志"
+
+        read -p "请选择 (1-8): " choice
+
         case $choice in
             1) tail -f "$LOG_DIR/supervisord.log" ;;
-            2) tail -f "$LOG_DIR/flask_app.err.log" ;;
-            3) tail -f "$LOG_DIR/flask_app.out.log" ;;
-            4) tail -f "$LOG_DIR/dramatiq.err.log" ;;
-            5) tail -f "$LOG_DIR/dramatiq.out.log" ;;
-            6) 
-                echo "显示所有日志的最后20行:"
+            2) tail -f "$LOG_DIR/app.log" ;;
+            3) tail -f "$LOG_DIR/flask_app.err.log" ;;
+            4) tail -f "$LOG_DIR/flask_app.out.log" ;;
+            5) tail -f "$LOG_DIR/flask_app.access.log" ;;
+            6) tail -f "$LOG_DIR/dramatiq.err.log" ;;
+            7) tail -f "$LOG_DIR/dramatiq.out.log" ;;
+            8) 
+                echo "显示所有错误日志的最后20行:"
                 echo "=== Supervisor主日志 ==="
                 tail -20 "$LOG_DIR/supervisord.log" 2>/dev/null || echo "日志文件不存在"
                 echo ""
