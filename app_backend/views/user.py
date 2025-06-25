@@ -1,9 +1,8 @@
 import logging
 import uuid
 
-from flask import Blueprint, make_response
-from flask_jwt_extended import create_access_token, set_access_cookies, unset_jwt_cookies, jwt_required, \
-    get_jwt_identity, get_jwt
+from flask import Blueprint
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 
 from app_backend import get_default_config
 from app_backend.model.competition_model import CompetitionModel
@@ -32,25 +31,20 @@ def user_login():
     if not user:
         logger.warning(f"Login failed: User not found or credentials invalid for username={username}")
         return HttpResponse.fail("用户名或密码错误，请检查后重新输入。")
-    # 参赛
-    # 检测用户是否已经参加了比赛
-    # 判断cname是否存在配置文件中
-    if cname not in config.Course.CNAME_LIST:
-        logger.warning(f"Login failed: Invalid competition name {cname}")
-        return HttpResponse.not_found("该课程（比赛）不存在，请重试。")
 
+    # 检查用户是否在课程（比赛）名单中
     class_student_list = config.Course.ALL_CLASS[cname]['student_list']
     if len(class_student_list) > 0 and user.sno not in class_student_list:
         logger.warning(f"Login failed: Student {user.sno} not in class list for {cname}")
         return HttpResponse.fail("该学号不在此课程（比赛）的名单中，请确认你已选课或报名竞赛。")
+    # 检测用户是否已经参加了比赛
     if CompetitionModel.query.filter_by(user_id=user.user_id, cname=cname).first():
         logger.info(f"User {username} successfully logged in to {cname}")
-        # 生成带自定义内容的JWT
         additional_claims = {"cname": cname}
-        access_token = create_access_token(identity=user.user_id, additional_claims=additional_claims)
-        resp = make_response(HttpResponse.ok(user_id=user.user_id))
-        set_access_cookies(resp, access_token, max_age=config.Security.JWT_ACCESS_TOKEN_EXPIRES)
-        return resp
+        return HttpResponse.login_success(
+            user_id=user.user_id,
+            additional_claims=additional_claims
+        )
     else:
         # 更新：在编译目录统一使用公共目录后，实际上此逻辑已不再必要，这里保留下来作为首次登录的欢迎界面
         # 异步调用参赛函数，为用户报名
@@ -66,11 +60,10 @@ def user_login():
 
 
 @user_bp.route('/user_logout', methods=['GET'])
+@jwt_required()
 def user_logout():
     logger.debug("User logout request received")
-    resp = make_response(HttpResponse.ok())
-    unset_jwt_cookies(resp)
-    return resp
+    return HttpResponse.logout_success()
 
 
 @user_bp.route('/user_register', methods=['POST'])
