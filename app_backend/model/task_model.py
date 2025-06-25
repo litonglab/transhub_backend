@@ -3,9 +3,10 @@ from enum import Enum
 
 from sqlalchemy.dialects.mysql import VARCHAR
 
-from app_backend import db
+from app_backend import db, get_default_config
 
 logger = logging.getLogger(__name__)
+config = get_default_config()
 
 
 class TaskStatus(Enum):
@@ -116,12 +117,13 @@ class TaskModel(db.Model):
 
     def to_detail_dict(self):
         status = TaskStatus(self.task_status)
+        trace_block = config.is_trace_blocked(self.cname, self.trace_name)
         res = {
             # 'user_id': self.user_id,
             'task_id': self.task_id,
             'upload_id': self.upload_id,
-            'loss_rate': self.loss_rate,
-            'buffer_size': self.buffer_size,
+            'loss_rate': self.loss_rate if not trace_block else "*",
+            'buffer_size': self.buffer_size if not trace_block else "*",
             'trace_name': self.trace_name,
             'task_status': self.task_status,
             'created_time': self.created_time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -131,7 +133,10 @@ class TaskModel(db.Model):
             'log': "No log available for this status, only error tasks have logs.\n当前状态不可查询，只有错误状态的任务才可查询日志。",
         }
 
-        if status == TaskStatus.ERROR or status == TaskStatus.COMPILED_FAILED:
+        if status == TaskStatus.ERROR:
+            block_msg = "This trace has been blocked, log cannot be queried.\n此Trace已被屏蔽，不可查询日志。\n\n排查指南：\n代码可能存在运行时错误，可通过查询本次提交下的其他任务日志排查此问题。\n如仍有疑问，请联系管理员。"
+            res['log'] = block_msg if trace_block else self.error_log
+        elif status == TaskStatus.COMPILED_FAILED:
             res['log'] = self.error_log
         return res
 

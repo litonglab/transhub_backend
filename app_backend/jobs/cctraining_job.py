@@ -58,7 +58,7 @@ def _compile_cc_file(task, course_project_dir, task_parent_dir, sender_path, rec
         if os.path.exists(compile_failed_file):
             logger.warning(f"[task: {task_id}] Compilation failed previously, skipping compilation")
             task.update(task_status=TaskStatus.ERROR.value,
-                        error_log="本次提交的代码在其他任务中编译失败，此任务不再尝试编译，如需查询编译日志，请查询本次提交下的其他任务")
+                        error_log="本次提交的代码在其他任务中编译失败，此任务不再尝试编译，如需查询编译日志，请查询本次提交下的其他任务。")
             return False
 
         # 如果没有编译好的文件，开始编译
@@ -108,7 +108,7 @@ def _run_contest(task, course_project_dir, sender_path, receiver_path, result_pa
     # uplink_file: 上行文件
     # downlink_file: 下行文件
     # result_path: 结果路径
-    _config = config.Course.ALL_CLASS[task.cname]
+    _config = config.get_course_config(task.cname)
     loss_rate = task.loss_rate
     uplink_dir = _config['uplink_dir']
     downlink_dir = _config['downlink_dir']
@@ -270,7 +270,8 @@ def run_cc_training_task(task_id):
             user = UserModel.query.filter_by(user_id=task.user_id).first()
 
             # 课程的项目目录，公共目录
-            course_project_dir = os.path.join(config.Course.ALL_CLASS[task.cname]['path'], 'project', 'datagrump')
+            _config = config.get_course_config(task.cname)
+            course_project_dir = os.path.join(_config['path'], 'project', 'datagrump')
             # 本次任务的父级（对应一次提交）目录
             task_parent_dir = os.path.dirname(task.task_dir)
             sender_path = os.path.join(task_parent_dir, 'sender')

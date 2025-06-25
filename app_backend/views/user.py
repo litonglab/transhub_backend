@@ -33,7 +33,8 @@ def user_login():
         return HttpResponse.fail("用户名或密码错误，请检查后重新输入。")
 
     # 检查用户是否在课程（比赛）名单中
-    class_student_list = config.Course.ALL_CLASS[cname]['student_list']
+    _config = config.get_course_config(cname)
+    class_student_list = _config['student_list']
     if len(class_student_list) > 0 and user.sno not in class_student_list:
         logger.warning(f"Login failed: Student {user.sno} not in class list for {cname}")
         return HttpResponse.fail("该学号不在此课程（比赛）的名单中，请确认你已选课或报名竞赛。")

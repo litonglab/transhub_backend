@@ -4,6 +4,7 @@
 """
 
 import os
+import time
 from typing import Dict, Any
 
 from app_backend.config import env_file
@@ -113,3 +114,35 @@ class BaseConfig:
 
         config_dict['Cache']['FLASK_REDIS_URL'] = '******'
         return config_dict
+
+    def is_now_in_competition(self, cname: str) -> bool:
+        """检查当前时间是否在指定课程的比赛时间内"""
+        _config = self.Course.ALL_CLASS[cname]
+        start_time = time.mktime(time.strptime(_config['start_time'], "%Y-%m-%d %H:%M:%S"))
+        end_time = time.mktime(time.strptime(_config['end_time'], "%Y-%m-%d %H:%M:%S"))
+        now_time = time.time()
+        return start_time <= now_time <= end_time
+
+    def get_course_config(self, cname: str) -> Dict[str, Any]:
+        """获取指定课程的配置"""
+        if cname not in self.Course.ALL_CLASS:
+            raise ValueError(f"课程 {cname} 不存在，请检查配置")
+        return self.Course.ALL_CLASS[cname]
+
+    def get_course_trace_config(self, cname: str, trace_name: str) -> Dict[str, Any]:
+        """获取指定课程某个trace的配置"""
+        course = self.get_course_config(cname)
+        trace_dict = course["trace"]
+        if trace_name not in trace_dict:
+            assert "default" in trace_dict, f"课程 {cname} 的trace配置中未配置default项，请检查配置"
+            return trace_dict["default"]
+        return trace_dict[trace_name]
+
+    def is_trace_blocked(self, cname: str, trace_name: str) -> bool:
+        """检查指定课程某个trace是否被屏蔽"""
+        # 如果当前时间不在比赛时间内，则不屏蔽trace
+        if not self.is_now_in_competition(cname):
+            return False
+
+        trace_conf = self.get_course_trace_config(cname, trace_name)
+        return trace_conf['block']

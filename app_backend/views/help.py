@@ -37,7 +37,7 @@ def return_zhinan():
     cname = get_jwt().get('cname')
     logger.debug(f"Tutorial request for competition {cname}")
 
-    _config = config.Course.ALL_CLASS[cname]
+    _config = config.get_course_config(cname)
     if _config and os.path.exists(_config['zhinan_path']):
         logger.info(f"Sending tutorial file: {_config['zhinan_path']}")
         return HttpResponse.send_attachment_file(_config['zhinan_path'])
@@ -59,7 +59,7 @@ def return_competition_time():
     cname = get_jwt().get('cname')
     logger.debug(f"Competition time request for {cname}")
 
-    _config = config.Course.ALL_CLASS[cname]
+    _config = config.get_course_config(cname)
     time_stmp = [int(time.mktime(time.strptime(_config['start_time'], "%Y-%m-%d %H:%M:%S"))),
                  int(time.mktime(time.strptime(_config['end_time'], "%Y-%m-%d %H:%M:%S")))]
     logger.debug(f"Competition time for {cname}: start={_config['start_time']}, end={_config['end_time']}")
