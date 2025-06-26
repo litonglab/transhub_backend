@@ -134,7 +134,7 @@ class TaskModel(db.Model):
         }
 
         if status == TaskStatus.ERROR:
-            block_msg = "This trace has been blocked, log cannot be queried.\n此Trace已被屏蔽，不可查询日志。\n\n排查指南：\n代码可能存在运行时错误，可通过查询本次提交下的其他任务日志排查此问题。\n如仍有疑问，请联系管理员。"
+            block_msg = "This trace has been blocked, log cannot be queried.\n此Trace已被屏蔽，不可查询日志。\n\n排查指南：\n代码可能编译失败或存在运行时错误，可通过查询本次提交下的其他任务日志排查此问题。\n如仍有疑问，请联系管理员。"
             res['log'] = block_msg if trace_block else self.error_log
         elif status == TaskStatus.COMPILED_FAILED:
             res['log'] = self.error_log
