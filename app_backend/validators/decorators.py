@@ -51,10 +51,7 @@ def validate_request(schema_class: Type[T]) -> Callable[[Callable[..., Any]], Ca
         @wraps(f)
         def decorated_function(*args, **kwargs):
             try:
-                # 获取请求数据
-                data = {}
-                
-                # 处理不同类型的请求数据
+                # 获取请求数据，并根据请求类型处理
                 if request.method == 'GET':
                     # GET请求：获取URL参数
                     logger.debug("Processing GET request URL parameters")
@@ -99,9 +96,6 @@ def validate_request(schema_class: Type[T]) -> Callable[[Callable[..., Any]], Ca
 
                 error_messages = ', '.join(error_messages[:3])  # 限制错误信息数量，避免过长
                 return HttpResponse.fail(f"参数校验失败: {error_messages}")
-            except Exception as e:
-                logger.error(f"Unexpected error during validation in {f.__name__}: {str(e)}", exc_info=True)
-                return HttpResponse.internal_error(f"参数校验时发生服务器内部错误: {str(e)}")
 
         return decorated_function
 
