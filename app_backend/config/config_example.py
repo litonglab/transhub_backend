@@ -40,6 +40,7 @@ class ExampleConfig(BaseConfig):
                 "downlink_dir": "",  # 系统生成
                 "uplink_dir": "",  # 系统生成
                 "student_list": [],  # 系统生成
+                "trace_files": [],  # 系统生成，从 uplink_dir 和 downlink_dir 目录中自动读取的 trace 文件列表
                 # "cca_guide_path": "",  # 系统生成，此字段暂未使用
                 # "user_guide_path": "",  # 系统生成，此字段暂未使用
                 # ===system generated end.===
@@ -70,6 +71,7 @@ class ExampleConfig(BaseConfig):
                 "downlink_dir": "",  # 系统生成
                 "uplink_dir": "",  # 系统生成
                 "student_list": [],  # 系统生成
+                "trace_files": [],  # 系统生成，从 uplink_dir 和 downlink_dir 目录中自动读取的 trace 文件列表
                 # "cca_guide_path": "",  # 系统生成，此字段暂未使用
                 # "user_guide_path": "",  # 系统生成，此字段暂未使用
                 # ===system generated end.===

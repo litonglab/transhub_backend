@@ -80,6 +80,7 @@ class BaseConfig:
             config["downlink_dir"] = os.path.join(config["path"], 'test_data', 'downlink')
             config["uplink_dir"] = os.path.join(config["path"], 'test_data', 'uplink')
             config["student_list"] = []
+            config["trace_files"] = []
 
             # 读取学生列表
             student_list_path = os.path.join(config["path"], 'student_list.txt')
@@ -87,6 +88,20 @@ class BaseConfig:
                 with open(student_list_path, 'r') as f:
                     config["student_list"] = [line.strip() for line in f if line.strip()]
                     self.Course.REGISTER_STUDENT_LIST.update(config["student_list"])
+
+            # 读取 trace 文件列表
+            uplink_dir = config["uplink_dir"]
+            downlink_dir = config["downlink_dir"]
+            if os.path.exists(uplink_dir):
+                for trace_file in os.listdir(uplink_dir):
+                    # 假设 trace 文件以 .up 结尾
+                    if trace_file.endswith('.up'):
+                        trace_name = trace_file[:-3]  # 去掉 .up 扩展名
+                        # 检查下行目录中是否存在对应的 .down 文件
+                        downlink_file = trace_name + '.down'
+                        downlink_file_path = os.path.join(downlink_dir, downlink_file)
+                        if os.path.exists(downlink_file_path):
+                            config["trace_files"].append(trace_name)
         self.Course.REGISTER_STUDENT_LIST = list(self.Course.REGISTER_STUDENT_LIST)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -136,6 +151,11 @@ class BaseConfig:
             assert "default" in trace_dict, f"课程 {cname} 的trace配置中未配置default项，请检查配置"
             return trace_dict["default"]
         return trace_dict[trace_name]
+
+    def get_course_trace_files(self, cname: str) -> list:
+        """获取指定课程的 trace 文件列表"""
+        course_config = self.get_course_config(cname)
+        return course_config["trace_files"]
 
     def is_trace_blocked(self, cname: str, trace_name: str) -> bool:
         """检查指定课程某个trace是否被屏蔽"""

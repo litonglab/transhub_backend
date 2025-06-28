@@ -60,14 +60,14 @@ def upload_project_file():
     # 构建task,按trace和env构建多个task
     task_ids = []
 
-    uplink_dir = config.get_course_config(cname)['uplink_dir']
+    # 获取课程的 trace 文件列表
+    trace_files = config.get_course_trace_files(cname)
     enqueue_results = []  # 收集所有入队结果
     failed_tasks = []  # 记录失败的任务
 
     logger.info(f"Starting task creation for upload {upload_id}")
 
-    for trace_file in os.listdir(uplink_dir):
-        trace_name = trace_file[:-3]
+    for trace_name in trace_files:
         trace_conf = config.get_course_trace_config(cname, trace_name)
         for loss in trace_conf['loss_rate']:
             for buffer_size in trace_conf['buffer_size']:
