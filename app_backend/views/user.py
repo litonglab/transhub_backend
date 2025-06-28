@@ -2,7 +2,7 @@ import logging
 import uuid
 
 from flask import Blueprint
-from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt, current_user
 
 from app_backend import get_default_config
 from app_backend.model.competition_model import CompetitionModel
@@ -32,6 +32,27 @@ def user_login():
         logger.warning(f"Login failed: User not found or credentials invalid for username={username}")
         return HttpResponse.fail("用户名或密码错误，请检查后重新输入。")
 
+    # 检查用户是否被删除
+    if user.is_deleted:
+        logger.warning(f"Login failed: User {username} is deleted")
+        return HttpResponse.fail("账户已被删除，请联系管理员。")
+
+    # 检查用户是否被锁定
+    if user.is_locked:
+        logger.warning(f"Login failed: User {username} is locked")
+        return HttpResponse.fail("账户已被锁定，请联系管理员。")
+
+    # 管理员直接登录，不需要课程检查
+    if user.is_admin():
+        logger.info(f"Admin {username} logged in")
+        additional_claims = {"cname": cname}
+        return HttpResponse.login_success(
+            user_id=user.user_id,
+            additional_claims=additional_claims,
+            role=user.role
+        )
+
+    # 普通学生用户登录逻辑
     # 检查用户是否在课程（比赛）名单中
     _config = config.get_course_config(cname)
     class_student_list = _config['student_list']
@@ -148,7 +169,7 @@ def change_real_info():
 
     logger.info(f"Updating real info for user_id={user_id}, new real_name={real_name}")
 
-    user = UserModel.query.filter_by(user_id=user_id).first()
+    user = current_user
     user.update_real_info(real_name)
     logger.info(f"Successfully updated real info for user_id={user_id}")
     return HttpResponse.ok("修改个人信息成功")

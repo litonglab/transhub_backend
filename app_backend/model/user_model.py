@@ -1,5 +1,6 @@
 import logging
 import os
+from enum import Enum
 
 from sqlalchemy.dialects.mysql import VARCHAR
 
@@ -8,6 +9,13 @@ from app_backend.model.competition_model import CompetitionModel
 
 logger = logging.getLogger(__name__)
 config = get_default_config()
+
+
+class UserRole(Enum):
+    """用户角色枚举"""
+    STUDENT = "student"
+    ADMIN = "admin"
+    SUPER_ADMIN = "super_admin"
 
 
 class UserModel(db.Model):
@@ -19,6 +27,14 @@ class UserModel(db.Model):
     # real_name = db.Column(db.String(50), nullable=False)
     real_name = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)
     sno = db.Column(db.String(20), nullable=False)
+    # 角色字段
+    role = db.Column(db.String(20), nullable=False, default=UserRole.STUDENT.value)
+    # 锁定状态字段
+    is_locked = db.Column(db.Boolean, nullable=False, default=False)
+    # 软删除字段
+    is_deleted = db.Column(db.Boolean, nullable=False, default=False)
+    # 删除时间字段
+    deleted_at = db.Column(db.DateTime, nullable=True)
 
     def save(self):
         logger.debug(f"Saving user: {self.username}")
@@ -29,6 +45,31 @@ class UserModel(db.Model):
         except Exception as e:
             logger.error(f"Error saving user {self.username}: {str(e)}", exc_info=True)
             raise
+
+    def is_admin(self) -> bool:
+        """检查用户是否为管理员"""
+        return self.role in [UserRole.ADMIN.value, UserRole.SUPER_ADMIN.value]
+
+    def is_super_admin(self) -> bool:
+        """检查用户是否为超级管理员"""
+        return self.role == UserRole.SUPER_ADMIN.value
+
+    def to_dict(self):
+        """转换为字典，包含角色信息"""
+        return {
+            'user_id': self.user_id,
+            'username': self.username,
+            'real_name': self.real_name,
+            'sno': self.sno,
+            'role': self.role,
+            'is_locked': self.is_locked,
+            'is_deleted': self.is_deleted,
+            'deleted_at': self.deleted_at.isoformat() if self.deleted_at else None
+        }
+
+    def is_active(self) -> bool:
+        """检查用户是否为活跃状态（未删除且未锁定）"""
+        return not self.is_deleted and not self.is_locked
 
     def get_user_dir(self, cname):
         """
@@ -66,14 +107,24 @@ class UserModel(db.Model):
 
     def is_exist(self) -> bool:
         logger.debug(f"Checking if user exists: {self.username} with sno {self.sno}")
-        # user_name is unique, sno is unique
-        if UserModel.query.filter_by(username=self.username).first():
+        # user_name is unique, sno is unique (只检查未删除的用户)
+        if UserModel.query.filter_by(username=self.username, is_deleted=False).first():
             logger.warning(f"User with username {self.username} already exists.")
             return True
-        elif UserModel.query.filter_by(sno=self.sno).first():
+        elif UserModel.query.filter_by(sno=self.sno, is_deleted=False).first():
             logger.warning(f"User with sno {self.sno} already exists, but username {self.username} is not unique.")
             return True
         return False
+
+    @staticmethod
+    def get_active_users():
+        """获取所有活跃用户（未删除）"""
+        return UserModel.query.filter_by(is_deleted=False)
+
+    @staticmethod
+    def get_deleted_users():
+        """获取所有已删除的用户"""
+        return UserModel.query.filter_by(is_deleted=True)
 
     def update_real_info(self, real_name):
         logger.debug(f"Updating real name for user {self.username} to: {real_name}")
@@ -122,6 +173,47 @@ class UserModel(db.Model):
             logger.info(f"User {self.username} unlocked successfully")
         except Exception as e:
             logger.error(f"Error unlocking user {self.username}: {str(e)}", exc_info=True)
+            raise
+
+    def reset_password(self, new_password="123456"):
+        """重置用户密码"""
+        logger.debug(f"Resetting password for user: {self.username}")
+        try:
+            self.password = new_password
+            db.session.commit()
+            logger.info(f"Password reset successfully for user {self.username}")
+            return True
+        except Exception as e:
+            logger.error(f"Error resetting password for user {self.username}: {str(e)}", exc_info=True)
+            raise
+
+    def soft_delete(self):
+        """软删除用户"""
+        from datetime import datetime
+        logger.debug(f"Soft deleting user: {self.username}")
+        try:
+            self.is_deleted = True
+            self.deleted_at = datetime.now()
+            # 软删除时同时锁定账户
+            self.is_locked = True
+            db.session.commit()
+            logger.info(f"User {self.username} soft deleted successfully")
+        except Exception as e:
+            logger.error(f"Error soft deleting user {self.username}: {str(e)}", exc_info=True)
+            raise
+
+    def restore(self):
+        """恢复被软删除的用户"""
+        logger.debug(f"Restoring user: {self.username}")
+        try:
+            self.is_deleted = False
+            self.deleted_at = None
+            # 恢复时解锁账户
+            self.is_locked = False
+            db.session.commit()
+            logger.info(f"User {self.username} restored successfully")
+        except Exception as e:
+            logger.error(f"Error restoring user {self.username}: {str(e)}", exc_info=True)
             raise
 
     def get_id(self):
