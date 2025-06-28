@@ -1,10 +1,14 @@
 import logging
+import os
 import platform
+import time
+from datetime import date, datetime
 
 import psutil
-from flask import Blueprint
+from flask import Blueprint, Response, stream_with_context
 from flask_jwt_extended import jwt_required, current_user
 
+from app_backend import db
 from app_backend import get_default_config, get_app
 from app_backend.model.competition_model import CompetitionModel
 from app_backend.model.task_model import TaskModel
@@ -305,6 +309,11 @@ def get_stats():
     active_users = UserModel.query.filter(UserModel.is_deleted == False, UserModel.is_locked == False).count()
     deleted_users = UserModel.query.filter_by(is_deleted=True).count()
 
+    # 计算今日提交数（通过统计今天创建的不同upload_id数量）
+    today_submit = TaskModel.query.filter(
+        db.func.date(TaskModel.created_time) == date.today()
+    ).with_entities(TaskModel.upload_id).distinct().count()
+
     # 任务状态统计
     task_stats = {}
     try:
@@ -335,7 +344,8 @@ def get_stats():
                 'total_users': total_users,
                 'active_users': active_users,
                 'total_tasks': total_tasks,
-                'deleted_users': deleted_users
+                'deleted_users': deleted_users,
+                'today_submit': today_submit
             },
             'task_stats': task_stats,
             'competition_stats': competition_stats,
@@ -350,6 +360,36 @@ def get_stats():
 @admin_required()
 def get_system_info():
     """获取系统信息"""
+
+    # 获取当前进程信息
+    current_process = psutil.Process(os.getpid())
+    process_start_time = datetime.fromtimestamp(current_process.create_time())
+    process_uptime = datetime.now() - process_start_time
+
+    # 尝试获取相关进程信息
+    related_processes = []
+    try:
+        for proc in psutil.process_iter(['pid', 'name', 'create_time', 'cmdline']):
+            try:
+                if proc.info['cmdline'] and any(
+                        'gunicorn' in cmd or 'dramatiq' in cmd or 'run.py' in cmd for cmd in proc.info['cmdline']):
+                    start_time = datetime.fromtimestamp(proc.info['create_time'])
+                    uptime = datetime.now() - start_time
+                    related_processes.append({
+                        'pid': proc.info['pid'],
+                        'name': proc.info['name'],
+                        'start_time': start_time.strftime('%Y-%m-%d %H:%M:%S'),
+                        'uptime_seconds': int(uptime.total_seconds()),
+                        'uptime_formatted': str(uptime).split('.')[0],  # 去掉微秒
+                        'cmdline': ' '.join(proc.info['cmdline'][:3])  # 只显示前3个命令参数
+                    })
+            except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+                logger.error(
+                    f"Error accessing process {proc.info['pid']} ({proc.info['name']}): {e}", exc_info=True)
+                continue
+    except Exception as e:
+        logger.error(f"Error getting process info: {e}", exc_info=True)
+
     return HttpResponse.ok(
         data={
             'system': {
@@ -359,10 +399,80 @@ def get_system_info():
                 'memory_percent': psutil.virtual_memory().percent,
                 'disk_usage': psutil.disk_usage('/').percent
             },
+            'process': {
+                'current_pid': os.getpid(),
+                'start_time': process_start_time.strftime('%Y-%m-%d %H:%M:%S'),
+                'uptime_seconds': int(process_uptime.total_seconds()),
+                'uptime_formatted': str(process_uptime).split('.')[0],  # 去掉微秒显示
+                'related_processes': related_processes
+            },
             'config': {
                 'courses': config.Course.CNAME_LIST,
+                'course_detail': config.Course.ALL_CLASS,
                 'log_level': config.Logging.LOG_LEVEL,
                 'debug': get_app().debug,
             }
         }
     )
+
+
+@admin_bp.route('/admin/system/logs', methods=['GET'])
+@jwt_required()
+@admin_required()
+def get_log_files():
+    """获取日志文件列表"""
+    log_dir = config.Logging.LOG_DIR
+    if not os.path.exists(log_dir):
+        return HttpResponse.fail("日志目录不存在")
+    log_files = []
+    for filename in os.listdir(log_dir):
+        if filename.endswith('.log'):
+            file_path = os.path.join(log_dir, filename)
+            stat = os.stat(file_path)
+            log_files.append({
+                'name': filename,
+                'size': stat.st_size,
+                'modified_time': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(stat.st_mtime))
+            })
+    log_files.sort(key=lambda x: x['modified_time'], reverse=True)
+    return HttpResponse.ok(data={'log_files': log_files, 'log_dir': log_dir})
+
+
+@admin_bp.route('/admin/system/logs/stream/<log_name>', methods=['GET'])
+@jwt_required()
+@admin_required()
+def stream_log_file(log_name):
+    """流式获取日志内容（Server-Sent Events）"""
+    log_dir = config.Logging.LOG_DIR
+    log_path = os.path.join(log_dir, log_name)
+    if not os.path.exists(log_path) or not log_name.endswith('.log'):
+        return HttpResponse.not_found("日志文件不存在")
+    # 防止目录遍历
+    if not os.path.commonpath([log_dir, log_path]) == log_dir:
+        return HttpResponse.forbidden("不允许访问此文件")
+
+    def generate():
+        with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
+            lines = f.readlines()
+            total_lines = len(lines)
+            start_line = max(0, total_lines - 5000)  # 从倒数5000行开始，如果文件不足则从开头开始
+
+            # 先发送历史日志
+            for line in lines[start_line:]:
+                yield f"data: {line.rstrip()}\n\n"
+
+            # 实时监控新增内容
+            f.seek(0, os.SEEK_END)  # 移动到文件末尾
+            while True:
+                line = f.readline()
+                if line:
+                    yield f"data: {line.rstrip()}\n\n"
+                else:
+                    time.sleep(1)  # 每1秒检查一次新内容
+
+    headers = {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no"
+    }
+    return Response(stream_with_context(generate()), headers=headers)
