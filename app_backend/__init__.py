@@ -4,8 +4,6 @@ import threading
 import uuid
 from logging import getLogger
 
-import dramatiq_dashboard
-from dramatiq.brokers.redis import RedisBroker
 from flask import Flask, render_template
 from flask_caching import Cache
 from flask_cors import CORS
@@ -15,7 +13,6 @@ from werkzeug.exceptions import HTTPException
 
 from app_backend.config import get_config, get_default_config
 from app_backend.security.auth import init_auth
-from app_backend.security.dramatiq_auth import create_auth_middleware
 from app_backend.utils.utils import setup_logger
 from app_backend.vo.http_response import HttpResponse
 
@@ -314,6 +311,7 @@ def _register_blueprints(app):
     from app_backend.views.source_code import source_code_bp
     from app_backend.views.graph import graph_bp
     from app_backend.views.admin import admin_bp
+    from app_backend.views.dramatiq_dashboard import dramatiq_dashboard_bp, register_cleanup_handler
 
     blueprints = [
         (user_bp, 'user'),
@@ -324,11 +322,15 @@ def _register_blueprints(app):
         (source_code_bp, 'source_code'),
         (graph_bp, 'graph'),
         (admin_bp, 'admin'),
+        (dramatiq_dashboard_bp, 'dramatiq_dashboard'),
     ]
 
     for blueprint, name in blueprints:
         app.register_blueprint(blueprint)
         logger.info(f'Registered blueprint: {name}')
+    
+    # 注册 dramatiq dashboard 的清理处理器
+    register_cleanup_handler(app)
 
 
 def _configure_error_handlers(app):
@@ -357,27 +359,6 @@ def _initialize_auth(app):
         raise
 
 
-def _configure_dramatiq_dashboard(app):
-    """配置 dramatiq dashboard 中间件"""
-    if not config.DramatiqDashboard.DRAMATIQ_DASHBOARD_ENABLED:
-        logger.warning("Dramatiq dashboard is disabled in the configuration.")
-        return
-    try:
-        # 创建 dramatiq dashboard 中间件
-        redis_broker = RedisBroker(url=config.Cache.FLASK_REDIS_URL)
-        redis_broker.declare_queue("default")
-        dashboard_middleware = dramatiq_dashboard.make_wsgi_middleware(
-            config.DramatiqDashboard.DRAMATIQ_DASHBOARD_URL, redis_broker)
-
-        # 创建并应用带有认证的中间件
-        auth_middleware = create_auth_middleware(dashboard_middleware)
-        app.wsgi_app = auth_middleware(app.wsgi_app)
-
-        logger.info('Dramatiq dashboard middleware configured successfully')
-    except Exception as e:
-        logger.error(f'Failed to configure dramatiq dashboard middleware: {e}')
-
-
 def create_app():
     """Create and fully configure Flask application."""
     import time
@@ -399,8 +380,6 @@ def create_app():
         _initialize_auth(app)
         # Configure error handlers
         _configure_error_handlers(app)
-        # Configure dramatiq dashboard middleware
-        _configure_dramatiq_dashboard(app)
         # Configure secret key
         _configure_secret_key(app)
         # Configure cors
