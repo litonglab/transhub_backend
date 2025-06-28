@@ -2,7 +2,7 @@ import logging
 import os
 
 from flask import Blueprint
-from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt, current_user
 
 from app_backend import get_default_config
 from app_backend.model.graph_model import GraphModel
@@ -32,7 +32,7 @@ def get_graph():
         logger.warning(f"Graph request failed: Task not found for task_id {task_id}")
         return HttpResponse.not_found("任务不存在")
     # 判断性能图是否被屏蔽
-    if config.is_trace_blocked(cname, task.trace_name):
+    if config.is_trace_blocked(cname, task.trace_name, current_user):
         logger.warning(f"Graph request blocked for task {task_id}, type {graph_type} by user {user_id}")
         return HttpResponse.fail("此性能图已被屏蔽，比赛结束后可查看")
 

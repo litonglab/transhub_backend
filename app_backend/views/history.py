@@ -1,7 +1,7 @@
 import logging
 
 from flask import Blueprint
-from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt, current_user
 
 from app_backend.model.task_model import TaskModel, to_history_dict
 from app_backend.validators.decorators import validate_request, get_validated_data
@@ -38,6 +38,6 @@ def get_record_detail():
     if not record:
         logger.warning(f"No records found for upload {upload_id} in competition {cname}")
         return HttpResponse.not_found("记录不存在")
-    records = [r.to_detail_dict() for r in record]  # 返回的是所有记录，需要前端聚合
+    records = [r.to_detail_dict(current_user) for r in record]  # 返回的是所有记录，需要前端聚合
     logger.info(f"Found {len(records)} detailed records for upload {upload_id}")
     return HttpResponse.ok(tasks=records)

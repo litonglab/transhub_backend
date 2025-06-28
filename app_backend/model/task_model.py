@@ -115,9 +115,9 @@ class TaskModel(db.Model):
         db.session.commit()
         logger.info(f"[task: {self.task_id}] Task deleted successfully")
 
-    def to_detail_dict(self):
+    def to_detail_dict(self, user=None):
         status = TaskStatus(self.task_status)
-        trace_block = config.is_trace_blocked(self.cname, self.trace_name)
+        trace_block = config.is_trace_blocked(self.cname, self.trace_name, user)
         res = {
             # 'user_id': self.user_id,
             'task_id': self.task_id,

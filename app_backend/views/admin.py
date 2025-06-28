@@ -277,7 +277,7 @@ def get_tasks():
     task_list = []
     for task in tasks:
         user = UserModel.query.get(task.user_id)
-        task_dict = task.to_detail_dict()
+        task_dict = task.to_detail_dict(current_user)  # 传递当前用户（管理员）
         task_dict['username'] = user.username if user else 'Unknown'
         task_list.append(task_dict)
 
