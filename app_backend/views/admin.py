@@ -226,7 +226,14 @@ def restore_user():
         return HttpResponse.forbidden("只有超级管理员可以恢复管理员用户")
 
     # 恢复用户
-    target_user.restore()
+    try:
+        target_user.restore()
+    except ValueError as e:
+        logger.warning(f"User restore failed: {str(e)}")
+        return HttpResponse.fail(str(e))
+    except Exception as e:
+        logger.error(f"User restore failed: {str(e)}", exc_info=True)
+        return HttpResponse.internal_error("恢复用户时发生错误")
 
     logger.info(f"Admin {current_user_obj.username} restored user {target_user.username}")
 

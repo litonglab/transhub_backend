@@ -205,6 +205,13 @@ class UserModel(db.Model):
     def restore(self):
         """恢复被软删除的用户"""
         logger.debug(f"Restoring user: {self.username}")
+        
+        # 检查是否已有同名的活跃用户
+        existing_user = UserModel.query.filter_by(username=self.username, is_deleted=False).first()
+        if existing_user and existing_user.user_id != self.user_id:
+            logger.warning(f"Cannot restore user {self.username}: username already exists")
+            raise ValueError(f"用户名 {self.username} 已被占用，无法恢复该用户")
+
         try:
             self.is_deleted = False
             self.deleted_at = None
