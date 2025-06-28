@@ -3,7 +3,6 @@ import os
 import random
 import socket
 import string
-import threading
 from logging.config import dictConfig
 
 # noinspection PyUnresolvedReferences
@@ -11,61 +10,43 @@ import concurrent_log_handler
 
 from app_backend import get_default_config
 
-# 用于管理分配的端口
-allocated_ports = set()
 logger = logging.getLogger(__name__)
-
-
-def _acquire_redis_lock(port, redis_client):
-    lock_name = f"port_lock_{port}"
-    logger.debug(f"Attempting to acquire Redis lock for port {port}")
-    result = redis_client.set(lock_name, "locked", nx=True, ex=600)  # 设置过期时间为60秒
-    if result:
-        logger.debug(f"Successfully acquired Redis lock for port {port}")
-    else:
-        logger.error(f"Failed to acquire Redis lock for port {port}")
-    return result
-
-
-def _release_redis_lock(port, redis_client):
-    lock_name = f"port_lock_{port}"
-    logger.debug(f"Releasing Redis lock for port {port}")
-    redis_client.delete(lock_name)
-    logger.debug(f"Redis lock released for port {port}")
 
 
 def get_available_port(redis_client):
     logger.debug("Searching for available port")
     port = 50000
-    maxport = 65535
-    while port <= maxport:
-        if _acquire_redis_lock(port, redis_client):
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+    max_port = 65535
+    while port <= max_port:
+        lock_name = f"port_lock_{port}"
+        logger.info(f"Attempting to acquire Redis lock for port {port}")
+        # 设置过期时间为600秒，单个task的运行时间一般不会超过600秒，如果超过，则应调大此值
+        result = redis_client.set(lock_name, "locked", nx=True, ex=600)
+
+        if result:
+            logger.debug(f"Successfully acquired Redis lock for port {port}")
+            # 注：receiver绑定的是ipv6地址
+            with socket.socket(socket.AF_INET6, socket.SOCK_DGRAM) as s:
                 try:
                     s.bind(("", port))
                     s.close()  # 释放端口
-                    allocated_ports.add(port)
                     logger.info(f"Found and allocated port {port}")
                     return port
-                except OSError:
-                    logger.debug(f"Port {port} is in use, trying next port")
-                    _release_redis_lock(port, redis_client)
+                except OSError as e:
+                    logger.warning(f"Port {port} maybe in use, trying next port, error msg: {str(e)}")
                     port += 1
         else:
+            logger.warning(f"Failed to acquire Redis lock for port {port}, trying next port")
             port += 1
     logger.error("No available ports found in range 50000-65535")
     raise Exception("No available port")
 
 
 def release_port(port, redis_client):
-    logger.error(f"Attempting to release port {port}")
-    with threading.Lock():
-        if port in allocated_ports:
-            allocated_ports.remove(port)
-            _release_redis_lock(port, redis_client)
-            logger.info(f"Successfully released port {port}")
-        else:
-            logger.warning(f"Port {port} was not in allocated_ports set")
+    lock_name = f"port_lock_{port}"
+    logger.debug(f"Releasing Redis lock for port {port}")
+    redis_client.delete(lock_name)
+    logger.info(f"Successfully released port {port}")
 
 
 def setup_logger():

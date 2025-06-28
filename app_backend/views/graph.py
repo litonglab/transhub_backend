@@ -1,19 +1,22 @@
 import logging
 import os
 
-from flask import send_file, Blueprint
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask import Blueprint
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 
+from app_backend import get_default_config
 from app_backend.model.graph_model import GraphModel
+from app_backend.model.task_model import TaskModel
 from app_backend.validators.decorators import validate_request, get_validated_data
 from app_backend.validators.schemas import GraphSchema
 from app_backend.vo.http_response import HttpResponse
 
 graph_bp = Blueprint('graph', __name__)
 logger = logging.getLogger(__name__)
+config = get_default_config()
 
 
-@graph_bp.route("/graph_get_graph", methods=["POST"])
+@graph_bp.route("/graph_get_graph", methods=["GET"])
 @jwt_required()
 @validate_request(GraphSchema)
 def get_graph():
@@ -21,6 +24,17 @@ def get_graph():
     task_id = data.task_id
     graph_type = data.graph_type
     user_id = get_jwt_identity()
+    cname = get_jwt().get('cname')
+
+    # 保证只能查询当前课程（比赛）的图
+    task = TaskModel.query.filter_by(task_id=task_id, cname=cname).first()
+    if not task:
+        logger.warning(f"Graph request failed: Task not found for task_id {task_id}")
+        return HttpResponse.not_found("任务不存在")
+    # 判断性能图是否被屏蔽
+    if config.is_trace_blocked(cname, task.trace_name):
+        logger.warning(f"Graph request blocked for task {task_id}, type {graph_type} by user {user_id}")
+        return HttpResponse.fail("此性能图已被屏蔽，比赛结束后可查看")
 
     # 性能图所有用户都可查询，无需验证user_id
     logger.debug(f"Graph request for task {task_id}, type {graph_type} by user {user_id}")
@@ -28,6 +42,6 @@ def get_graph():
     if not graph or not os.path.exists(graph.graph_path):
         logger.warning(
             f"Graph not found or file missing: task_id={task_id}, type={graph_type}, path={graph.graph_path if graph else 'None'}")
-        return HttpResponse.fail("No such graph or graph file does not exist.")
+        return HttpResponse.not_found("图片不存在或已被删除")
     logger.info(f"Sending graph file: {graph.graph_path}")
-    return send_file(graph.graph_path, mimetype='image/svg+xml', as_attachment=True)
+    return HttpResponse.send_attachment_file(graph.graph_path)

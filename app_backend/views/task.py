@@ -1,6 +1,5 @@
 import logging
 import os
-import time
 import uuid
 from datetime import datetime
 
@@ -28,27 +27,19 @@ config = get_default_config()
 @jwt_required()
 @validate_request(FileUploadSchema)
 def upload_project_file():
+    user_id = get_jwt_identity()
     cname = get_jwt().get('cname')
-    _config = config.Course.ALL_CLASS[cname]
-    start_time = time.mktime(time.strptime(_config['start_time'], "%Y-%m-%d-%H-%M-%S"))
-    ddl_time = time.mktime(time.strptime(_config['end_time'], "%Y-%m-%d-%H-%M-%S"))
-    now_time = time.time()
-
-    logger.debug(f"File upload attempt for competition {cname}")
+    logger.debug(f"File upload attempt for competition {cname} by user {user_id}")
 
     # 检查当前时间是否在比赛时间范围内
-    if not (start_time <= now_time <= ddl_time):
+    if not config.is_now_in_competition(cname):
         logger.warning(
-            f"Upload rejected: Outside competition period. Current time: {now_time}, Start: {start_time}, End: {ddl_time}")
-        return HttpResponse.fail(f"Current time is not within the competition period. "
-                                 f"Competition starts at {_config['start_time']} and ends at {_config['end_time']}.")
+            f"Upload rejected: Outside competition period.")
+        return HttpResponse.fail(f"比赛尚未开始或已截止，请在比赛时间内上传代码。")
 
     # 获取验证后的数据
     data = get_validated_data(FileUploadSchema)
     file = data.file
-    user_id = get_jwt_identity()  # 用户id
-    # 从token中获取cname
-    cname = get_jwt().get('cname')
 
     # 文件已经通过 Pydantic 验证，直接获取文件信息
     filename = file.filename
@@ -59,17 +50,17 @@ def upload_project_file():
     user = UserModel.query.get(user_id)
     if not user:
         logger.warning(f"Upload failed: User {user_id} not found")
-        return HttpResponse.fail("User not found.")
+        return HttpResponse.not_found("用户不存在")
 
-    now = datetime.now()
-    upload_dir_name = f"{now.strftime('%Y-%m-%d-%H-%M-%S')}_{generate_random_string(6)}"
+    now_str = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+    upload_dir_name = f"{now_str}_{generate_random_string(6)}"
 
     temp_dir = user.save_file_to_user_dir(file, cname, upload_dir_name)
     upload_id = str(uuid.uuid1())
     # 构建task,按trace和env构建多个task
     task_ids = []
 
-    uplink_dir = _config['uplink_dir']
+    uplink_dir = config.get_course_config(cname)['uplink_dir']
     enqueue_results = []  # 收集所有入队结果
     failed_tasks = []  # 记录失败的任务
 
@@ -77,11 +68,12 @@ def upload_project_file():
 
     for trace_file in os.listdir(uplink_dir):
         trace_name = trace_file[:-3]
-        for loss in _config['loss_rate']:
-            for buffer_size in _config['buffer_size']:
+        trace_conf = config.get_course_trace_config(cname, trace_name)
+        for loss in trace_conf['loss_rate']:
+            for buffer_size in trace_conf['buffer_size']:
                 task_id = str(uuid.uuid1())
                 task = TaskModel(task_id=task_id, user_id=user_id, task_status=TaskStatus.QUEUED.value, task_score=0,
-                                 created_time=now.strftime("%Y-%m-%d-%H-%M-%S"), cname=cname,
+                                 created_time=now_str, cname=cname,
                                  task_dir=os.path.join(temp_dir, f"{trace_name}_{loss}_{buffer_size}"),
                                  algorithm=algorithm, trace_name=trace_name, upload_id=upload_id, loss_rate=loss,
                                  buffer_size=buffer_size)
@@ -119,13 +111,12 @@ def upload_project_file():
 
     # 构建响应消息
     if len(failed_tasks) > 0:
-        message = f"Upload completed. {successful_enqueues}/{total_tasks} tasks successfully enqueued."
+        message = f"上传成功，{successful_enqueues}/{total_tasks}个任务已入队，部分任务已丢失。"
         logger.error(f"Upload {upload_id} : some tasks failed to enqueue")
     else:
-        message = f"Upload success. All {total_tasks} tasks successfully enqueued."
+        message = f"上传成功，{total_tasks}个任务已入队。"
     return HttpResponse.ok(
         message=message,
-        filename=filename,
         tasks=task_ids,
         upload_id=upload_id,
         enqueue_summary={

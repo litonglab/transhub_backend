@@ -38,7 +38,7 @@ class UserModel(db.Model):
         """
         logger.debug(f"Getting user directory for user {self.username} and competition {cname}")
         _dir = os.path.join(config.App.USER_DIR_PATH, self.username + "_" + self.sno,
-                            config.Course.ALL_CLASS[cname]["name"])
+                            config.get_course_config(cname)["name"])
         if not os.path.exists(_dir):
             logger.info(f"Creating user directory: {_dir}")
             os.makedirs(_dir)

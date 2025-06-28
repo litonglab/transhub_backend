@@ -37,7 +37,7 @@ def get_record_detail():
     record = TaskModel.query.filter_by(upload_id=upload_id, cname=cname).all()
     if not record:
         logger.warning(f"No records found for upload {upload_id} in competition {cname}")
-        return HttpResponse.fail("No such record.")
+        return HttpResponse.not_found("记录不存在")
     records = [r.to_detail_dict() for r in record]  # 返回的是所有记录，需要前端聚合
     logger.info(f"Found {len(records)} detailed records for upload {upload_id}")
     return HttpResponse.ok(tasks=records)

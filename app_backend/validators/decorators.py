@@ -23,7 +23,21 @@ def validate_request(schema_class: Type[T]) -> Callable[[Callable[..., Any]], Ca
     :param schema_class: Pydantic 验证模型类
     :return: 装饰器函数
 
+    支持的请求类型：
+    - GET请求：从URL参数（query parameters）中获取数据
+    - POST/PUT/PATCH请求：支持JSON格式和表单格式的请求体数据
+    - 文件上传：支持multipart/form-data格式的文件上传（仅非GET请求）
+
     使用示例:
+        # GET请求示例
+        @validate_request(UserQuerySchema)
+        def get_users():
+            data = request.validated_data  # 类型为 UserQuerySchema
+            # 从URL参数获取: /users?page=1&size=10
+            page = data.page
+            size = data.size
+            
+        # POST请求示例
         @validate_request(UserLoginSchema)
         def login():
             data = request.validated_data  # 类型为 UserLoginSchema
@@ -37,22 +51,28 @@ def validate_request(schema_class: Type[T]) -> Callable[[Callable[..., Any]], Ca
         @wraps(f)
         def decorated_function(*args, **kwargs):
             try:
-                # 获取请求数据
-                if request.is_json:
+                # 获取请求数据，并根据请求类型处理
+                if request.method == 'GET':
+                    # GET请求：获取URL参数
+                    logger.debug("Processing GET request URL parameters")
+                    data = request.args.to_dict()
+                elif request.is_json:
+                    # POST/PUT/PATCH请求：JSON数据
                     logger.debug("Processing JSON request data")
                     data = request.get_json() or {}
                 else:
+                    # POST/PUT/PATCH请求：表单数据
                     logger.debug("Processing form request data")
                     data = request.form.to_dict()
 
-                # 检查是否有文件上传
+                # 检查是否有文件上传（仅对非GET请求）
                 files = {}
-                if request.files:
+                if request.method != 'GET' and request.files:
                     logger.debug(f"Processing file uploads: {list(request.files.keys())}")
                     for key, file in request.files.items():
                         files[key] = file
 
-                # 合并表单数据和文件数据
+                # 合并所有数据
                 all_data = {**data, **files}
                 logger.debug(f"Combined request data keys: {list(all_data.keys())}")
 
@@ -76,9 +96,6 @@ def validate_request(schema_class: Type[T]) -> Callable[[Callable[..., Any]], Ca
 
                 error_messages = ', '.join(error_messages[:3])  # 限制错误信息数量，避免过长
                 return HttpResponse.fail(f"参数校验失败: {error_messages}")
-            except Exception as e:
-                logger.error(f"Unexpected error during validation in {f.__name__}: {str(e)}", exc_info=True)
-                return HttpResponse.internal_error(f"参数校验时发生服务器内部错误: {str(e)}")
 
         return decorated_function
 
