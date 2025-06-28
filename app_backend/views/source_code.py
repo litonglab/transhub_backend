@@ -29,7 +29,7 @@ def return_code():
         logger.warning(f"Source code request failed: Task not found for upload {upload_id} and user {user_id}")
         return HttpResponse.not_found("记录不存在")
 
-    file_path = task_info.task_dir + "/../" + task_info.algorithm + ".cc"
+    file_path = os.path.join(os.path.dirname(task_info.task_dir), f"{task_info.algorithm}.cc")
     if not os.path.exists(file_path):
         logger.warning(f"Source code file not found: {file_path}")
         return HttpResponse.not_found("源代码文件不存在，可能已被删除")
