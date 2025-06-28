@@ -1,6 +1,7 @@
 import os
 import secrets
 import threading
+import uuid
 from logging import getLogger
 
 import dramatiq_dashboard
@@ -264,6 +265,45 @@ def _create_tables(app):
         raise
 
 
+def _create_super_admin(app):
+    """Create super admin user if configured in environment variables."""
+
+    from app_backend.model.user_model import UserModel, UserRole
+
+    # 获取超级管理员配置
+    admin_username = config.SuperAdmin.USERNAME
+    admin_password = config.SuperAdmin.PASSWORD
+    admin_real_name = config.SuperAdmin.REAL_NAME
+
+    # 如果没有配置超级管理员信息，跳过创建
+    if not config.SuperAdmin.ENABLED:
+        logger.info('Super admin credentials not configured, skipping auto-creation')
+        return
+
+    existing_admin = UserModel.query.filter_by(username=admin_username).first()
+    if existing_admin:
+        # 确保现有用户是超级管理员角色
+        if existing_admin.role != UserRole.SUPER_ADMIN.value:
+            existing_admin.role = UserRole.SUPER_ADMIN.value
+            existing_admin.save()
+            logger.info(f'Updated existing user {admin_username} to super admin role')
+        else:
+            logger.info(f'Super admin {admin_username} already exists')
+    else:
+        # 创建新的超级管理员
+        super_admin = UserModel(
+            user_id=str(uuid.uuid4()),
+            username=admin_username,
+            password=admin_password,
+            real_name=admin_real_name,
+            sno="SuperAdmin",
+            role=UserRole.SUPER_ADMIN.value,
+        )
+
+        super_admin.save()
+        logger.info(f'Super admin {admin_username} created successfully')
+
+
 def _register_blueprints(app):
     """Register all application blueprints."""
     from app_backend.views.user import user_bp
@@ -273,6 +313,7 @@ def _register_blueprints(app):
     from app_backend.views.summary import summary_bp
     from app_backend.views.source_code import source_code_bp
     from app_backend.views.graph import graph_bp
+    from app_backend.views.admin import admin_bp
 
     blueprints = [
         (user_bp, 'user'),
@@ -282,6 +323,7 @@ def _register_blueprints(app):
         (summary_bp, 'summary'),
         (source_code_bp, 'source_code'),
         (graph_bp, 'graph'),
+        (admin_bp, 'admin'),
     ]
 
     for blueprint, name in blueprints:
@@ -347,6 +389,8 @@ def create_app():
     with app.app_context():
         # Create database tables
         _create_tables(app)
+        # Create super admin user if configured
+        _create_super_admin(app)
         # Create the necessary directories
         _make_dir()
         # Register blueprints

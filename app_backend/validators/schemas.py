@@ -364,3 +364,55 @@ class FileUploadSchema(BaseModel):
                 raise e  # 重新抛出危险函数错误
             logger.warning(f"File content check failed: {str(e)}")
             raise ValueError(f"文件内容检查失败: {str(e)}")
+
+
+# ================================
+# 管理员相关验证模式
+# ================================
+
+class AdminUserListSchema(BaseModel):
+    """管理员用户列表查询参数"""
+    page: int = Field(default=1, ge=1, description="页码")
+    size: int = Field(default=20, ge=1, le=100, description="每页大小")
+    keyword: Optional[str] = Field(default="", description="搜索关键词")
+    role: Optional[str] = Field(default=None, description="角色筛选")
+    active: Optional[bool] = Field(default=None, description="活跃状态筛选")
+    deleted: Optional[bool] = Field(default=None, description="删除状态筛选")
+
+
+class AdminUserUpdateSchema(BaseModel):
+    """管理员用户更新参数"""
+    user_id: str = Field(..., description="用户ID")
+    role: Optional[str] = Field(default=None, description="用户角色")
+    is_locked: Optional[bool] = Field(default=None, description="是否锁定")
+
+    @field_validator('role')
+    def validate_role(cls, v):
+        if v and v not in ['student', 'admin', 'super_admin']:
+            raise ValueError('角色必须是: student, admin, super_admin')
+        return v
+
+
+class AdminTaskListSchema(BaseModel):
+    """管理员任务列表查询参数"""
+    page: int = Field(default=1, ge=1, description="页码")
+    size: int = Field(default=20, ge=1, le=100, description="每页大小")
+    user_id: Optional[str] = Field(default=None, description="用户ID筛选")
+    status: Optional[str] = Field(default=None, description="状态筛选")
+    cname: Optional[str] = Field(default=None, description="比赛名称筛选")
+
+
+class AdminPasswordResetSchema(BaseModel):
+    """管理员重置用户密码参数"""
+    user_id: str = Field(..., description="用户ID")
+    new_password: str = Field(default="123456", description="新密码，默认为123456")
+
+
+class AdminUserDeleteSchema(BaseModel):
+    """管理员删除用户参数"""
+    user_id: str = Field(..., description="用户ID")
+
+
+class AdminUserRestoreSchema(BaseModel):
+    """管理员恢复用户参数"""
+    user_id: str = Field(..., description="用户ID")

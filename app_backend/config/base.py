@@ -40,6 +40,15 @@ class BaseConfig:
         CORS_ORIGINS = _get_env_variable('CORS_ORIGINS')
         JWT_ACCESS_TOKEN_EXPIRES = int(_get_env_variable('FLASK_JWT_ACCESS_TOKEN_EXPIRES'))
 
+    class SuperAdmin:
+        """超级管理员配置"""
+        USERNAME = os.getenv('SUPER_ADMIN_USERNAME')
+        PASSWORD = os.getenv('SUPER_ADMIN_PASSWORD')
+        REAL_NAME = os.getenv('SUPER_ADMIN_REAL_NAME', '系统管理员')
+
+        # 检查是否配置了必要的超级管理员信息
+        ENABLED = USERNAME and PASSWORD and len(USERNAME) > 0 and len(PASSWORD) > 0
+
     class Logging:
         """日志配置"""
         # 开发环境使用更详细的日志
