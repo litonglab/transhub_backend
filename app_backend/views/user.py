@@ -42,21 +42,13 @@ def user_login():
         logger.warning(f"Login failed: User {username} is locked")
         return HttpResponse.fail("账户已被锁定，请联系管理员。")
 
-    # 管理员直接登录，不需要课程检查
     if user.is_admin():
         logger.info(f"Admin {username} logged in")
-        additional_claims = {"cname": cname}
-        return HttpResponse.login_success(
-            user_id=user.user_id,
-            additional_claims=additional_claims,
-            role=user.role
-        )
 
-    # 普通学生用户登录逻辑
-    # 检查用户是否在课程（比赛）名单中
+    # 检查学生用户是否在课程（比赛）名单中
     _config = config.get_course_config(cname)
     class_student_list = _config['student_list']
-    if len(class_student_list) > 0 and user.sno not in class_student_list:
+    if len(class_student_list) > 0 and user.sno not in class_student_list and not user.is_admin():
         logger.warning(f"Login failed: Student {user.sno} not in class list for {cname}")
         return HttpResponse.fail("该学号不在此课程（比赛）的名单中，请确认你已选课或报名竞赛。")
     # 检测用户是否已经参加了比赛
@@ -65,7 +57,8 @@ def user_login():
         additional_claims = {"cname": cname}
         return HttpResponse.login_success(
             user_id=user.user_id,
-            additional_claims=additional_claims
+            additional_claims=additional_claims,
+            role=user.role
         )
     else:
         # 更新：在编译目录统一使用公共目录后，实际上此逻辑已不再必要，这里保留下来作为首次登录的欢迎界面
