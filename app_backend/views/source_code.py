@@ -2,7 +2,7 @@ import logging
 import os
 
 from flask import Blueprint
-from flask_jwt_extended import get_jwt_identity, jwt_required
+from flask_jwt_extended import get_jwt_identity, jwt_required, current_user
 
 from app_backend.model.task_model import TaskModel
 from app_backend.validators.decorators import validate_request, get_validated_data
@@ -23,8 +23,15 @@ def return_code():
     logger.debug(f"Source code request for upload {upload_id} by user {user_id}")
 
     # Check if the user is authorized to access the task
-    # 保证用户只能查询自己的任务
-    task_info = TaskModel.query.filter_by(upload_id=upload_id, user_id=user_id).first()
+    # 普通用户只能查询自己的任务，管理员可以查询所有任务
+    if current_user and current_user.is_admin():
+        # 管理员可以查看所有任务的源代码
+        task_info = TaskModel.query.filter_by(upload_id=upload_id).first()
+        logger.debug(f"Admin {current_user.username} accessing source code for upload {upload_id}")
+    else:
+        # 普通用户只能查询自己的任务
+        task_info = TaskModel.query.filter_by(upload_id=upload_id, user_id=user_id).first()
+
     if not task_info:
         logger.warning(f"Source code request failed: Task not found for upload {upload_id} and user {user_id}")
         return HttpResponse.not_found("记录不存在")
