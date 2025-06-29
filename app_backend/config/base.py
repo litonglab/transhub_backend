@@ -157,18 +157,18 @@ class BaseConfig:
         course_config = self.get_course_config(cname)
         return course_config["trace_files"]
 
-    def is_trace_blocked(self, cname: str, trace_name: str, user=None) -> bool:
+    def is_trace_blocked(self, cname: str, trace_name: str, is_admin: bool) -> bool:
         """检查指定课程某个trace是否被屏蔽
         
         Args:
             cname: 课程名称
             trace_name: trace名称
-            user: 用户对象，如果是管理员则不屏蔽
+            is_admin: 是否为管理员用户
         """
         # 如果用户是管理员，则不屏蔽trace
-        if user and user.is_admin():
+        if is_admin:
             return False
-            
+
         # 如果当前时间不在比赛时间内，则不屏蔽trace
         if not self.is_now_in_competition(cname):
             return False
