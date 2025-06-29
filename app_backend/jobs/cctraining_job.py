@@ -5,6 +5,7 @@ import signal
 import subprocess
 import uuid
 
+import cairosvg
 import dramatiq
 from dramatiq.brokers.redis import RedisBroker
 from dramatiq.middleware import TimeLimit
@@ -142,7 +143,6 @@ def _get_score(task, result_path):
     获取评分
     :return: None or float, 返回评分，如果失败则返回None
     """
-    # 这里可以添加获取评分的逻辑
     task_id = task.task_id
     extract_program = "mm-throughput-graph"
     logger.debug(f"[task: {task_id}] is getting score from {result_path} using {extract_program}")
@@ -161,7 +161,11 @@ def _graph(task, result_path):
     :return: None
     """
     task_id = task.task_id
-    # 这里可以添加画图的逻辑
+
+    throughput_graph_svg = os.path.join(task.task_dir, f"{task.trace_name}.throughput.svg")
+    delay_graph_svg = os.path.join(task.task_dir, f"{task.trace_name}.delay.svg")
+    delay_graph_png = os.path.join(task.task_dir, f"{task.trace_name}.delay.png")
+    # 另一个画图逻辑
     # tunnel_graph = TunnelGraph(
     #     tunnel_log=result_path,
     #     throughput_graph=task.task_dir + "/" + task.trace_name + ".throughput.png",
@@ -169,19 +173,21 @@ def _graph(task, result_path):
     #     ms_per_bin=500)
     # tunnel_graph.run()
     logger.info(f"[task: {task_id}] is generating graphs")
-    run_cmd(
-        f'mm-throughput-graph 500 {result_path} > ' + task.task_dir + "/" + task.trace_name + ".throughput.svg",
-        task_id)
-    run_cmd(
-        f'mm-delay-graph {result_path} > ' + task.task_dir + "/" + task.trace_name + ".delay.svg",
-        task_id)
-    # 6. 保存图
+    run_cmd(f'mm-throughput-graph 500 {result_path} > {throughput_graph_svg}', task_id)
+    run_cmd(f'mm-delay-graph {result_path} > {delay_graph_svg}', task_id)
+    # 由于delay svg图太大，将svg转换为png以压缩
+    logger.info(f"[task: {task_id}] Converting delay graph SVG to PNG")
+    cairosvg.svg2png(url=delay_graph_svg, write_to=delay_graph_png)
+    os.remove(delay_graph_svg)
+    logger.info(f"[task: {task_id}] Converted delay graph SVG to PNG, svg removed.")
+    logger.info(f"[task: {task_id}] Graphs generated successfully: {throughput_graph_svg}, {delay_graph_png}")
+    # 保存图到数据库
     graph_id1 = uuid.uuid4().hex
     graph_id2 = uuid.uuid4().hex
     GraphModel(task_id=task_id, graph_id=str(graph_id1), graph_type='throughput',
-               graph_path=task.task_dir + "/" + task.trace_name + ".throughput.svg").insert()
+               graph_path=throughput_graph_svg).insert()
     GraphModel(task_id=task_id, graph_id=str(graph_id2), graph_type='delay',
-               graph_path=task.task_dir + "/" + task.trace_name + ".delay.svg").insert()
+               graph_path=delay_graph_png).insert()
     logger.info(f"[task: {task_id}] is generating graphs successfully")
 
 
@@ -204,7 +210,6 @@ def _update_rank(task, user):
         logger.info(f"[task: {task_id}] try to update rank")
         # 获取该 upload_id 下的所有任务
         all_tasks = TaskModel.query.filter_by(upload_id=upload_id).all()
-
         # 检查是否所有任务都已完成
         all_tasks_completed = all(t.task_status == TaskStatus.FINISHED.value for t in all_tasks)
 
@@ -214,10 +219,8 @@ def _update_rank(task, user):
 
         # 计算所有任务的总分
         total_upload_score = sum(t.task_score for t in all_tasks if t.task_score is not None)
-
         # 获取用户当前课程的榜单记录
         rank_record = RankModel.query.filter_by(user_id=task.user_id, cname=task.cname).first()
-
         if rank_record:
             # 如果已有记录，检查是否需要更新
             # if rank_record.upload_time < task.created_time:
