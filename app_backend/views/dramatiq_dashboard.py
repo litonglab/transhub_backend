@@ -57,13 +57,9 @@ def dramatiq_dashboard_proxy(path=''):
         dashboard_middleware = _get_dashboard_middleware()
         # 准备 WSGI 环境
         environ = request.environ.copy()
-        # 修正路径以匹配 dashboard URL
-        dashboard_url = '/dramatiq'
-        if not dashboard_url.endswith('/'):
-            dashboard_url += '/'
 
-        # 重写环境变量
-        environ['PATH_INFO'] = dashboard_url + path
+        # 重写环境变量，修正路径以匹配 dashboard URL
+        environ['PATH_INFO'] = '/dramatiq/' + path
         environ['SCRIPT_NAME'] = ''
 
         # 收集响应数据
@@ -71,7 +67,7 @@ def dramatiq_dashboard_proxy(path=''):
         response_status = None
         response_headers = None
 
-        def capture_start_response(status, _headers, exc_info=None):
+        def capture_start_response(status, _headers):
             nonlocal response_status, response_headers
             response_status = status
             response_headers = _headers
@@ -99,7 +95,6 @@ def dramatiq_dashboard_proxy(path=''):
             status_code = int(response_status.split(' ', 1)[0])
             body = b''.join(response_data)
             headers = dict(response_headers) if response_headers else {}
-
             # 移除可能冲突的头部
             headers.pop('content-length', None)
 
