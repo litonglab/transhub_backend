@@ -85,6 +85,12 @@ def get_users():
     if data.role:
         query = query.filter(UserModel.role == data.role)
 
+    # 课程报名筛选
+    if hasattr(data, 'cname') and data.cname:
+        # 通过JOIN查询筛选报名了指定课程的用户
+        query = query.join(CompetitionModel, UserModel.user_id == CompetitionModel.user_id)\
+                     .filter(CompetitionModel.cname == data.cname)
+
     # 活跃状态筛选
     if data.active is not None:
         if data.active:
@@ -94,16 +100,58 @@ def get_users():
             # 非活跃用户：已删除或已锁定
             query = query.filter((UserModel.is_deleted == True) | (UserModel.is_locked == True))
 
-    # 分页
+    # 分页计算
     total = query.count()
-    users = query.offset((data.page - 1) * data.size).limit(data.size).all()
+    
+    # 使用JOIN查询直接获取用户及其课程信息，避免多次查询
+    # 首先获取分页后的用户ID列表
+    user_ids_query = query.with_entities(UserModel.user_id)\
+                          .offset((data.page - 1) * data.size)\
+                          .limit(data.size)
+    user_ids = [uid[0] for uid in user_ids_query.all()]
+    
+    if user_ids:
+        # 使用LEFT JOIN一次性获取用户信息和课程信息
+        users_with_courses = db.session.query(
+            UserModel,
+            CompetitionModel.cname
+        ).outerjoin(
+            CompetitionModel, UserModel.user_id == CompetitionModel.user_id
+        ).filter(
+            UserModel.user_id.in_(user_ids)
+        ).all()
+        
+        # 构建用户字典和课程映射
+        users_dict = {}
+        user_courses_map = {}
+        
+        for user, course_name in users_with_courses:
+            # 构建用户字典（避免重复）
+            if user.user_id not in users_dict:
+                users_dict[user.user_id] = user
+                user_courses_map[user.user_id] = []
+            
+            # 添加课程信息
+            if course_name and course_name not in user_courses_map[user.user_id]:
+                user_courses_map[user.user_id].append(course_name)
+        
+        # 按原始顺序构建用户列表
+        user_list = []
+        for user_id in user_ids:
+            if user_id in users_dict:
+                user = users_dict[user_id]
+                user_dict = user.to_dict()
+                user_dict['enrolled_courses'] = user_courses_map.get(user_id, [])
+                user_list.append(user_dict)
+    else:
+        user_list = []
 
     logger.info(
         f"Admin {current_user.username} fetched user list, total: {total}, page: {data.page}, size: {data.size}")
 
     return HttpResponse.ok(
         data={
-            'users': [user.to_dict() for user in users],
+            'users': user_list,
             'pagination': {
                 'page': data.page,
                 'size': data.size,

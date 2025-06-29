@@ -378,6 +378,16 @@ class AdminUserListSchema(BaseModel):
     role: Optional[str] = Field(default=None, description="角色筛选")
     active: Optional[bool] = Field(default=None, description="活跃状态筛选")
     deleted: Optional[bool] = Field(default=None, description="删除状态筛选")
+    cname: Optional[str] = Field(default=None, description="课程名称筛选，仅返回报名该课程的用户")
+
+    @field_validator('cname')
+    def validate_cname(cls, v):
+        if v is not None:
+            logger.debug(f"Validating course name for filtering: {v}")
+            if v not in config.Course.CNAME_LIST:
+                logger.warning(f"Invalid course name for filtering: {v}")
+                raise ValueError(f'课程名称必须是以下之一: {", ".join(config.Course.CNAME_LIST)}')
+        return v
 
 
 class AdminUserUpdateSchema(BaseModel):
