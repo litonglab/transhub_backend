@@ -64,35 +64,35 @@ def init_auth(app):
         （例如，如果用户已从数据库中删除）则返回 None。
         """
         from app_backend.model.user_model import UserModel
-        
+
         try:
             # 从JWT payload中获取用户ID
             user_id = jwt_data.get('sub')
             if not user_id:
                 logger.warning("JWT payload missing user ID (sub claim)")
-                return None
-            
+                raise NoAuthorizationError
+
             # 从数据库查询用户
             user = UserModel.query.get(user_id)
             if not user:
                 logger.warning(f"User not found in database for ID: {user_id}")
-                return None
-            
+                raise NoAuthorizationError
+
             # 检查用户是否被软删除
             if user.is_deleted:
                 logger.warning(f"User {user.username} (ID: {user_id}) has been deleted")
-                return None
-            
+                raise Exception("用户已被删除")
+
             # 检查用户是否被锁定
             if user.is_locked:
                 logger.warning(f"User {user.username} (ID: {user_id}) is locked")
-                return None
-            
+                raise Exception("用户账户已被锁定")
+
             logger.debug(f"Successfully loaded user: {user.username} (ID: {user_id})")
             return user
-            
+
         except Exception as e:
             logger.error(f"Error loading user from JWT: {e}")
-            return None
+            raise NoAuthorizationError("用户验证失败，用户可能已被删除或账户已被锁定")
 
     logger.info("JWT authentication initialization completed")
