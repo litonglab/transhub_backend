@@ -6,7 +6,7 @@ from datetime import date, datetime
 
 import psutil
 from flask import Blueprint, Response, stream_with_context
-from flask_jwt_extended import jwt_required, current_user
+from flask_jwt_extended import jwt_required, current_user, get_jwt
 
 from app_backend import db
 from app_backend import get_default_config, get_app
@@ -277,7 +277,7 @@ def get_tasks():
     task_list = []
     for task in tasks:
         user = UserModel.query.get(task.user_id)
-        task_dict = task.to_detail_dict(current_user)  # 传递当前用户（管理员）
+        task_dict = task.to_detail_dict(current_user.is_admin())  # 传递当前用户（管理员）
         task_dict['username'] = user.username if user else 'Unknown'
         task_list.append(task_dict)
 
@@ -303,10 +303,13 @@ def get_tasks():
 def get_stats():
     """获取系统统计信息"""
 
+    cname = get_jwt().get('cname')
+
     # 基础统计
     total_users = UserModel.query.filter_by(is_deleted=False).count()
     total_tasks = TaskModel.query.count()
-    active_users = UserModel.query.filter(UserModel.is_deleted == False, UserModel.is_locked == False).count()
+    # 统计报名课程的人数
+    enrolled_users = CompetitionModel.query.filter_by(cname=cname).count()
     deleted_users = UserModel.query.filter_by(is_deleted=True).count()
 
     # 计算今日提交数（通过统计今天创建的不同upload_id数量）
@@ -342,7 +345,7 @@ def get_stats():
         data={
             'overview': {
                 'total_users': total_users,
-                'active_users': active_users,
+                'enrolled_users': enrolled_users,  # 改为报名课程的人数
                 'total_tasks': total_tasks,
                 'deleted_users': deleted_users,
                 'today_submit': today_submit
