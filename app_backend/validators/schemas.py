@@ -407,9 +407,24 @@ class AdminTaskListSchema(BaseModel):
     """管理员任务列表查询参数"""
     page: int = Field(default=1, ge=1, description="页码")
     size: int = Field(default=20, ge=1, le=100, description="每页大小")
-    user_id: Optional[str] = Field(default=None, description="用户ID筛选")
+    username: Optional[str] = Field(default=None, description="用户名筛选")
     status: Optional[str] = Field(default=None, description="状态筛选")
     cname: Optional[str] = Field(default=None, description="比赛名称筛选")
+    trace_file: Optional[str] = Field(default=None, description="trace文件名筛选")
+    sort_by: Optional[str] = Field(default="created_time", description="排序字段: created_time, score")
+    sort_order: Optional[str] = Field(default="desc", description="排序方向: asc, desc")
+
+    @field_validator('sort_by')
+    def validate_sort_by(cls, v):
+        if v and v not in ['created_time', 'score']:
+            raise ValueError('排序字段必须是: created_time, score')
+        return v
+
+    @field_validator('sort_order')
+    def validate_sort_order(cls, v):
+        if v and v not in ['asc', 'desc']:
+            raise ValueError('排序方向必须是: asc, desc')
+        return v
 
 
 class AdminPasswordResetSchema(BaseModel):

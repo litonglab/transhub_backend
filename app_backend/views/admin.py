@@ -8,9 +8,9 @@ import psutil
 from flask import Blueprint, Response, stream_with_context, current_app
 from flask_jwt_extended import jwt_required, current_user, get_jwt
 
+from app_backend import cache
 from app_backend import db
 from app_backend import get_default_config
-from app_backend import cache
 from app_backend.model.competition_model import CompetitionModel
 from app_backend.model.task_model import TaskModel
 from app_backend.model.task_model import TaskStatus
@@ -88,8 +88,8 @@ def get_users():
     # 课程报名筛选
     if hasattr(data, 'cname') and data.cname:
         # 通过JOIN查询筛选报名了指定课程的用户
-        query = query.join(CompetitionModel, UserModel.user_id == CompetitionModel.user_id)\
-                     .filter(CompetitionModel.cname == data.cname)
+        query = query.join(CompetitionModel, UserModel.user_id == CompetitionModel.user_id) \
+            .filter(CompetitionModel.cname == data.cname)
 
     # 活跃状态筛选
     if data.active is not None:
@@ -102,14 +102,14 @@ def get_users():
 
     # 分页计算
     total = query.count()
-    
+
     # 使用JOIN查询直接获取用户及其课程信息，避免多次查询
     # 首先获取分页后的用户ID列表
-    user_ids_query = query.with_entities(UserModel.user_id)\
-                          .offset((data.page - 1) * data.size)\
-                          .limit(data.size)
+    user_ids_query = query.with_entities(UserModel.user_id) \
+        .offset((data.page - 1) * data.size) \
+        .limit(data.size)
     user_ids = [uid[0] for uid in user_ids_query.all()]
-    
+
     if user_ids:
         # 使用LEFT JOIN一次性获取用户信息和课程信息
         users_with_courses = db.session.query(
@@ -120,21 +120,21 @@ def get_users():
         ).filter(
             UserModel.user_id.in_(user_ids)
         ).all()
-        
+
         # 构建用户字典和课程映射
         users_dict = {}
         user_courses_map = {}
-        
+
         for user, course_name in users_with_courses:
             # 构建用户字典（避免重复）
             if user.user_id not in users_dict:
                 users_dict[user.user_id] = user
                 user_courses_map[user.user_id] = []
-            
+
             # 添加课程信息
             if course_name and course_name not in user_courses_map[user.user_id]:
                 user_courses_map[user.user_id].append(course_name)
-        
+
         # 按原始顺序构建用户列表
         user_list = []
         for user_id in user_ids:
@@ -329,11 +329,12 @@ def get_tasks():
     """获取任务列表"""
     data = get_validated_data(AdminTaskListSchema)
 
-    query = TaskModel.query
+    # 使用JOIN查询来支持用户名筛选和避免N+1查询问题
+    query = db.session.query(TaskModel, UserModel).join(UserModel, TaskModel.user_id == UserModel.user_id)
 
-    # 用户筛选
-    if data.user_id:
-        query = query.filter(TaskModel.user_id == data.user_id)
+    # 用户名筛选
+    if data.username:
+        query = query.filter(UserModel.username.contains(data.username))
 
     # 状态筛选
     if data.status:
@@ -343,17 +344,32 @@ def get_tasks():
     if data.cname:
         query = query.filter(TaskModel.cname == data.cname)
 
-    # 按创建时间降序排列
-    query = query.order_by(TaskModel.created_time.desc())
+    # trace文件筛选
+    if data.trace_file:
+        # 按trace文件名筛选（支持模糊匹配）
+        query = query.filter(TaskModel.trace_name.contains(data.trace_file))
+
+    # 排序
+    if data.sort_by == 'score':
+        # 按分数排序
+        if data.sort_order == 'asc':
+            query = query.order_by(TaskModel.task_score.asc())
+        else:
+            query = query.order_by(TaskModel.task_score.desc())
+    else:
+        # 默认按创建时间排序
+        if data.sort_order == 'asc':
+            query = query.order_by(TaskModel.created_time.asc())
+        else:
+            query = query.order_by(TaskModel.created_time.desc())
 
     # 分页
     total = query.count()
-    tasks = query.offset((data.page - 1) * data.size).limit(data.size).all()
+    results = query.offset((data.page - 1) * data.size).limit(data.size).all()
 
-    # 获取用户信息
+    # 构建任务列表
     task_list = []
-    for task in tasks:
-        user = UserModel.query.get(task.user_id)
+    for task, user in results:
         task_dict = task.to_detail_dict(current_user.is_admin())  # 传递当前用户（管理员）
         task_dict['username'] = user.username if user else 'Unknown'
         task_list.append(task_dict)
@@ -377,7 +393,7 @@ def get_tasks():
 @cache.memoize(timeout=30)
 def _get_general_stats():
     """获取通用统计信息的缓存函数（不依赖课程）"""
-    
+
     user_stats = {
         'total_users': UserModel.query.filter_by(is_deleted=False).count(),
         'deleted_users': UserModel.query.filter_by(is_deleted=True).count()
@@ -431,7 +447,7 @@ def _get_general_stats():
 @cache.memoize(timeout=30)
 def _get_course_specific_stats(cname):
     """根据课程名称获取课程特定统计信息的缓存函数"""
-    
+
     # 本课程任务统计
     current_course_task_stats = {}
 
@@ -477,16 +493,16 @@ def _get_course_specific_stats(cname):
 def get_stats():
     """获取系统统计信息"""
     cname = get_jwt().get('cname')
-    
+
     # 获取通用统计信息（全局缓存）
     general_stats = _get_general_stats()
-    
+
     # 获取课程特定统计信息（按课程缓存）
     course_stats = _get_course_specific_stats(cname)
-    
+
     # 合并两个统计结果
     stats_data = {**general_stats, **course_stats}
-    
+
     return HttpResponse.ok(data=stats_data)
 
 
