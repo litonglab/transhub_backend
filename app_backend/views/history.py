@@ -33,8 +33,13 @@ def get_record_detail():
     upload_id = data.upload_id
     cname = get_jwt().get('cname')
     logger.debug(f"History record detail request for upload {upload_id} in competition {cname}")
+    # 判断是否为管理员，如果是管理员，则可以查询所有记录
+    if current_user.is_admin():
+        record = TaskModel.query.filter_by(upload_id=upload_id).all()
+        logger.debug(f"Admin {current_user.username} requesting detailed record for upload {upload_id}")
+    else:
+        record = TaskModel.query.filter_by(upload_id=upload_id, cname=cname).all()
 
-    record = TaskModel.query.filter_by(upload_id=upload_id, cname=cname).all()
     if not record:
         logger.warning(f"No records found for upload {upload_id} in competition {cname}")
         return HttpResponse.not_found("记录不存在")
