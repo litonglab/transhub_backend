@@ -27,6 +27,33 @@ logger = logging.getLogger(__name__)
 config = get_default_config()
 
 
+def _validate_log_file(log_name):
+    """
+    验证日志文件的合法性和安全性
+
+    Args:
+        log_name (str): 日志文件名
+
+    Returns:
+        tuple: (is_valid, log_path, error_response)
+               - is_valid: 文件是否有效
+               - log_path: 完整的文件路径（仅在有效时返回）
+               - error_response: 错误响应（仅在无效时返回）
+    """
+    log_dir = config.Logging.LOG_DIR
+    log_path = os.path.join(log_dir, log_name)
+
+    # 检查文件是否存在且为日志文件
+    if not os.path.exists(log_path) or not log_name.endswith('.log'):
+        return False, None, HttpResponse.not_found("日志文件不存在")
+
+    # 防止目录遍历攻击
+    if not os.path.commonpath([log_dir, log_path]) == log_dir:
+        return False, None, HttpResponse.forbidden("不允许访问此文件")
+
+    return True, log_path, None
+
+
 @admin_bp.route('/admin/users', methods=['GET'])
 @jwt_required()
 @admin_required()
@@ -403,11 +430,12 @@ def get_system_info():
                 'disk_usage': psutil.disk_usage('/').percent
             },
             'process': {
-                'current_pid': os.getpid(),
-                'start_time': process_start_time.strftime('%Y-%m-%d %H:%M:%S'),
-                'uptime_seconds': int(process_uptime.total_seconds()),
-                'uptime_formatted': str(process_uptime).split('.')[0],  # 去掉微秒显示
-                'related_processes': related_processes
+                'related_processes': related_processes,
+                'current_process': {
+                    'current_pid': os.getpid(),
+                    'start_time': process_start_time.strftime('%Y-%m-%d %H:%M:%S'),
+                    'uptime_formatted': str(process_uptime).split('.')[0],  # 去掉微秒显示
+                }
             },
             'config': {
                 'courses': config.Course.CNAME_LIST,
@@ -448,13 +476,10 @@ def get_log_files():
 @admin_required()
 def stream_log_file(log_name):
     """流式获取日志内容（Server-Sent Events）"""
-    log_dir = config.Logging.LOG_DIR
-    log_path = os.path.join(log_dir, log_name)
-    if not os.path.exists(log_path) or not log_name.endswith('.log'):
-        return HttpResponse.not_found("日志文件不存在")
-    # 防止目录遍历
-    if not os.path.commonpath([log_dir, log_path]) == log_dir:
-        return HttpResponse.forbidden("不允许访问此文件")
+    # 验证日志文件
+    is_valid, log_path, error_response = _validate_log_file(log_name)
+    if not is_valid:
+        return error_response
 
     def generate():
         with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
@@ -481,3 +506,17 @@ def stream_log_file(log_name):
         "X-Accel-Buffering": "no"
     }
     return Response(stream_with_context(generate()), headers=headers)
+
+
+@admin_bp.route('/admin/system/logs/download/<log_name>', methods=['GET'])
+@jwt_required()
+@admin_required()
+def download_log_file(log_name):
+    """下载日志文件"""
+    # 验证日志文件
+    is_valid, log_path, error_response = _validate_log_file(log_name)
+    if not is_valid:
+        return error_response
+
+    logger.info(f"Admin {current_user.username} downloading log file: {log_name}")
+    return HttpResponse.send_attachment_file(log_path)
