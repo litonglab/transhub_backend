@@ -47,10 +47,12 @@ def _validate_log_file(log_name):
 
     # 检查文件是否存在且为日志文件
     if not os.path.exists(log_path) or not log_name.endswith('.log'):
+        logger.error(f"Log file {log_name} does not exist or is not a valid log file")
         return False, None, HttpResponse.not_found("日志文件不存在")
 
     # 防止目录遍历攻击
     if not os.path.commonpath([log_dir, log_path]) == log_dir:
+        logger.error(f"Log file {log_name} is outside the allowed log directory")
         return False, None, HttpResponse.forbidden("不允许访问此文件")
 
     return True, log_path, None
@@ -169,8 +171,6 @@ def get_users():
 def update_user():
     """更新用户信息"""
     data = get_validated_data(AdminUserUpdateSchema)
-    # 使用current_user，无需手动查询当前用户
-    current_user_obj = current_user
 
     target_user = UserModel.query.get(data.user_id)
     if not target_user:
@@ -178,20 +178,20 @@ def update_user():
         return HttpResponse.not_found("用户不存在")
 
     # 权限检查：只有超级管理员可以修改其他管理员
-    if target_user.is_admin() and not current_user_obj.is_super_admin():
+    if target_user.is_admin() and not current_user.is_super_admin():
         logger.warning(
-            f"User update failed: User {current_user_obj.username} tried to modify admin user {target_user.username}")
+            f"User update failed: User {current_user.username} tried to modify admin user {target_user.username}")
         return HttpResponse.forbidden("只有超级管理员可以修改管理员用户")
 
     # 防止自己锁定自己
-    if data.is_locked and target_user.user_id == current_user_obj.user_id:
-        logger.warning(f"User update failed: User {current_user_obj.username} tried to lock their own account")
+    if data.is_locked and target_user.user_id == current_user.user_id:
+        logger.warning(f"User update failed: User {current_user.username} tried to lock their own account")
         return HttpResponse.fail("不能锁定自己的账户")
 
     # 角色更改权限检查：只有超级管理员才能更改其他用户的角色
-    if data.role is not None and not current_user_obj.is_super_admin():
+    if data.role is not None and not current_user.is_super_admin():
         logger.warning(
-            f"User update failed: User {current_user_obj.username} tried to change role of user {target_user.username}")
+            f"User update failed: User {current_user.username} tried to change role of user {target_user.username}")
         return HttpResponse.forbidden("只有超级管理员可以更改用户角色")
 
     # 更新字段
@@ -201,7 +201,7 @@ def update_user():
         target_user.is_locked = data.is_locked
 
     target_user.save()
-    logger.info(f"Admin {current_user_obj.username} updated user {target_user.username}")
+    logger.info(f"Admin {current_user.username} updated user {target_user.username}")
 
     return HttpResponse.ok()
 
@@ -213,8 +213,6 @@ def update_user():
 def reset_user_password():
     """重置用户密码"""
     data = get_validated_data(AdminPasswordResetSchema)
-    # 使用current_user，无需手动查询当前用户
-    current_user_obj = current_user
 
     target_user = UserModel.query.get(data.user_id)
     if not target_user:
@@ -222,22 +220,20 @@ def reset_user_password():
         return HttpResponse.not_found("用户不存在")
 
     # 权限检查：只有超级管理员可以重置其他管理员的密码
-    if target_user.is_admin() and not current_user_obj.is_super_admin():
+    if target_user.is_admin() and not current_user.is_super_admin():
         logger.warning(
-            f"User reset password failed: User {current_user_obj.username} tried to reset password for admin user {target_user.username}")
+            f"User reset password failed: User {current_user.username} tried to reset password for admin user {target_user.username}")
         return HttpResponse.forbidden("只有超级管理员可以重置管理员用户的密码")
 
     # 防止重置自己的密码（建议管理员使用正常修改密码功能）
-    if target_user.user_id == current_user_obj.user_id:
+    if target_user.user_id == current_user.user_id:
         logger.warning(
-            f"User reset password failed: User {current_user_obj.username} tried to reset their own password")
+            f"User reset password failed: User {current_user.username} tried to reset their own password")
         return HttpResponse.fail("不能重置自己的密码，请使用修改密码功能")
 
     # 重置密码
     target_user.reset_password(data.new_password)
-
-    logger.info(f"Admin {current_user_obj.username} reset password for user {target_user.username}")
-
+    logger.info(f"Admin {current_user.username} reset password for user {target_user.username}")
     return HttpResponse.ok(f"用户 {target_user.username} 的密码已重置为 {data.new_password}")
 
 
@@ -248,8 +244,6 @@ def reset_user_password():
 def delete_user():
     """软删除用户"""
     data = get_validated_data(AdminUserDeleteSchema)
-    # 使用current_user，无需手动查询当前用户
-    current_user_obj = current_user
 
     target_user = UserModel.query.get(data.user_id)
     if not target_user:
@@ -262,21 +256,19 @@ def delete_user():
         return HttpResponse.fail("用户已经被删除")
 
     # 权限检查：只有超级管理员可以删除其他管理员
-    if target_user.is_admin() and not current_user_obj.is_super_admin():
+    if target_user.is_admin() and not current_user.is_super_admin():
         logger.warning(
-            f"User delete failed: User {current_user_obj.username} tried to delete admin user {target_user.username}")
+            f"User delete failed: User {current_user.username} tried to delete admin user {target_user.username}")
         return HttpResponse.forbidden("只有超级管理员可以删除管理员用户")
 
     # 防止删除自己
-    if target_user.user_id == current_user_obj.user_id:
-        logger.warning(f"User delete failed: User {current_user_obj.username} tried to delete their own account")
+    if target_user.user_id == current_user.user_id:
+        logger.warning(f"User delete failed: User {current_user.username} tried to delete their own account")
         return HttpResponse.fail("不能删除自己的账户")
 
     # 软删除用户
     target_user.soft_delete()
-
-    logger.info(f"Admin {current_user_obj.username} deleted user {target_user.username}")
-
+    logger.info(f"Admin {current_user.username} deleted user {target_user.username}")
     return HttpResponse.ok(f"用户 {target_user.username} 已被删除")
 
 
@@ -287,8 +279,6 @@ def delete_user():
 def restore_user():
     """恢复被删除的用户"""
     data = get_validated_data(AdminUserRestoreSchema)
-    # 使用current_user，无需手动查询当前用户
-    current_user_obj = current_user
 
     target_user = UserModel.query.get(data.user_id)
     if not target_user:
@@ -301,9 +291,9 @@ def restore_user():
         return HttpResponse.fail("用户未被删除，无需恢复")
 
     # 权限检查：只有超级管理员可以恢复管理员用户
-    if target_user.is_admin() and not current_user_obj.is_super_admin():
+    if target_user.is_admin() and not current_user.is_super_admin():
         logger.warning(
-            f"User restore failed: User {current_user_obj.username} tried to restore admin user {target_user.username}")
+            f"User restore failed: User {current_user.username} tried to restore admin user {target_user.username}")
         return HttpResponse.forbidden("只有超级管理员可以恢复管理员用户")
 
     # 恢复用户
@@ -316,8 +306,7 @@ def restore_user():
         logger.error(f"User restore failed: {str(e)}", exc_info=True)
         return HttpResponse.internal_error("恢复用户时发生错误")
 
-    logger.info(f"Admin {current_user_obj.username} restored user {target_user.username}")
-
+    logger.info(f"Admin {current_user.username} restored user {target_user.username}")
     return HttpResponse.ok(f"用户 {target_user.username} 已被恢复")
 
 
@@ -328,7 +317,6 @@ def restore_user():
 def get_tasks():
     """获取任务列表"""
     data = get_validated_data(AdminTaskListSchema)
-
     # 使用JOIN查询来支持用户名筛选和避免N+1查询问题
     query = db.session.query(TaskModel, UserModel).join(UserModel, TaskModel.user_id == UserModel.user_id)
 
@@ -393,7 +381,6 @@ def get_tasks():
 @cache.memoize(timeout=30)
 def _get_general_stats():
     """获取通用统计信息的缓存函数（不依赖课程）"""
-
     user_stats = {
         'total_users': UserModel.query.filter_by(is_deleted=False).count(),
         'deleted_users': UserModel.query.filter_by(is_deleted=True).count()
@@ -436,6 +423,8 @@ def _get_general_stats():
         count = UserModel.query.filter(UserModel.role == role.value, UserModel.is_deleted == False).count()
         role_stats[role.value] = count
 
+    logger.info("General stats fetched successfully")
+
     return {
         'user_stats': user_stats,
         'all_course_task_stats': all_course_task_stats,
@@ -447,7 +436,6 @@ def _get_general_stats():
 @cache.memoize(timeout=30)
 def _get_course_specific_stats(cname):
     """根据课程名称获取课程特定统计信息的缓存函数"""
-
     # 本课程任务统计
     current_course_task_stats = {}
 
@@ -481,7 +469,7 @@ def _get_course_specific_stats(cname):
             'count': daily_count
         })
     current_course_task_stats['daily_submissions'] = current_course_daily_submissions
-
+    logger.info(f"Course-specific stats for {cname} fetched successfully")
     return {
         'current_course_task_stats': current_course_task_stats
     }
@@ -493,16 +481,13 @@ def _get_course_specific_stats(cname):
 def get_stats():
     """获取系统统计信息"""
     cname = get_jwt().get('cname')
-
     # 获取通用统计信息（全局缓存）
     general_stats = _get_general_stats()
-
     # 获取课程特定统计信息（按课程缓存）
     course_stats = _get_course_specific_stats(cname)
-
     # 合并两个统计结果
     stats_data = {**general_stats, **course_stats}
-
+    logger.info(f"Admin {current_user.username} fetched system stats for course {cname}")
     return HttpResponse.ok(data=stats_data)
 
 
@@ -512,7 +497,6 @@ def get_stats():
 @admin_required()
 def get_system_info():
     """获取系统信息"""
-
     # 获取当前进程信息
     current_process = psutil.Process(os.getpid())
     process_start_time = datetime.fromtimestamp(current_process.create_time())
@@ -521,28 +505,25 @@ def get_system_info():
     # 尝试获取相关进程信息
     related_processes = []
     process_name_list = ['gunicorn', 'dramatiq', 'run.py', 'sender', 'receiver']
-    try:
-        for proc in psutil.process_iter(['pid', 'name', 'create_time', 'cmdline']):
-            try:
-                if proc.info['cmdline'] and any(
-                        any(process_name in cmd for process_name in process_name_list) for cmd in proc.info['cmdline']):
-                    start_time = datetime.fromtimestamp(proc.info['create_time'])
-                    uptime = datetime.now() - start_time
-                    related_processes.append({
-                        'pid': proc.info['pid'],
-                        'name': proc.info['name'],
-                        'start_time': start_time.strftime('%Y-%m-%d %H:%M:%S'),
-                        'uptime_seconds': int(uptime.total_seconds()),
-                        'uptime_formatted': str(uptime).split('.')[0],  # 去掉微秒
-                        'cmdline': ' '.join(proc.info['cmdline'][:3])  # 只显示前3个命令参数
-                    })
-            except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
-                logger.error(
-                    f"Error accessing process {proc.info['pid']} ({proc.info['name']}): {e}", exc_info=True)
-                continue
-    except Exception as e:
-        logger.error(f"Error getting process info: {e}", exc_info=True)
-
+    for proc in psutil.process_iter(['pid', 'name', 'create_time', 'cmdline']):
+        try:
+            if proc.info['cmdline'] and any(
+                    any(process_name in cmd for process_name in process_name_list) for cmd in proc.info['cmdline']):
+                start_time = datetime.fromtimestamp(proc.info['create_time'])
+                uptime = datetime.now() - start_time
+                related_processes.append({
+                    'pid': proc.info['pid'],
+                    'name': proc.info['name'],
+                    'start_time': start_time.strftime('%Y-%m-%d %H:%M:%S'),
+                    'uptime_seconds': int(uptime.total_seconds()),
+                    'uptime_formatted': str(uptime).split('.')[0],  # 去掉微秒
+                    'cmdline': ' '.join(proc.info['cmdline'][:3])  # 只显示前3个命令参数
+                })
+        except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+            logger.error(
+                f"Error accessing process {proc.info['pid']} ({proc.info['name']}): {e}", exc_info=True)
+            continue
+    logger.info(f"Found {len(related_processes)} related processes")
     return HttpResponse.ok(
         data={
             'system': {
@@ -579,6 +560,7 @@ def get_log_files():
     """获取日志文件列表"""
     log_dir = config.Logging.LOG_DIR
     if not os.path.exists(log_dir):
+        logger.error(f"Log directory {log_dir} does not exist")
         return HttpResponse.fail("日志目录不存在")
     log_files = []
     for filename in os.listdir(log_dir):
@@ -591,6 +573,7 @@ def get_log_files():
                 'modified_time': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(stat.st_mtime))
             })
     log_files.sort(key=lambda x: x['modified_time'], reverse=True)
+    logger.debug(f"Admin {current_user.username} fetched log files, count: {len(log_files)}")
     return HttpResponse.ok(data={'log_files': log_files, 'log_dir': log_dir})
 
 
@@ -628,6 +611,7 @@ def stream_log_file(log_name):
         "Cache-Control": "no-cache",
         "X-Accel-Buffering": "no"
     }
+    logger.info(f"Admin {current_user.username} streaming log file: {log_name}")
     return Response(stream_with_context(generate()), headers=headers)
 
 
