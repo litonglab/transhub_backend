@@ -26,8 +26,15 @@ def get_graph():
     user_id = get_jwt_identity()
     cname = get_jwt().get('cname')
 
-    # 保证只能查询当前课程（比赛）的图
-    task = TaskModel.query.filter_by(task_id=task_id, cname=cname).first()
+    # 管理员可查询所有课程的图
+    if current_user.is_admin():
+        logger.debug(f"Admin {current_user.username} requesting graph for task {task_id}, type {graph_type}")
+        task = TaskModel.query.filter_by(task_id=task_id).first()
+    # 普通用户保证只能查询当前课程（比赛）的图
+    else:
+        logger.debug(f"User {user_id} requesting graph for task {task_id}, type {graph_type}")
+        task = TaskModel.query.filter_by(task_id=task_id, cname=cname).first()
+
     if not task:
         logger.warning(f"Graph request failed: Task not found for task_id {task_id}")
         return HttpResponse.not_found("任务不存在")
