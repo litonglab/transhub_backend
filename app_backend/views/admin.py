@@ -2,7 +2,7 @@ import logging
 import os
 import platform
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import psutil
 from flask import Blueprint, Response, stream_with_context, current_app
@@ -10,8 +10,10 @@ from flask_jwt_extended import jwt_required, current_user, get_jwt
 
 from app_backend import db
 from app_backend import get_default_config
+from app_backend import cache
 from app_backend.model.competition_model import CompetitionModel
 from app_backend.model.task_model import TaskModel
+from app_backend.model.task_model import TaskStatus
 from app_backend.model.user_model import UserModel, UserRole
 from app_backend.security.admin_decorators import admin_required
 from app_backend.validators.decorators import validate_request, get_validated_data
@@ -324,43 +326,45 @@ def get_tasks():
     )
 
 
-@admin_bp.route('/admin/stats', methods=['GET'])
-@jwt_required()
-@admin_required()
-def get_stats():
-    """获取系统统计信息"""
+@cache.memoize(timeout=30)
+def _get_general_stats():
+    """获取通用统计信息的缓存函数（不依赖课程）"""
+    
+    user_stats = {
+        'total_users': UserModel.query.filter_by(is_deleted=False).count(),
+        'deleted_users': UserModel.query.filter_by(is_deleted=True).count()
+    }
 
-    cname = get_jwt().get('cname')
+    # 任务状态统计（所有课程）
+    all_course_task_stats = {
+        'total': TaskModel.query.count(),
+        # 计算今日提交数（通过统计今天创建的不同upload_id数量）
+        'today_submit': TaskModel.query.filter(
+            db.func.date(TaskModel.created_time) == date.today()
+        ).with_entities(TaskModel.upload_id).distinct().count()
+    }
+    for status in TaskStatus:
+        count = TaskModel.query.filter(TaskModel.task_status == status.value).count()
+        all_course_task_stats[status.value] = count
 
-    # 基础统计
-    total_users = UserModel.query.filter_by(is_deleted=False).count()
-    total_tasks = TaskModel.query.count()
-    # 统计报名课程的人数
-    enrolled_users = CompetitionModel.query.filter_by(cname=cname).count()
-    deleted_users = UserModel.query.filter_by(is_deleted=True).count()
-
-    # 计算今日提交数（通过统计今天创建的不同upload_id数量）
-    today_submit = TaskModel.query.filter(
-        db.func.date(TaskModel.created_time) == date.today()
-    ).with_entities(TaskModel.upload_id).distinct().count()
-
-    # 任务状态统计
-    task_stats = {}
-    try:
-        from app_backend.model.task_model import TaskStatus
-        for status in TaskStatus:
-            count = TaskModel.query.filter(TaskModel.task_status == status.value).count()
-            task_stats[status.value] = count
-    except Exception as e:
-        logger.warning(f"Could not get TaskStatus enum: {e}")
-        # 如果没有TaskStatus枚举，使用简单的状态统计
-        task_stats = {"total": total_tasks}
+    # 添加过去10天每天的提交数量（所有课程）
+    daily_submissions = []
+    for i in range(10):
+        target_date = date.today() - timedelta(days=i)
+        daily_count = TaskModel.query.filter(
+            db.func.date(TaskModel.created_time) == target_date
+        ).with_entities(TaskModel.upload_id).distinct().count()
+        daily_submissions.append({
+            'date': target_date.strftime('%Y-%m-%d'),
+            'count': daily_count
+        })
+    all_course_task_stats['daily_submissions'] = daily_submissions
 
     # 比赛参与统计
     competition_stats = {}
-    for cname in config.Course.CNAME_LIST:
-        participant_count = CompetitionModel.query.filter(CompetitionModel.cname == cname).count()
-        competition_stats[cname] = participant_count
+    for course_name in config.Course.CNAME_LIST:
+        participant_count = CompetitionModel.query.filter(CompetitionModel.cname == course_name).count()
+        competition_stats[course_name] = participant_count
 
     # 角色统计（仅统计未删除用户）
     role_stats = {}
@@ -368,20 +372,74 @@ def get_stats():
         count = UserModel.query.filter(UserModel.role == role.value, UserModel.is_deleted == False).count()
         role_stats[role.value] = count
 
-    return HttpResponse.ok(
-        data={
-            'overview': {
-                'total_users': total_users,
-                'enrolled_users': enrolled_users,  # 改为报名课程的人数
-                'total_tasks': total_tasks,
-                'deleted_users': deleted_users,
-                'today_submit': today_submit
-            },
-            'task_stats': task_stats,
-            'competition_stats': competition_stats,
-            'role_stats': role_stats
-        }
-    )
+    return {
+        'user_stats': user_stats,
+        'all_course_task_stats': all_course_task_stats,
+        'competition_stats': competition_stats,
+        'role_stats': role_stats
+    }
+
+
+@cache.memoize(timeout=30)
+def _get_course_specific_stats(cname):
+    """根据课程名称获取课程特定统计信息的缓存函数"""
+    
+    # 本课程任务统计
+    current_course_task_stats = {}
+
+    # 统计当前课程各状态的任务数量
+    for status in TaskStatus:
+        count = TaskModel.query.filter(
+            TaskModel.cname == cname,
+            TaskModel.task_status == status.value
+        ).count()
+        current_course_task_stats[status.value] = count
+
+    # 统计当前课程的总任务数
+    current_course_task_stats['total'] = TaskModel.query.filter(TaskModel.cname == cname).count()
+
+    # 统计当前课程今日提交数
+    current_course_task_stats['today_submit'] = TaskModel.query.filter(
+        TaskModel.cname == cname,
+        db.func.date(TaskModel.created_time) == date.today()
+    ).with_entities(TaskModel.upload_id).distinct().count()
+
+    # 添加过去10天每天的提交数量（当前课程）
+    current_course_daily_submissions = []
+    for i in range(10):
+        target_date = date.today() - timedelta(days=i)
+        daily_count = TaskModel.query.filter(
+            TaskModel.cname == cname,
+            db.func.date(TaskModel.created_time) == target_date
+        ).with_entities(TaskModel.upload_id).distinct().count()
+        current_course_daily_submissions.append({
+            'date': target_date.strftime('%Y-%m-%d'),
+            'count': daily_count
+        })
+    current_course_task_stats['daily_submissions'] = current_course_daily_submissions
+
+    return {
+        'current_course_task_stats': current_course_task_stats
+    }
+
+
+@admin_bp.route('/admin/stats', methods=['GET'])
+@jwt_required()
+@admin_required()
+def get_stats():
+    """获取系统统计信息"""
+    cname = get_jwt().get('cname')
+    
+    # 获取通用统计信息（全局缓存）
+    general_stats = _get_general_stats()
+    
+    # 获取课程特定统计信息（按课程缓存）
+    course_stats = _get_course_specific_stats(cname)
+    
+    # 合并两个统计结果
+    stats_data = {**general_stats, **course_stats}
+    
+    return HttpResponse.ok(data=stats_data)
 
 
 @admin_bp.route('/admin/system/info', methods=['GET'])
@@ -398,11 +456,12 @@ def get_system_info():
 
     # 尝试获取相关进程信息
     related_processes = []
+    process_name_list = ['gunicorn', 'dramatiq', 'run.py', 'sender', 'receiver']
     try:
         for proc in psutil.process_iter(['pid', 'name', 'create_time', 'cmdline']):
             try:
                 if proc.info['cmdline'] and any(
-                        'gunicorn' in cmd or 'dramatiq' in cmd or 'run.py' in cmd for cmd in proc.info['cmdline']):
+                        any(process_name in cmd for process_name in process_name_list) for cmd in proc.info['cmdline']):
                     start_time = datetime.fromtimestamp(proc.info['create_time'])
                     uptime = datetime.now() - start_time
                     related_processes.append({
