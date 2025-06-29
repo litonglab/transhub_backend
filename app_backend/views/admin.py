@@ -5,11 +5,11 @@ import time
 from datetime import date, datetime
 
 import psutil
-from flask import Blueprint, Response, stream_with_context
+from flask import Blueprint, Response, stream_with_context, current_app
 from flask_jwt_extended import jwt_required, current_user, get_jwt
 
 from app_backend import db
-from app_backend import get_default_config, get_app
+from app_backend import get_default_config
 from app_backend.model.competition_model import CompetitionModel
 from app_backend.model.task_model import TaskModel
 from app_backend.model.user_model import UserModel, UserRole
@@ -411,9 +411,11 @@ def get_system_info():
             },
             'config': {
                 'courses': config.Course.CNAME_LIST,
+                'register_student_list': config.Course.REGISTER_STUDENT_LIST,
                 'course_detail': config.Course.ALL_CLASS,
                 'log_level': config.Logging.LOG_LEVEL,
-                'debug': get_app().debug,
+                'debug': current_app.debug,
+                'env': os.getenv('APP_ENV', 'development')
             }
         }
     )
