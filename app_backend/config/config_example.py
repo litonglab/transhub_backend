@@ -25,12 +25,14 @@ class ExampleConfig(BaseConfig):
                         # 环境信息配置会排列组合
                         "loss_rate": [0.0],  # 丢包率
                         "buffer_size": [20, 250],  # 缓冲区大小
+                        "delay": [20],  # 延迟，单位为毫秒
                         "block": False  # 是否屏蔽该trace的信息，屏蔽后用户不可查看性能图、日志及环境信息，比赛结束后会自动开放查看
                     },
                     "Verizon-LTE-example": {  # trace名称：Verizon-LTE-example
                         # 环境信息配置会排列组合
                         "loss_rate": [0.1],  # 丢包率
                         "buffer_size": [50, 300],  # 缓冲区大小
+                        "delay": [20],  # 延迟，单位为毫秒
                         "block": True  # 是否屏蔽该trace的信息，屏蔽后用户不可查看性能图、日志及环境信息，比赛结束后会自动开放查看
                     }
                 },
@@ -57,12 +59,14 @@ class ExampleConfig(BaseConfig):
                         # 环境信息配置会排列组合
                         "loss_rate": [0.0],  # 丢包率
                         "buffer_size": [20, 250],  # 缓冲区大小
+                        "delay": [20],  # 延迟，单位为毫秒
                         "block": False  # 是否屏蔽该trace的信息，屏蔽后用户不可查看性能图、日志及环境信息，比赛结束后会自动开放查看
                     },
                     "Verizon-LTE-example": {  # trace名称：Verizon-LTE-example
                         # 环境信息配置会排列组合
                         "loss_rate": [0.1],  # 丢包率
                         "buffer_size": [50, 300],  # 缓冲区大小
+                        "delay": [20],  # 延迟，单位为毫秒
                         "block": True  # 是否屏蔽该trace的信息，屏蔽后用户不可查看性能图、日志及环境信息，比赛结束后会自动开放查看
                     }
                 },

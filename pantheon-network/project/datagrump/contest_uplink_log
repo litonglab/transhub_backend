@@ -1,6 +1,0 @@
-# mahimahi mm-link (Uplink) [/usr/local/bin/../share/mahimahi/traces/Verizon-LTE-short.down] > ./contest_uplink_log
-# command line: 'mm-link' '/usr/local/bin/../share/mahimahi/traces/Verizon-LTE-short.down' '/usr/local/bin/../share/mahimahi/traces/Verizon-LTE-short.up' '--meter-uplink' '--meter-uplink-delay' '--once' '--uplink-log=./contest_uplink_log' '--' 'bash' '-c' './sender $MAHIMAHI_BASE 9090'
-# queue: infinite
-# init timestamp: 1720362902418
-# base timestamp: 32
-# mahimahi config: [delay 20 ms] 

@@ -25,6 +25,10 @@ private:
      next expects will be acknowledged by the receiver */
   uint64_t next_ack_expected_;
 
+  // 最大窗口大小，避免无限大窗口影响服务器性能，实际值从环境变量SENDER_MAX_WINDOW_SIZE里读取
+  // 必须配置环境变量，否则程序会直接退出
+  unsigned int max_window_size_; /* maximum window size */
+
   void send_datagram( const bool after_timeout );
   void got_ack( const uint64_t timestamp, const ContestMessage & msg );
   bool window_is_open();
@@ -60,14 +64,35 @@ int main( int argc, char *argv[] )
 
 DatagrumpSender::DatagrumpSender( const char * const host,
 				  const char * const port,
-				  const bool debug )
+				  const bool debug)
   : socket_(),
     controller_( debug ),
     sequence_number_( 0 ),
-    next_ack_expected_( 0 )
+    next_ack_expected_( 0 ),
+    max_window_size_( 0 )
 {
   /* turn on timestamps when socket receives a datagram */
   socket_.set_timestamps();
+
+  /* set the maximum window size from the environment variable */
+  const char* max_window_size_str = std::getenv("SENDER_MAX_WINDOW_SIZE");
+  if (max_window_size_str) {
+      try {
+          this->max_window_size_ = std::stoi(max_window_size_str);
+          if (this->max_window_size_ <= 0) {
+              throw std::invalid_argument("窗口大小必须大于0");
+          }
+          // 默认不打印，避免用户能通过日志看到服务器配置
+          // std::cout << "SENDER_MAX_WINDOW_SIZE = " << this->max_window_size_ << std::endl;
+      } catch (const std::exception& e) {
+          std::cerr << "SENDER_MAX_WINDOW_SIZE 环境变量不是有效的数字: " << max_window_size_str << std::endl;
+          std::cerr << "错误信息: " << e.what() << std::endl;
+          exit(EXIT_FAILURE);
+      }
+  } else {
+      std::cout << "SENDER_MAX_WINDOW_SIZE 环境变量未设置" << std::endl;
+      exit(EXIT_FAILURE);
+  }
 
   /* connect socket to the remote host */
   /* (note: this doesn't send anything; it just tags the socket
@@ -112,7 +137,11 @@ void DatagrumpSender::send_datagram( const bool after_timeout )
 
 bool DatagrumpSender::window_is_open()
 {
-  return sequence_number_ - next_ack_expected_ < controller_.window_size();
+  unsigned int window_size = controller_.window_size();
+  if (window_size > max_window_size_) {
+    window_size = max_window_size_;
+  }
+  return sequence_number_ - next_ack_expected_ < window_size;
 }
 
 int DatagrumpSender::loop()
