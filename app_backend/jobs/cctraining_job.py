@@ -313,7 +313,7 @@ def run_cc_training_task(task_id):
             task_error_log_content = f"发生意外错误，请将此信息反馈给管理员协助排查。\n[task_id: {task_id}]\nException occurred:\n{err_msg}\n"
             logger.error(f"[task: {task_id}] {task_error_log_content}", exc_info=True)
             if 'task' in locals() and task:
-                # 这里日志长度和数据库设置的长度计算方式不同，这里限制为8000
+                # 日志长度和数据库设置的长度计算方式不同，这里限制为8000
                 if len(task_error_log_content) > 8000:
                     task_error_log_content = task_error_log_content[:8000] + '...'
                 task.update(task_status=TaskStatus.ERROR.value, error_log=task_error_log_content)
@@ -379,7 +379,10 @@ def run_cmd(cmd, task_id, raise_exception=True):
 
         try:
             stdout, stderr = process.communicate(timeout=timeout)
-            output = f"stdout:\n{stdout}\nstderr:\n{stderr}\n"
+            # 限制输出长度，避免用户代码内的输出过多内容影响系统日志
+            stdout = stdout[:16000]
+            stderr = stderr[:16000]
+            output = f"stderr:\n{stderr}\nstdout:\n{stdout}\n"
             logger.info(f"[task: {task_id}] Command output: {output}")
 
             if process.returncode != 0:
