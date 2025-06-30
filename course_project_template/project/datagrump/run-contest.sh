@@ -3,19 +3,20 @@
 # 主要改变：增加了参数；在评测运行错误时exit1，以便更新任务状态为error，不计算分数；并保证脚本退出时关闭所有进程
 # 忽略sender的输出，避免输出用户代码里打印的过多信息
 
-if [ $# -ne 8 ]; then
-    echo [$(date "+%Y-%m-%d %H:%M:%S")] "Usage: $0 running_port loss_rate uplink_file downlink_file result_path sender_path receiver_path buffer_size"
+if [ $# -ne 9 ]; then
+    echo [$(date "+%Y-%m-%d %H:%M:%S")] "Usage: $0 running_port uplink_file downlink_file result_path sender_path receiver_path loss_rate buffer_size delay"
     exit 1
 fi
 
 running_port=$1
-loss_rate=$2
-uplink_file=$3
-downlink_file=$4
-result_path=$5
-sender_path=$6
-receiver_path=$7
+uplink_file=$2
+downlink_file=$3
+result_path=$4
+sender_path=$5
+receiver_path=$6
+loss_rate=$7
 buffer_size=$8
+delay=$9
 
 start_time=$(date +%s)
 
@@ -59,7 +60,7 @@ tracedir="$prefix/../share/mahimahi/traces"
 
 # Construct the command
 # Ignore the output of the sender command, redirect it to /dev/null
-command="mm-delay 20 mm-loss uplink $loss_rate mm-link $downlink_file $uplink_file --uplink-queue=droptail --uplink-queue-args=\\\"packets=$buffer_size\\\" --once --uplink-log=$result_path -- bash -c '$sender_path \$MAHIMAHI_BASE $running_port > /dev/null 2>&1'"
+command="mm-delay $delay mm-loss uplink $loss_rate mm-link $downlink_file $uplink_file --uplink-queue=droptail --uplink-queue-args=\\\"packets=$buffer_size\\\" --once --uplink-log=$result_path -- bash -c '$sender_path \$MAHIMAHI_BASE $running_port > /dev/null 2>&1'"
 
 # Run the command in background
 echo [$(date "+%Y-%m-%d %H:%M:%S")] "starting sender..."

@@ -66,6 +66,7 @@ class TaskModel(db.Model):
     upload_id = db.Column(db.String(36), nullable=False)  # 标识是哪次提交
     loss_rate = db.Column(db.Float, nullable=False)  # 标识运行的环境,loss_rate
     buffer_size = db.Column(db.Integer, nullable=False)  # 标识运行的环境,buffer_size
+    delay = db.Column(db.Integer, nullable=False)  # 标识运行的环境,delay
     trace_name = db.Column(db.String(50), nullable=False)  # 标识运行的trace
     user_id = db.Column(db.String(36), nullable=False)
     task_status = db.Column(db.String(16), nullable=False)
@@ -124,6 +125,7 @@ class TaskModel(db.Model):
             'upload_id': self.upload_id,
             'loss_rate': self.loss_rate if not trace_block else "*",
             'buffer_size': self.buffer_size if not trace_block else "*",
+            'delay': self.delay if not trace_block else "*",
             'trace_name': self.trace_name,
             'task_status': self.task_status,
             'created_time': self.created_time.strftime("%Y-%m-%d %H:%M:%S"),

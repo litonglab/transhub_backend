@@ -103,20 +103,18 @@ def _run_contest(task, course_project_dir, sender_path, receiver_path, result_pa
     task_id = task.task_id
     program_script = "./run-contest.sh"
     task.update(task_status=TaskStatus.RUNNING.value)
-    # 该脚本接收五个参数，running_port loss_rate uplink_file downlink_file result_path
-    # running_port: 运行端口
-    # loss_rate: 丢包率
-    # uplink_file: 上行文件
-    # downlink_file: 下行文件
-    # result_path: 结果路径
+    # 该脚本接收9个参数，running_port uplink_file downlink_file result_path sender_path receiver_path loss_rate buffer_size delay
+    # 运行端口 上行文件 下行文件 结果路径 发送端路径 接收端路径 丢包率 缓冲区大小 时延
     _config = config.get_course_config(task.cname)
     loss_rate = task.loss_rate
+    buffer_size = task.buffer_size
+    delay = task.delay
     uplink_dir = _config['uplink_dir']
     downlink_dir = _config['downlink_dir']
     uplink_file = uplink_dir + "/" + task.trace_name + ".up"
     downlink_file = downlink_dir + "/" + task.trace_name + ".down"
     run_cmd(
-        f"cd {course_project_dir} && {program_script} {running_port} {loss_rate} {uplink_file} {downlink_file} {result_path} {sender_path} {receiver_path} {task.buffer_size}",
+        f"cd {course_project_dir} && {program_script} {running_port} {uplink_file} {downlink_file} {result_path} {sender_path} {receiver_path} {loss_rate} {buffer_size} {delay}",
         task_id)
     logger.info(f"[task: {task_id}] run-contest.sh completed successfully")
 
