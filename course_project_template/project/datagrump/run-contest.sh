@@ -1,6 +1,7 @@
 #!/bin/bash
 # run-contest.sh 专用于transhub后端，区分于原项目使用的 run-contest
 # 主要改变：增加了参数；在评测运行错误时exit1，以便更新任务状态为error，不计算分数；并保证脚本退出时关闭所有进程
+# 忽略sender的输出，避免输出用户代码里打印的过多信息
 
 if [ $# -ne 8 ]; then
     echo [$(date "+%Y-%m-%d %H:%M:%S")] "Usage: $0 running_port loss_rate uplink_file downlink_file result_path sender_path receiver_path buffer_size"
@@ -57,7 +58,8 @@ prefix=$(dirname $(which mm-link))
 tracedir="$prefix/../share/mahimahi/traces"
 
 # Construct the command
-command="mm-delay 20 mm-loss uplink $loss_rate mm-link $downlink_file $uplink_file --uplink-queue=droptail --uplink-queue-args=\\\"packets=$buffer_size\\\" --once --uplink-log=$result_path -- bash -c '$sender_path \$MAHIMAHI_BASE $running_port'"
+# Ignore the output of the sender command, redirect it to /dev/null
+command="mm-delay 20 mm-loss uplink $loss_rate mm-link $downlink_file $uplink_file --uplink-queue=droptail --uplink-queue-args=\\\"packets=$buffer_size\\\" --once --uplink-log=$result_path -- bash -c '$sender_path \$MAHIMAHI_BASE $running_port > /dev/null 2>&1'"
 
 # Run the command in background
 echo [$(date "+%Y-%m-%d %H:%M:%S")] "starting sender..."
