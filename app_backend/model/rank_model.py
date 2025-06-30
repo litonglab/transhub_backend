@@ -32,9 +32,14 @@ class RankModel(db.Model):
 
     def insert(self):
         logger.debug(f"Inserting new rank for user {self.username}")
-        db.session.add(self)
-        db.session.commit()
-        logger.info(f"Rank inserted successfully for user {self.username}")
+        try:
+            db.session.add(self)
+            db.session.commit()
+            logger.info(f"Rank inserted successfully for user {self.username}")
+        except Exception as e:
+            logger.error(f"Error inserting rank for user {self.username}: {str(e)}", exc_info=True)
+            db.session.rollback()
+            raise
 
     def to_dict(self):
         return {

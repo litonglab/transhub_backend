@@ -44,6 +44,7 @@ class UserModel(db.Model):
             logger.info(f"User saved successfully: {self.username}")
         except Exception as e:
             logger.error(f"Error saving user {self.username}: {str(e)}", exc_info=True)
+            db.session.rollback()
             raise
 
     def is_admin(self) -> bool:
@@ -134,6 +135,7 @@ class UserModel(db.Model):
             logger.info(f"Real name updated successfully for user {self.username}")
         except Exception as e:
             logger.error(f"Error updating real name for user {self.username}: {str(e)}", exc_info=True)
+            db.session.rollback()
             raise
 
     def participate_competition(self, cname) -> bool:
@@ -151,9 +153,14 @@ class UserModel(db.Model):
                 logger.info(f"Creating work directory: {user_dir}")
                 os.makedirs(user_dir)
             # 由于已经改为公共目录编译，不再需要生成用户目录下的编译目录，简化代码逻辑
-            com.save()
-            logger.info(f"User {self.username} successfully participated in competition {cname}")
-            return True
+            try:
+                com.save()
+                logger.info(f"User {self.username} successfully participated in competition {cname}")
+                return True
+            except Exception as e:
+                logger.error(f"Error participating in competition for user {self.username}: {str(e)}", exc_info=True)
+                db.session.rollback()
+                raise
 
     def lock(self):
         logger.debug(f"Locking user: {self.username}")
@@ -163,6 +170,7 @@ class UserModel(db.Model):
             logger.info(f"User {self.username} locked successfully")
         except Exception as e:
             logger.error(f"Error locking user {self.username}: {str(e)}", exc_info=True)
+            db.session.rollback()
             raise
 
     def unlock(self):
@@ -173,6 +181,7 @@ class UserModel(db.Model):
             logger.info(f"User {self.username} unlocked successfully")
         except Exception as e:
             logger.error(f"Error unlocking user {self.username}: {str(e)}", exc_info=True)
+            db.session.rollback()
             raise
 
     def reset_password(self, new_password="123456"):
@@ -185,6 +194,7 @@ class UserModel(db.Model):
             return True
         except Exception as e:
             logger.error(f"Error resetting password for user {self.username}: {str(e)}", exc_info=True)
+            db.session.rollback()
             raise
 
     def soft_delete(self):
@@ -200,18 +210,18 @@ class UserModel(db.Model):
             logger.info(f"User {self.username} soft deleted successfully")
         except Exception as e:
             logger.error(f"Error soft deleting user {self.username}: {str(e)}", exc_info=True)
+            db.session.rollback()
             raise
 
     def restore(self):
         """恢复被软删除的用户"""
         logger.debug(f"Restoring user: {self.username}")
-        
+
         # 检查是否已有同名的活跃用户
         existing_user = UserModel.query.filter_by(username=self.username, is_deleted=False).first()
         if existing_user and existing_user.user_id != self.user_id:
             logger.warning(f"Cannot restore user {self.username}: username already exists")
             raise ValueError(f"用户名 {self.username} 已被占用，无法恢复该用户")
-
         try:
             self.is_deleted = False
             self.deleted_at = None
@@ -221,6 +231,7 @@ class UserModel(db.Model):
             logger.info(f"User {self.username} restored successfully")
         except Exception as e:
             logger.error(f"Error restoring user {self.username}: {str(e)}", exc_info=True)
+            db.session.rollback()
             raise
 
     def get_id(self):

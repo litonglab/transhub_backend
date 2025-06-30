@@ -16,6 +16,12 @@ class CompetitionModel(db.Model):
 
     def save(self):
         logger.debug(f"Saving competition entry for user {self.user_id} in competition {self.cname}")
-        db.session.add(self)
-        db.session.commit()
-        logger.info(f"Competition entry saved successfully for user {self.user_id} in {self.cname}")
+        try:
+            db.session.add(self)
+            db.session.commit()
+            logger.info(f"Competition entry saved successfully for user {self.user_id} in {self.cname}")
+        except Exception as e:
+            logger.error(f"Error saving competition entry for user {self.user_id} in {self.cname}: {str(e)}",
+                         exc_info=True)
+            db.session.rollback()
+            raise

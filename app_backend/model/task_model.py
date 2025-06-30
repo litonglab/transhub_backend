@@ -83,9 +83,14 @@ class TaskModel(db.Model):
 
     def save(self):
         logger.debug(f"[task: {self.task_id}] Saving task for user {self.user_id}")
-        db.session.add(self)
-        db.session.commit()
-        logger.info(f"[task: {self.task_id}] Task saved successfully")
+        try:
+            db.session.add(self)
+            db.session.commit()
+            logger.info(f"[task: {self.task_id}] Task saved successfully")
+        except Exception as e:
+            logger.error(f"[task: {self.task_id}] Error saving task: {str(e)}", exc_info=True)
+            db.session.rollback()
+            raise
 
     def update(self, **kwargs):
         logger.debug(f"[task: {self.task_id}] Updating task with parameters: {kwargs}")
@@ -111,9 +116,14 @@ class TaskModel(db.Model):
 
     def delete(self):
         logger.info(f"[task: {self.task_id}] Deleting task")
-        db.session.delete(self)
-        db.session.commit()
-        logger.info(f"[task: {self.task_id}] Task deleted successfully")
+        try:
+            db.session.delete(self)
+            db.session.commit()
+            logger.info(f"[task: {self.task_id}] Task deleted successfully")
+        except Exception as e:
+            logger.error(f"[task: {self.task_id}] Error deleting task: {str(e)}", exc_info=True)
+            db.session.rollback()
+            raise
 
     def to_detail_dict(self, is_admin=False):
         status = TaskStatus(self.task_status)

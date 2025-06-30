@@ -28,6 +28,11 @@ class GraphModel(db.Model):
 
     def insert(self):
         logger.debug(f"Inserting new graph {self.graph_id} for task {self.task_id}")
-        db.session.add(self)
-        db.session.commit()
-        logger.info(f"Graph {self.graph_id} inserted successfully")
+        try:
+            db.session.add(self)
+            db.session.commit()
+            logger.info(f"Graph {self.graph_id} inserted successfully")
+        except Exception as e:
+            logger.error(f"Error inserting graph {self.graph_id}: {str(e)}", exc_info=True)
+            db.session.rollback()
+            raise
