@@ -537,8 +537,11 @@ def get_system_info():
                 'related_processes': related_processes,
                 'current_process': {
                     'current_pid': os.getpid(),
+                    'name': current_process.name(),
+                    'cmdline': ' '.join(current_process.cmdline()[:3]),  # 只显示前3个命令参数
                     'start_time': process_start_time.strftime('%Y-%m-%d %H:%M:%S'),
                     'uptime_formatted': str(process_uptime).split('.')[0],  # 去掉微秒显示
+
                 }
             },
             'config': {
