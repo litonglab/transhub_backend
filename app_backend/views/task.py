@@ -4,12 +4,11 @@ import uuid
 from datetime import datetime
 
 from flask import Blueprint
-from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
+from flask_jwt_extended import jwt_required, get_jwt, current_user
 
 from app_backend import get_default_config
 from app_backend.jobs.cctraining_job import enqueue_cc_task
 from app_backend.model.task_model import TaskModel, TaskStatus
-from app_backend.model.user_model import UserModel
 from app_backend.utils.utils import generate_random_string
 from app_backend.validators.decorators import validate_request, get_validated_data
 from app_backend.validators.schemas import FileUploadSchema
@@ -27,15 +26,31 @@ config = get_default_config()
 @jwt_required()
 @validate_request(FileUploadSchema)
 def upload_project_file():
-    user_id = get_jwt_identity()
+    user = current_user
     cname = get_jwt().get('cname')
-    logger.debug(f"File upload attempt for competition {cname} by user {user_id}")
+    logger.debug(f"File upload attempt for competition {cname} by user {user.user_id}")
 
     # 检查当前时间是否在比赛时间范围内
     if not config.is_now_in_competition(cname):
         logger.warning(
             f"Upload rejected: Outside competition period.")
         return HttpResponse.fail(f"比赛尚未开始或已截止，请在比赛时间内上传代码。")
+
+    # 查询用户当前课程处于运行中或者队列中的任务数量，同一个upload_id只算一次
+    running_or_queued_uploads = (
+        TaskModel.query.filter(
+            TaskModel.user_id == user.user_id,
+            TaskModel.cname == cname,
+            TaskModel.task_status.in_([TaskStatus.RUNNING.value, TaskStatus.QUEUED.value])
+        )
+        .with_entities(TaskModel.upload_id).distinct().count()
+    )
+    max_active_uploads_per_user = config.get_course_config(cname)['max_active_uploads_per_user']
+    if running_or_queued_uploads >= max_active_uploads_per_user:
+        logger.warning(
+            f"Upload rejected: User {user.user_id} has {running_or_queued_uploads} running or queued uploads, exceeds limit {max_active_uploads_per_user}.")
+        return HttpResponse.fail(
+            f"当前排队和运行中的提交数量已达到上限（{max_active_uploads_per_user}），请等待运行完成后再提交。")
 
     # 获取验证后的数据
     data = get_validated_data(FileUploadSchema)
@@ -45,12 +60,7 @@ def upload_project_file():
     filename = file.filename
     algorithm = filename.split('.')[0]
 
-    logger.info(f"Processing upload for user {user_id}, file: {filename}, algorithm: {algorithm}")
-
-    user = UserModel.query.get(user_id)
-    if not user:
-        logger.warning(f"Upload failed: User {user_id} not found")
-        return HttpResponse.not_found("用户不存在")
+    logger.info(f"Processing upload for user {user.user_id}, file: {filename}, algorithm: {algorithm}")
 
     now_str = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
     upload_dir_name = f"{now_str}_{generate_random_string(6)}"
@@ -72,11 +82,11 @@ def upload_project_file():
         for loss in trace_conf['loss_rate']:
             for buffer_size in trace_conf['buffer_size']:
                 task_id = str(uuid.uuid1())
-                task = TaskModel(task_id=task_id, user_id=user_id, task_status=TaskStatus.QUEUED.value, task_score=0,
-                                 created_time=now_str, cname=cname,
+                task = TaskModel(task_id=task_id, user_id=user.user_id, task_status=TaskStatus.QUEUED.value,
+                                 task_score=0, created_time=now_str, cname=cname,
                                  task_dir=os.path.join(temp_dir, f"{trace_name}_{loss}_{buffer_size}"),
-                                 algorithm=algorithm, trace_name=trace_name, upload_id=upload_id, loss_rate=loss,
-                                 buffer_size=buffer_size)
+                                 algorithm=algorithm, trace_name=trace_name, upload_id=upload_id,
+                                 loss_rate=loss, buffer_size=buffer_size)
 
                 # 保存任务到数据库
                 task.save()

@@ -16,6 +16,7 @@ class ExampleConfig(BaseConfig):
         ALL_CLASS = {
             "计算机系统基础II": {
                 "name": "pantheon-ics",
+                "max_active_uploads_per_user": 3,  # 每个用户最大可提交的数量，队列中和运行中的任务对应的upload超过此数量将无法上传
                 "allow_login": True,  # 是否允许登录
                 "start_time": "2025-01-01 00:00:00",  # 课程开始时间，只有在此时间内才能提交，登录不受限制
                 "end_time": "2025-01-01 21:00:00",  # 课程结束时间，超过此时间将无法提交
@@ -47,6 +48,7 @@ class ExampleConfig(BaseConfig):
             },
             "计算机网络": {
                 "name": "pantheon-network",
+                "max_active_uploads_per_user": 3,  # 每个用户最大可提交的数量，队列中和运行中的任务对应的upload超过此数量将无法上传
                 "allow_login": True,  # 是否允许登录
                 "start_time": "2024-01-01 00:00:00",  # 课程开始时间，只有在此时间内才能提交，登录不受限制
                 "end_time": "2025-01-01 21:00:00",  # 课程结束时间，超过此时间将无法提交

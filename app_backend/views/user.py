@@ -134,10 +134,9 @@ def change_password():
 @user_bp.route("/user_get_real_info", methods=["GET"])
 @jwt_required()
 def return_real_info():
-    user_id = get_jwt_identity()
-    logger.debug(f"Fetching real info for user_id={user_id}")
+    user = current_user
+    logger.debug(f"Fetching real info for user_id={user.user_id}")
 
-    user = UserModel.query.filter_by(user_id=user_id).first()
     real_info = {"cname": get_jwt().get('cname'),
                  "real_name": user.real_name,
                  "sno": user.sno}
