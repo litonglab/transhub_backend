@@ -550,7 +550,8 @@ def get_system_info():
                 'course_detail': config.Course.ALL_CLASS,
                 'log_level': config.Logging.LOG_LEVEL,
                 'debug': current_app.debug,
-                'env': os.getenv('APP_ENV', 'development')
+                'env': os.getenv('APP_ENV', 'development'),
+                'sender_max_window': config.App.SENDER_MAX_WINDOW_SIZE
             }
         }
     )

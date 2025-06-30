@@ -28,6 +28,7 @@ class BaseConfig:
         NAME = _get_env_variable('APP_NAME')
         BASEDIR = _get_env_variable('BASEDIR')
         USER_DIR_PATH = os.path.join(BASEDIR, "user_data")
+        SENDER_MAX_WINDOW_SIZE = int(_get_env_variable('SENDER_MAX_WINDOW_SIZE'))
 
     class Cache:
         """缓存配置"""

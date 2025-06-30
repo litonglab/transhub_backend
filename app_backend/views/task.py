@@ -83,7 +83,7 @@ def upload_project_file():
             for buffer_size in trace_conf['buffer_size']:
                 for delay in trace_conf['delay']:
                     task_id = str(uuid.uuid1())
-                    task = TaskModel(task_id=task_id, user_id=user_id, task_status=TaskStatus.QUEUED.value,
+                    task = TaskModel(task_id=task_id, user_id=user.user_id, task_status=TaskStatus.QUEUED.value,
                                      task_score=0,
                                      created_time=now_str, cname=cname,
                                      task_dir=os.path.join(temp_dir, f"{trace_name}_{loss}_{buffer_size}_{delay}"),
