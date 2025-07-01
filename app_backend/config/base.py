@@ -8,7 +8,7 @@ import time
 from typing import Dict, Any
 
 from app_backend.config import env_file
-from app_backend.security.admin_bypass import admin_bypass
+from app_backend.security.bypass_decorators import admin_bypass
 
 
 # 由于循环导入，此模块不允许使用logger

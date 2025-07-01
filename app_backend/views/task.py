@@ -9,7 +9,7 @@ from flask_jwt_extended import jwt_required, get_jwt, current_user
 from app_backend import get_default_config
 from app_backend.jobs.cctraining_job import enqueue_cc_task
 from app_backend.model.task_model import TaskModel, TaskStatus
-from app_backend.security.admin_bypass import admin_bypass
+from app_backend.security.bypass_decorators import admin_bypass
 from app_backend.utils.utils import generate_random_string
 from app_backend.validators.decorators import validate_request, get_validated_data
 from app_backend.validators.schemas import FileUploadSchema
