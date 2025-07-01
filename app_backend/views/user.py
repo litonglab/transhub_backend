@@ -45,7 +45,7 @@ def user_login():
     if user.is_admin():
         logger.info(f"Admin {username} logged in")
 
-    # 检查学生用户是否在课程（比赛）名单中
+    # 检查学生用户是否在课程（比赛）名单中，管理员可以绕过此检查
     _config = config.get_course_config(cname)
     class_student_list = _config['student_list']
     if len(class_student_list) > 0 and user.sno not in class_student_list and not user.is_admin():
