@@ -9,6 +9,7 @@ from flask_jwt_extended import jwt_required, get_jwt, current_user
 from app_backend import get_default_config
 from app_backend.jobs.cctraining_job import enqueue_cc_task
 from app_backend.model.task_model import TaskModel, TaskStatus
+from app_backend.security.admin_bypass_decorators import admin_bypass
 from app_backend.utils.utils import generate_random_string
 from app_backend.validators.decorators import validate_request, get_validated_data
 from app_backend.validators.schemas import FileUploadSchema
@@ -19,7 +20,25 @@ logger = logging.getLogger(__name__)
 config = get_default_config()
 
 
-# check_illegal 函数已移动到 FileUploadSchema.validate_file_content_safety 中
+@admin_bypass
+def _check_upload_not_exceeds_limit(user, cname, max_active_uploads_per_user):
+    """
+    检查用户当前课程处于运行中或者队列中的任务数量，同一个upload_id只算一次
+    如果没超过，返回True，表示可以继续上传，否则返回False
+    """
+    running_or_queued_uploads = (
+        TaskModel.query.filter(
+            TaskModel.user_id == user.user_id,
+            TaskModel.cname == cname,
+            TaskModel.task_status.in_([TaskStatus.RUNNING.value, TaskStatus.QUEUED.value])
+        )
+        .with_entities(TaskModel.upload_id).distinct().count()
+    )
+    if running_or_queued_uploads >= max_active_uploads_per_user:
+        logger.warning(
+            f"Upload rejected: User {user.user_id} has {running_or_queued_uploads} running or queued uploads, exceeds limit {max_active_uploads_per_user}.")
+        return False
+    return True
 
 
 @task_bp.route("/task_upload", methods=["POST"])
@@ -37,20 +56,10 @@ def upload_project_file():
         return HttpResponse.fail(f"比赛尚未开始或已截止，请在比赛时间内上传代码。")
 
     # 查询用户当前课程处于运行中或者队列中的任务数量，同一个upload_id只算一次
-    running_or_queued_uploads = (
-        TaskModel.query.filter(
-            TaskModel.user_id == user.user_id,
-            TaskModel.cname == cname,
-            TaskModel.task_status.in_([TaskStatus.RUNNING.value, TaskStatus.QUEUED.value])
-        )
-        .with_entities(TaskModel.upload_id).distinct().count()
-    )
     max_active_uploads_per_user = config.get_course_config(cname)['max_active_uploads_per_user']
-    if running_or_queued_uploads >= max_active_uploads_per_user:
-        logger.warning(
-            f"Upload rejected: User {user.user_id} has {running_or_queued_uploads} running or queued uploads, exceeds limit {max_active_uploads_per_user}.")
+    if not _check_upload_not_exceeds_limit(user, cname, max_active_uploads_per_user):
         return HttpResponse.fail(
-            f"当前排队和运行中的提交数量已达到上限（{max_active_uploads_per_user}），请等待运行完成后再提交。")
+            f"你在当前课程（比赛）{cname}中处于排队或运行状态的提交数量已达到上限（{max_active_uploads_per_user}），请等待运行完成后再提交。")
 
     # 获取验证后的数据
     data = get_validated_data(FileUploadSchema)

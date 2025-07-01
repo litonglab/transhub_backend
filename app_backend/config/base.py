@@ -131,6 +131,7 @@ class BaseConfig:
         config_dict['Cache']['FLASK_REDIS_URL'] = '******'
         return config_dict
 
+    @admin_bypass
     def is_now_in_competition(self, cname: str) -> bool:
         """检查当前时间是否在指定课程的比赛时间内"""
         _config = self.Course.ALL_CLASS[cname]

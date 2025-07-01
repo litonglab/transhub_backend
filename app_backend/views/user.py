@@ -30,22 +30,23 @@ def user_login():
     if not user or not user.check_password(password):
         logger.warning(f"Login failed: User not found or credentials invalid for username={username}")
         return HttpResponse.fail("用户名或密码错误，请检查后重新输入。")
-
     # 检查用户是否被删除
     if user.is_deleted:
         logger.warning(f"Login failed: User {username} is deleted")
         return HttpResponse.fail("账户已被删除，请联系管理员。")
-
     # 检查用户是否被锁定
     if user.is_locked:
         logger.warning(f"Login failed: User {username} is locked")
         return HttpResponse.fail("账户已被锁定，请联系管理员。")
-
     if user.is_admin():
         logger.info(f"Admin {username} logged in")
 
-    # 检查学生用户是否在课程（比赛）名单中，管理员可以绕过此检查
     _config = config.get_course_config(cname)
+    # 检查课程（比赛）是否已开放登录，管理员可以绕过此检查
+    if _config['allow_login'] is False and not user.is_admin():
+        logger.warning(f"Competition {cname} login not allowed")
+        return HttpResponse.fail("当前课程（比赛）暂未开放登录，请稍后再试。")
+    # 检查学生用户是否在课程（比赛）名单中，管理员可以绕过此检查
     class_student_list = _config['student_list']
     if len(class_student_list) > 0 and user.sno not in class_student_list and not user.is_admin():
         logger.warning(f"Login failed: Student {user.sno} not in class list for {cname}")

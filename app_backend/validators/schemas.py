@@ -114,10 +114,6 @@ class UserLoginSchema(BaseModel):
         if v not in config.Course.CNAME_LIST:
             logger.warning(f"Invalid competition name: {v}")
             raise ValueError(f'比赛名称必须是以下之一: {", ".join(config.Course.CNAME_LIST)}')
-        _config = config.get_course_config(v)
-        if _config['allow_login'] is False:
-            logger.warning(f"Competition {v} login not allowed")
-            raise ValueError(f'{v}：此课程（比赛）暂未开放登录')
         return v
 
 
