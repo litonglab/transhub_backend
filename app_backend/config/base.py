@@ -8,6 +8,7 @@ import time
 from typing import Dict, Any
 
 from app_backend.config import env_file
+from app_backend.security.admin_bypass_decorators import admin_bypass
 
 
 # 由于循环导入，此模块不允许使用logger
@@ -158,21 +159,17 @@ class BaseConfig:
         course_config = self.get_course_config(cname)
         return course_config["trace_files"]
 
-    def is_trace_blocked(self, cname: str, trace_name: str, is_admin: bool) -> bool:
-        """检查指定课程某个trace是否被屏蔽
-        
+    @admin_bypass
+    def is_trace_available(self, cname: str, trace_name: str) -> bool:
+        """检查指定课程某个trace是否可用，如果用户是管理员，则不屏蔽trace。
+
         Args:
             cname: 课程名称
             trace_name: trace名称
-            is_admin: 是否为管理员用户
         """
-        # 如果用户是管理员，则不屏蔽trace
-        if is_admin:
-            return False
-
         # 如果当前时间不在比赛时间内，则不屏蔽trace
         if not self.is_now_in_competition(cname):
-            return False
+            return True
 
         trace_conf = self.get_course_trace_config(cname, trace_name)
-        return trace_conf['block']
+        return not trace_conf['block']

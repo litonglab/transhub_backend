@@ -366,7 +366,7 @@ def get_tasks():
     # 构建任务列表
     task_list = []
     for task, user in results:
-        task_dict = task.to_detail_dict(current_user.is_admin())  # 传递当前用户（管理员）
+        task_dict = task.to_detail_dict()  # 传递当前用户（管理员）
         task_dict['username'] = user.username if user else 'Unknown'
         task_list.append(task_dict)
 

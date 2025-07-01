@@ -126,16 +126,16 @@ class TaskModel(db.Model):
             db.session.rollback()
             raise
 
-    def to_detail_dict(self, is_admin=False):
+    def to_detail_dict(self):
         status = TaskStatus(self.task_status)
-        trace_block = config.is_trace_blocked(self.cname, self.trace_name, is_admin)
+        trace_available = config.is_trace_available(self.cname, self.trace_name)
         res = {
             # 'user_id': self.user_id,
             'task_id': self.task_id,
             'upload_id': self.upload_id,
-            'loss_rate': self.loss_rate if not trace_block else "*",
-            'buffer_size': self.buffer_size if not trace_block else "*",
-            'delay': self.delay if not trace_block else "*",
+            'loss_rate': self.loss_rate if trace_available else "*",
+            'buffer_size': self.buffer_size if trace_available else "*",
+            'delay': self.delay if trace_available else "*",
             'trace_name': self.trace_name,
             'task_status': self.task_status,
             'created_time': self.created_time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -147,7 +147,7 @@ class TaskModel(db.Model):
 
         if status == TaskStatus.ERROR:
             block_msg = "This trace has been blocked, log cannot be queried.\n此Trace已被屏蔽，不可查询日志。\n\n排查指南：\n代码可能编译失败或存在运行时错误，可通过查询本次提交下的其他任务日志排查此问题。\n如仍有疑问，请联系管理员。"
-            res['log'] = block_msg if trace_block else self.error_log
+            res['log'] = self.error_log if trace_available else block_msg
         elif status == TaskStatus.COMPILED_FAILED:
             res['log'] = self.error_log
         return res
