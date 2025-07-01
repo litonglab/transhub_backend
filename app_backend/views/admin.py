@@ -68,6 +68,10 @@ def get_users():
 
     query = UserModel.query
 
+    # 新增：用户ID筛选
+    if data.user_id:
+        query = query.filter(UserModel.user_id == data.user_id)
+
     # 删除状态筛选
     if data.deleted is not None:
         query = query.filter(UserModel.is_deleted == data.deleted)
@@ -88,7 +92,7 @@ def get_users():
         query = query.filter(UserModel.role == data.role)
 
     # 课程报名筛选
-    if hasattr(data, 'cname') and data.cname:
+    if data.cname:
         # 通过JOIN查询筛选报名了指定课程的用户
         query = query.join(CompetitionModel, UserModel.user_id == CompetitionModel.user_id) \
             .filter(CompetitionModel.cname == data.cname)
@@ -319,6 +323,10 @@ def get_tasks():
     data = get_validated_data(AdminTaskListSchema)
     # 使用JOIN查询来支持用户名筛选和避免N+1查询问题
     query = db.session.query(TaskModel, UserModel).join(UserModel, TaskModel.user_id == UserModel.user_id)
+
+    # 新增：task_id筛选
+    if data.task_id:
+        query = query.filter(TaskModel.task_id == data.task_id)
 
     # 用户名筛选
     if data.username:

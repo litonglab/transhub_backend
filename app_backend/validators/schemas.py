@@ -379,6 +379,7 @@ class AdminUserListSchema(BaseModel):
     active: Optional[bool] = Field(default=None, description="活跃状态筛选")
     deleted: Optional[bool] = Field(default=None, description="删除状态筛选")
     cname: Optional[str] = Field(default=None, description="课程名称筛选，仅返回报名该课程的用户")
+    user_id: Optional[str] = Field(default=None, description="用户ID筛选")
 
     @field_validator('cname')
     def validate_cname(cls, v):
@@ -413,6 +414,7 @@ class AdminTaskListSchema(BaseModel):
     trace_file: Optional[str] = Field(default=None, description="trace文件名筛选")
     sort_by: Optional[str] = Field(default="created_time", description="排序字段: created_time, score")
     sort_order: Optional[str] = Field(default="desc", description="排序方向: asc, desc")
+    task_id: Optional[str] = Field(default=None, description="任务ID筛选")
 
     @field_validator('sort_by')
     def validate_sort_by(cls, v):
