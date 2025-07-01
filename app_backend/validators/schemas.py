@@ -304,7 +304,7 @@ class FileUploadSchema(BaseModel):
     def _validate_file_content_safety(cls, file):
         """
         验证文件内容安全性
-        检查是否包含危险函数调用
+        检查是否包含危险函数调用和标准错误输出
         """
         logger.debug("Starting file content safety validation")
         dangerous_functions = [
@@ -352,16 +352,34 @@ class FileUploadSchema(BaseModel):
 
             # 检查危险函数
             for func in dangerous_functions:
-                if re.search(rf'\b{func}\s*\(', code):
+                if re.search(rf'\b{re.escape(func)}\s*\(', code):
                     raise ValueError(f"文件包含危险函数调用: {func}")
+
+            # 检查标准错误输出
+            if re.search(r'\bfprintf\s*\(\s*stderr\s*,', code):
+                raise ValueError("文件包含标准错误输出: fprintf(stderr, ...)，请考虑使用标准输出（cout或printf）")
+            if re.search(r'\bperror\s*\(', code):
+                raise ValueError("文件包含标准错误输出: perror，请考虑使用标准输出（cout或printf）")
+            if re.search(r'\bcerr\b', code) or re.search(r'\bstd::cerr\b', code):
+                raise ValueError("文件包含标准错误输出: cerr 或 std::cerr，请考虑使用标准输出（cout或printf）")
+            if re.search(r'\bfputs\s*\(.*?,\s*stderr\s*\)', code):
+                raise ValueError("文件包含标准错误输出: fputs(stderr)，请考虑使用标准输出（cout或printf）")
+            if re.search(r'\bfputc\s*\(.*?,\s*stderr\s*\)', code):
+                raise ValueError("文件包含标准错误输出: fputc(stderr)，请考虑使用标准输出（cout或printf）")
+            if re.search(r'\bputc\s*\(.*?,\s*stderr\s*\)', code):
+                raise ValueError("文件包含标准错误输出: putc(stderr)，请考虑使用标准输出（cout或printf）")
+            if re.search(r'\bwrite\s*\(\s*2\s*,', code):
+                raise ValueError("文件包含标准错误输出: write(2, ...)，请考虑使用标准输出（cout或printf）")
+            if re.search(r'\bstd::clog\b', code):
+                raise ValueError("文件包含标准错误输出: std::clog，请考虑使用标准输出（cout或printf）")
 
         except UnicodeDecodeError:
             logger.warning("File content cannot be decoded, possibly not a valid text file")
             raise ValueError("文件内容无法解码，可能不是有效的文本文件")
         except Exception as e:
-            if "危险函数调用" in str(e):
-                logger.warning(f"Dangerous function call found in file: {str(e)}")
-                raise e  # 重新抛出危险函数错误
+            if "危险函数调用" in str(e) or "标准错误输出" in str(e):
+                logger.warning(f"Dangerous function or stderr output found in file: {str(e)}")
+                raise e  # 重新抛出
             logger.warning(f"File content check failed: {str(e)}")
             raise ValueError(f"文件内容检查失败: {str(e)}")
 

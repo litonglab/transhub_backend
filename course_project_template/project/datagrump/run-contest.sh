@@ -60,7 +60,7 @@ tracedir="$prefix/../share/mahimahi/traces"
 
 # Construct the command
 # Ignore the output of the sender command, redirect it to /dev/null
-command="mm-delay $delay mm-loss uplink $loss_rate mm-link $downlink_file $uplink_file --uplink-queue=droptail --uplink-queue-args=\\\"packets=$buffer_size\\\" --once --uplink-log=$result_path -- bash -c '$sender_path \$MAHIMAHI_BASE $running_port > /dev/null 2>&1'"
+command="mm-delay $delay mm-loss uplink $loss_rate mm-link $downlink_file $uplink_file --uplink-queue=droptail --uplink-queue-args=\\\"packets=$buffer_size\\\" --once --uplink-log=$result_path -- bash -c '$sender_path \$MAHIMAHI_BASE $running_port > /dev/null'"
 
 # Run the command in background
 echo [$(date "+%Y-%m-%d %H:%M:%S")] "starting sender..."
