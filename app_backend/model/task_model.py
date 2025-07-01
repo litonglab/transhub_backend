@@ -1,7 +1,9 @@
 import logging
+import uuid
 from enum import Enum
 
 from sqlalchemy.dialects.mysql import VARCHAR
+from sqlalchemy.sql.functions import func
 
 from app_backend import db, get_default_config
 
@@ -24,7 +26,7 @@ class TaskStatus(Enum):
     @property
     def priority(self):
         """获取状态优先级，数字越小优先级越高，用于to_history_dict()
-           状态优先级：compiled_failed > error > not_queued > compiled > compling > running > queued > finished
+           状态优先级：compiled_failed > error > not_queued > compiled > compiling > running > queued > finished
         """
         priority_map = {
             TaskStatus.COMPILED_FAILED: 0,
@@ -62,22 +64,26 @@ class TaskStatus(Enum):
 
 class TaskModel(db.Model):
     __tablename__ = 'task'
-    task_id = db.Column(db.String(36), primary_key=True)
+    task_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     upload_id = db.Column(db.String(36), nullable=False)  # 标识是哪次提交
     loss_rate = db.Column(db.Float, nullable=False)  # 标识运行的环境,loss_rate
     buffer_size = db.Column(db.Integer, nullable=False)  # 标识运行的环境,buffer_size
     delay = db.Column(db.Integer, nullable=False)  # 标识运行的环境,delay
     trace_name = db.Column(db.String(50), nullable=False)  # 标识运行的trace
-    user_id = db.Column(db.String(36), nullable=False)
+    user_id = db.Column(db.String(36), db.ForeignKey('student.user_id'), nullable=False)
     task_status = db.Column(db.String(16), nullable=False)
-    created_time = db.Column(db.DateTime, nullable=False)
+    created_time = db.Column(db.DateTime, nullable=False)  # actually, it's upload time.
     # running_port = db.Column(db.Integer)
     task_score = db.Column(db.Float)
-    cname = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)
+    cname = db.Column(VARCHAR(50, charset='utf8mb4'), db.ForeignKey('competition.cname'), nullable=False)
     # cname = db.Column(db.String(50))  # 任务类型，可以表示是哪个比赛的任务
     task_dir = db.Column(db.String(256))  # 任务的文件夹, 用于存放用户上传的文件
     algorithm = db.Column(db.String(50))  # 算法名称
     error_log = db.Column(VARCHAR(15000, charset='utf8mb4'), )  # 错误日志
+    created_at = db.Column(db.DateTime, default=func.now(), nullable=False)
+    updated_at = db.Column(db.DateTime, default=func.now(),
+                           onupdate=func.now(),
+                           nullable=False)
 
     def __repr__(self):
         return f'<Task {self.task_id}>'
@@ -142,6 +148,8 @@ class TaskModel(db.Model):
             'task_score': self.task_score,
             'cname': self.cname,
             'algorithm': self.algorithm,
+            'updated_at': self.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
+            'created_at': self.created_at.strftime("%Y-%m-%d %H:%M:%S"),
             'log': "No log available for this status, only error tasks have logs.\n当前状态不可查询，只有错误状态的任务才可查询日志。",
         }
 
@@ -154,7 +162,7 @@ class TaskModel(db.Model):
 
 
 def to_history_dict(tasks: list):
-    # 将tasks按upload_id聚合，score求和。状态优先级：error > not_queued > compling > queued > running > finished
+    # 将tasks按upload_id聚合，score求和。状态优先级：error > not_queued > compiling > queued > running > finished
     upload_id_dict = {}
 
     for task in tasks:
@@ -165,7 +173,9 @@ def to_history_dict(tasks: list):
                 "created_time": task.created_time,
                 "status": task.task_status,
                 "score": task.task_score,
-                "upload_id": task.upload_id
+                "upload_id": task.upload_id,
+                'updated_at': task.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
+                'created_at': task.created_at.strftime("%Y-%m-%d %H:%M:%S"),
             }
         else:
             task_status = TaskStatus(task.task_status)
@@ -177,14 +187,17 @@ def to_history_dict(tasks: list):
                 # 如果是error或not_queued或compiled_failed状态，score设为0
                 if task_status == TaskStatus.ERROR or task_status == TaskStatus.NOT_QUEUED or task_status == TaskStatus.COMPILED_FAILED:
                     upload_id_dict[task.upload_id]['score'] = 0
+                    upload_id_dict[task.upload_id]['updated_at'] = task.updated_at.strftime("%Y-%m-%d %H:%M:%S")
                 # 如果是finished状态，累加score
                 elif task_status == TaskStatus.FINISHED:
                     upload_id_dict[task.upload_id]['score'] += task.task_score
+                    upload_id_dict[task.upload_id]['updated_at'] = task.updated_at.strftime("%Y-%m-%d %H:%M:%S")
             # 如果当前状态优先级更高，保持当前状态
             elif task_status.priority > current_status.priority:
                 continue
             # 如果优先级相同，且是finished状态，累加score
             elif task_status == TaskStatus.FINISHED:
                 upload_id_dict[task.upload_id]['score'] += task.task_score
+                upload_id_dict[task.upload_id]['updated_at'] = task.updated_at.strftime("%Y-%m-%d %H:%M:%S")
 
     return list(upload_id_dict.values())

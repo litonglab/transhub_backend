@@ -1,8 +1,10 @@
 import logging
 import os
+import uuid
 from enum import Enum
 
 from sqlalchemy.dialects.mysql import VARCHAR
+from sqlalchemy.sql.functions import func
 
 from app_backend import db, get_default_config
 from app_backend.model.competition_model import CompetitionModel
@@ -20,7 +22,7 @@ class UserRole(Enum):
 
 class UserModel(db.Model):
     __tablename__ = 'student'
-    user_id = db.Column(db.String(36), primary_key=True)
+    user_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     # username = db.Column(db.String(30), nullable=False)
     username = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)
     password = db.Column(db.String(64), nullable=False)
@@ -35,6 +37,8 @@ class UserModel(db.Model):
     is_deleted = db.Column(db.Boolean, nullable=False, default=False)
     # 删除时间字段
     deleted_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=func.now(), nullable=False)
+    updated_at = db.Column(db.DateTime, default=func.now(), onupdate=func.now(), nullable=False)
 
     def save(self):
         logger.debug(f"Saving user: {self.username}")
@@ -65,7 +69,9 @@ class UserModel(db.Model):
             'role': self.role,
             'is_locked': self.is_locked,
             'is_deleted': self.is_deleted,
-            'deleted_at': self.deleted_at.isoformat() if self.deleted_at else None
+            'deleted_at': self.deleted_at.strftime("%Y-%m-%d %H:%M:%S") if self.deleted_at else None,
+            'created_at': self.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+            'updated_at': self.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
         }
 
     def is_active(self) -> bool:

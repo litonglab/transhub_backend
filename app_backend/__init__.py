@@ -289,7 +289,6 @@ def _create_super_admin(app):
     else:
         # 创建新的超级管理员
         super_admin = UserModel(
-            user_id=str(uuid.uuid4()),
             username=admin_username,
             password=admin_password,
             real_name=admin_real_name,

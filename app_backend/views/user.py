@@ -1,5 +1,4 @@
 import logging
-import uuid
 
 from flask import Blueprint
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt, current_user
@@ -99,11 +98,9 @@ def user_register():
             logger.warning(f"Registration failed: Username {username} already exists")
             return HttpResponse.fail("此用户名或学号已被注册，请更换用户名或学号。")
         else:
-            user_id = str(uuid.uuid1())
-            user.user_id = user_id
             user.save()
-            logger.info(f"User {username} successfully registered with ID {user_id}")
-            return HttpResponse.ok("注册成功", user_id=user_id)
+            logger.info(f"User {username} successfully registered with ID {user.user_id}")
+            return HttpResponse.ok("注册成功", user_id=user.user_id)
     except Exception as e:
         logger.error(f"Registration error: {str(e)}", exc_info=True)
         return HttpResponse.internal_error()

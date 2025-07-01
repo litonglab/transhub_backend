@@ -1,6 +1,8 @@
 import logging
+import uuid
 
 from sqlalchemy.dialects.mysql import VARCHAR
+from sqlalchemy.sql.functions import func
 
 from app_backend import db
 
@@ -9,13 +11,18 @@ logger = logging.getLogger(__name__)
 
 class RankModel(db.Model):
     __tablename__ = 'rank'
-    upload_id = db.Column(db.String(36), primary_key=False)  # their newest upload's upload_id
-    user_id = db.Column(db.String(36), primary_key=True)
+    upload_id = db.Column(db.String(36))  # their newest upload's upload_id
+    user_id = db.Column(db.String(36), db.ForeignKey('student.user_id'), primary_key=True,
+                        default=lambda: str(uuid.uuid4()))
     task_score = db.Column(db.Float, nullable=False)
     algorithm = db.Column(db.String(50), nullable=False)
     upload_time = db.Column(db.DateTime, nullable=False)
-    cname = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)
+    cname = db.Column(VARCHAR(50, charset='utf8mb4'), db.ForeignKey('competition.cname'), nullable=False,
+                      primary_key=True)
     username = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)
+    created_at = db.Column(db.DateTime, default=func.now(), nullable=False)
+    updated_at = db.Column(db.DateTime, default=func.now(), onupdate=func.now(),
+                           nullable=False)
 
     def update(self, **kwargs):
         logger.debug(f"Updating rank for user {self.username} with parameters: {kwargs}")
@@ -47,5 +54,7 @@ class RankModel(db.Model):
             'username': self.username,
             'task_score': self.task_score,
             'algorithm': self.algorithm,
-            'upload_time': self.upload_time
+            'upload_time': self.upload_time,
+            'created_at': self.created_at,
+            'updated_at': self.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
         }

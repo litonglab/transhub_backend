@@ -3,7 +3,6 @@ import os
 import shutil
 import signal
 import subprocess
-import uuid
 
 import cairosvg
 import dramatiq
@@ -179,12 +178,9 @@ def _graph(task, result_path):
     os.remove(delay_graph_svg)
     logger.info(f"[task: {task_id}] Converted delay graph SVG to PNG, svg removed.")
     logger.info(f"[task: {task_id}] Graphs generated successfully: {throughput_graph_svg}, {delay_graph_png}")
-    # 保存图到数据库
-    graph_id1 = uuid.uuid4().hex
-    graph_id2 = uuid.uuid4().hex
-    GraphModel(task_id=task_id, graph_id=str(graph_id1), graph_type='throughput',
+    GraphModel(task_id=task_id, graph_type='throughput',
                graph_path=throughput_graph_svg).insert()
-    GraphModel(task_id=task_id, graph_id=str(graph_id2), graph_type='delay',
+    GraphModel(task_id=task_id, graph_type='delay',
                graph_path=delay_graph_png).insert()
     logger.info(f"[task: {task_id}] is generating graphs successfully")
 
