@@ -12,7 +12,7 @@ config = get_default_config()
 class TaskStatus(Enum):
     """任务状态枚举类，注意需要新添加状态时，需要更新状态优先级及状态转换等内容"""
     QUEUED = 'queued'  # 任务已入队
-    COMPILING = 'compling'  # 正在编译
+    COMPILING = 'compiling'  # 正在编译
     COMPILED = 'compiled'  # 编译完成
     COMPILED_FAILED = 'compile_failed'  # 编译失败
     RUNNING = 'running'  # 正在运行
