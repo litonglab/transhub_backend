@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import os
 import uuid
@@ -25,7 +26,7 @@ class UserModel(db.Model):
     user_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     # username = db.Column(db.String(30), nullable=False)
     username = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)
-    password = db.Column(db.String(64), nullable=False)
+    password = db.Column(db.String(128), nullable=False)  # 增加长度以适应加密
     # real_name = db.Column(db.String(50), nullable=False)
     real_name = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)
     sno = db.Column(db.String(20), nullable=False)
@@ -39,6 +40,12 @@ class UserModel(db.Model):
     deleted_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=func.now(), nullable=False)
     updated_at = db.Column(db.DateTime, default=func.now(), onupdate=func.now(), nullable=False)
+
+    def set_password(self, raw_password):
+        self.password = hashlib.sha256(raw_password.encode('utf-8')).hexdigest()
+
+    def check_password(self, raw_password):
+        return self.password == hashlib.sha256(raw_password.encode('utf-8')).hexdigest()
 
     def save(self):
         logger.debug(f"Saving user: {self.username}")
@@ -191,10 +198,10 @@ class UserModel(db.Model):
             raise
 
     def reset_password(self, new_password="123456"):
-        """重置用户密码"""
+        """重置用户密码（加密存储）"""
         logger.debug(f"Resetting password for user: {self.username}")
         try:
-            self.password = new_password
+            self.set_password(new_password)
             db.session.commit()
             logger.info(f"Password reset successfully for user {self.username}")
             return True

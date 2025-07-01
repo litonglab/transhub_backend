@@ -235,7 +235,7 @@ def reset_user_password():
             f"User reset password failed: User {current_user.username} tried to reset their own password")
         return HttpResponse.fail("不能重置自己的密码，请使用修改密码功能")
 
-    # 重置密码
+    # 重置密码（加密存储）
     target_user.reset_password(data.new_password)
     logger.info(f"Admin {current_user.username} reset password for user {target_user.username}")
     return HttpResponse.ok(f"用户 {target_user.username} 的密码已重置为 {data.new_password}")

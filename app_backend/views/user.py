@@ -26,8 +26,8 @@ def user_login():
 
     logger.debug(f"User login attempt: username={username}, cname={cname}")
 
-    user = UserModel.query.filter_by(username=username, password=password).first()
-    if not user:
+    user = UserModel.query.filter_by(username=username).first()
+    if not user or not user.check_password(password):
         logger.warning(f"Login failed: User not found or credentials invalid for username={username}")
         return HttpResponse.fail("用户名或密码错误，请检查后重新输入。")
 
@@ -93,7 +93,8 @@ def user_register():
         logger.debug(f"Registration attempt for user: username={username}, real_name={real_name}, sno={sno}")
 
         # 检测username，sno是否已经存在
-        user = UserModel(username=username, password=password, real_name=real_name, sno=sno)
+        user = UserModel(username=username, real_name=real_name, sno=sno)
+        user.set_password(password)
         if user.is_exist():
             logger.warning(f"Registration failed: Username {username} already exists")
             return HttpResponse.fail("此用户名或学号已被注册，请更换用户名或学号。")
@@ -117,12 +118,12 @@ def change_password():
 
     logger.debug(f"Password change attempt for user_id={user_id}")
 
-    user = UserModel.query.filter_by(user_id=user_id, password=old_pwd).first()
-    if not user:
+    user = UserModel.query.filter_by(user_id=user_id).first()
+    if not user or not user.check_password(old_pwd):
         logger.warning(f"Password change failed: Invalid old password for user_id={user_id}")
         return HttpResponse.fail("旧密码错误，请检查后重新输入。")
 
-    user.password = new_pwd
+    user.set_password(new_pwd)
     user.save()
     logger.info(f"Password successfully changed for user_id={user_id}")
     return HttpResponse.ok("修改密码成功")
