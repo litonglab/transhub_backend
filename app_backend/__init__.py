@@ -289,12 +289,11 @@ def _create_super_admin(app):
         # 创建新的超级管理员
         super_admin = UserModel(
             username=admin_username,
-            password=admin_password,
             real_name=admin_real_name,
             sno="SuperAdmin",
             role=UserRole.SUPER_ADMIN.value,
         )
-
+        super_admin.set_password(admin_password)
         super_admin.save()
         logger.info(f'Super admin {admin_username} created successfully')
 

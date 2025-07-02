@@ -1,7 +1,7 @@
 import logging
 
 from flask import Blueprint
-from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt, current_user
+from flask_jwt_extended import jwt_required, get_jwt, current_user
 
 from app_backend import get_default_config
 from app_backend.model.competition_model import CompetitionModel
@@ -102,7 +102,7 @@ def user_register():
         else:
             user.save()
             logger.info(f"User {username} successfully registered with ID {user.user_id}")
-            return HttpResponse.ok("注册成功", user_id=user.user_id)
+            return HttpResponse.ok("注册成功")
     except Exception as e:
         logger.error(f"Registration error: {str(e)}", exc_info=True)
         return HttpResponse.internal_error()
@@ -113,20 +113,19 @@ def user_register():
 @validate_request(ChangePasswordSchema)
 def change_password():
     data = get_validated_data(ChangePasswordSchema)
-    user_id = get_jwt_identity()  # 用户id
+    user = current_user
     old_pwd = data.old_pwd
     new_pwd = data.new_pwd
 
-    logger.debug(f"Password change attempt for user_id={user_id}")
+    logger.debug(f"Password change attempt for username={user.username}")
 
-    user = UserModel.query.filter_by(user_id=user_id).first()
     if not user or not user.check_password(old_pwd):
-        logger.warning(f"Password change failed: Invalid old password for user_id={user_id}")
+        logger.warning(f"Password change failed: Invalid old password for username={user.username}")
         return HttpResponse.fail("旧密码错误，请检查后重新输入。")
 
     user.set_password(new_pwd)
     user.save()
-    logger.info(f"Password successfully changed for user_id={user_id}")
+    logger.info(f"Password successfully changed for username={user.username}")
     return HttpResponse.ok("修改密码成功")
 
 
@@ -134,7 +133,7 @@ def change_password():
 @jwt_required()
 def return_real_info():
     user = current_user
-    logger.debug(f"Fetching real info for user_id={user.user_id}")
+    logger.debug(f"Fetching real info for username={user.username}")
 
     real_info = {"cname": get_jwt().get('cname'),
                  "real_name": user.real_name,
@@ -145,8 +144,8 @@ def return_real_info():
 @user_bp.route("/user_check_login", methods=["GET"])
 @jwt_required()
 def check_login():
-    user_id = get_jwt_identity()
-    logger.debug(f"Login check for user_id={user_id}")
+    user = current_user
+    logger.debug(f"Login check for username={user.username}")
     return HttpResponse.ok()
 
 
@@ -154,13 +153,11 @@ def check_login():
 @jwt_required()
 @validate_request(UserChangeRealInfoSchema)
 def change_real_info():
-    user_id = get_jwt_identity()
+    user = current_user
     data = get_validated_data(UserChangeRealInfoSchema)
     real_name = data.real_name
 
-    logger.info(f"Updating real info for user_id={user_id}, new real_name={real_name}")
-
-    user = current_user
+    logger.info(f"Updating real info for username={user.username}, new real_name={real_name}")
     user.update_real_info(real_name)
-    logger.info(f"Successfully updated real info for user_id={user_id}")
+    logger.info(f"Successfully updated real info for username={user.username}")
     return HttpResponse.ok("修改个人信息成功")

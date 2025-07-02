@@ -1,7 +1,7 @@
 import logging
 import uuid
 
-from sqlalchemy import func
+from sqlalchemy import func, text
 
 from app_backend import db
 
@@ -10,13 +10,18 @@ logger = logging.getLogger(__name__)
 
 class GraphModel(db.Model):
     __tablename__ = 'graph'
-    task_id = db.Column(db.String(36), db.ForeignKey('task.task_id'), primary_key=False)
-    # user_id = db.Column(db.String(36), primary_key=False)
     graph_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    graph_type = db.Column(db.String(20))  # throughput, delay
-    graph_path = db.Column(db.String(255))
-    created_at = db.Column(db.DateTime, default=func.now(), nullable=False)
-    updated_at = db.Column(db.DateTime, default=func.now(), onupdate=func.now(), nullable=False)
+    task_id = db.Column(db.String(36), db.ForeignKey('task.task_id'))
+    # user_id = db.Column(db.String(36), primary_key=False)
+    graph_type = db.Column(db.String(20), nullable=False)  # throughput, delay
+    graph_path = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, server_default=func.now(), nullable=False)
+    updated_at = db.Column(
+        db.DateTime,
+        server_default=func.now(),
+        server_onupdate=func.now(),
+        nullable=False
+    )
 
     def update(self, **kwargs):
         logger.debug(f"Updating graph {self.graph_id} for task {self.task_id} with parameters: {kwargs}")

@@ -2,7 +2,7 @@ import logging
 import os
 
 from flask import Blueprint
-from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt, current_user
+from flask_jwt_extended import jwt_required, get_jwt, current_user
 
 from app_backend import get_default_config
 from app_backend.model.graph_model import GraphModel
@@ -23,7 +23,7 @@ def get_graph():
     data = get_validated_data(GraphSchema)
     task_id = data.task_id
     graph_type = data.graph_type
-    user_id = get_jwt_identity()
+    user = current_user
     cname = get_jwt().get('cname')
 
     # 管理员可查询所有课程的图
@@ -32,7 +32,7 @@ def get_graph():
         task = TaskModel.query.filter_by(task_id=task_id).first()
     # 普通用户保证只能查询当前课程（比赛）的图
     else:
-        logger.debug(f"User {user_id} requesting graph for task {task_id}, type {graph_type}")
+        logger.debug(f"User {user.username} requesting graph for task {task_id}, type {graph_type}")
         task = TaskModel.query.filter_by(task_id=task_id, cname=cname).first()
 
     if not task:
@@ -40,11 +40,11 @@ def get_graph():
         return HttpResponse.not_found("任务不存在")
     # 判断性能图是否被屏蔽
     if not config.is_trace_available(cname, task.trace_name):
-        logger.warning(f"Graph request blocked for task {task_id}, type {graph_type} by user {user_id}")
+        logger.warning(f"Graph request blocked for task {task_id}, type {graph_type} by user {user.username}")
         return HttpResponse.fail("此性能图已被屏蔽，比赛结束后可查看")
 
     # 性能图所有用户都可查询，无需验证user_id
-    logger.debug(f"Graph request for task {task_id}, type {graph_type} by user {user_id}")
+    logger.debug(f"Graph request for task {task_id}, type {graph_type} by user {user.username}")
     graph = GraphModel.query.filter_by(task_id=task_id, graph_type=graph_type).first()
     if not graph or not os.path.exists(graph.graph_path):
         logger.warning(

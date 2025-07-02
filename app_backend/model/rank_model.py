@@ -1,8 +1,8 @@
 import logging
 import uuid
 
+from sqlalchemy import func
 from sqlalchemy.dialects.mysql import VARCHAR
-from sqlalchemy.sql.functions import func
 
 from app_backend import db
 
@@ -11,18 +11,23 @@ logger = logging.getLogger(__name__)
 
 class RankModel(db.Model):
     __tablename__ = 'rank'
-    upload_id = db.Column(db.String(36))  # their newest upload's upload_id
-    user_id = db.Column(db.String(36), db.ForeignKey('student.user_id'), primary_key=True,
+    rank_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    upload_id = db.Column(db.String(36), nullable=False)  # their newest upload's upload_id, 后续upload应单独建表
+    user_id = db.Column(db.String(36), db.ForeignKey('student.user_id'),
                         default=lambda: str(uuid.uuid4()))
     task_score = db.Column(db.Float, nullable=False)
     algorithm = db.Column(db.String(50), nullable=False)
     upload_time = db.Column(db.DateTime, nullable=False)
-    cname = db.Column(VARCHAR(50, charset='utf8mb4'), db.ForeignKey('competition.cname'), nullable=False,
-                      primary_key=True)
+    cname = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)  # 后续修改相关查询逻辑后可删除
+    competition_id = db.Column(db.Integer, db.ForeignKey('competition.id'), nullable=False)
     username = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)
-    created_at = db.Column(db.DateTime, default=func.now(), nullable=False)
-    updated_at = db.Column(db.DateTime, default=func.now(), onupdate=func.now(),
-                           nullable=False)
+    created_at = db.Column(db.DateTime, server_default=func.now(), nullable=False)
+    updated_at = db.Column(
+        db.DateTime,
+        server_default=func.now(),
+        server_onupdate=func.now(),
+        nullable=False
+    )
 
     def update(self, **kwargs):
         logger.debug(f"Updating rank for user {self.username} with parameters: {kwargs}")

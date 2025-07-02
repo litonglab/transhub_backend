@@ -4,8 +4,8 @@ import os
 import uuid
 from enum import Enum
 
+from sqlalchemy import func, text
 from sqlalchemy.dialects.mysql import VARCHAR
-from sqlalchemy.sql.functions import func
 
 from app_backend import db, get_default_config
 from app_backend.model.competition_model import CompetitionModel
@@ -31,15 +31,13 @@ class UserModel(db.Model):
     real_name = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)
     sno = db.Column(db.String(20), nullable=False)
     # 角色字段
-    role = db.Column(db.String(20), nullable=False, default=UserRole.STUDENT.value)
+    role = db.Column(db.String(20), nullable=False, server_default=text(f"'{UserRole.STUDENT.value}'"))
     # 锁定状态字段
-    is_locked = db.Column(db.Boolean, nullable=False, default=False)
+    is_locked = db.Column(db.Boolean, nullable=False, server_default=text("0"))
     # 软删除字段
-    is_deleted = db.Column(db.Boolean, nullable=False, default=False)
-    # 删除时间字段
-    deleted_at = db.Column(db.DateTime, nullable=True)
-    created_at = db.Column(db.DateTime, default=func.now(), nullable=False)
-    updated_at = db.Column(db.DateTime, default=func.now(), onupdate=func.now(), nullable=False)
+    is_deleted = db.Column(db.Boolean, nullable=False, server_default=text("0"))
+    created_at = db.Column(db.DateTime, server_default=func.now(), nullable=False)
+    updated_at = db.Column(db.DateTime, server_default=func.now(), server_onupdate=func.now(), nullable=False)
 
     def set_password(self, raw_password):
         self.password = hashlib.sha256(raw_password.encode('utf-8')).hexdigest()

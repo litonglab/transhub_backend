@@ -93,6 +93,6 @@ def init_auth(app):
 
         except Exception as e:
             logger.error(f"Error loading user from JWT: {e}")
-            raise NoAuthorizationError("用户验证失败，用户可能已被删除或账户已被锁定")
+            raise NoAuthorizationError("用户验证失败，账户可能已被删除或锁定")
 
     logger.info("JWT authentication initialization completed")

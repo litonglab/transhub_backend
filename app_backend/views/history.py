@@ -1,7 +1,7 @@
 import logging
 
 from flask import Blueprint
-from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt, current_user
+from flask_jwt_extended import jwt_required, get_jwt, current_user
 
 from app_backend.model.task_model import TaskModel, to_history_dict
 from app_backend.validators.decorators import validate_request, get_validated_data
@@ -15,13 +15,13 @@ logger = logging.getLogger(__name__)
 @history_bp.route("/history_get_history_records", methods=["GET"])
 @jwt_required()
 def return_history_records():
-    user_id = get_jwt_identity()
+    user = current_user
     cname = get_jwt().get('cname')
-    logger.debug(f"History records request for user {user_id} in competition {cname}")
+    logger.debug(f"History records request for user {user.username} in competition {cname}")
 
-    history_records = TaskModel.query.filter_by(user_id=user_id, cname=cname).all()
+    history_records = TaskModel.query.filter_by(user_id=user.user_id, cname=cname).all()
     records = to_history_dict(history_records)
-    logger.info(f"Found {len(records)} history records for user {user_id}")
+    logger.info(f"Found {len(records)} history records for user {user.username}")
     return HttpResponse.ok(history=records)
 
 
