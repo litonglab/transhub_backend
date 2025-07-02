@@ -446,7 +446,13 @@ class AdminTaskListSchema(BaseModel):
 class AdminPasswordResetSchema(BaseModel):
     """管理员重置用户密码参数"""
     user_id: str = Field(..., description="用户ID")
-    new_password: str = Field(default="123456", description="新密码，默认为123456")
+    new_password: str = Field(default="123456", min_length=FieldRules.PASSWORD_MIN_LEN,
+                              max_length=FieldRules.PASSWORD_MAX_LEN,
+                              description="新密码，默认为123456")
+
+    @field_validator('new_password')
+    def validate_new_password(cls, v):
+        return CommonValidators.validate_password(v)
 
 
 class AdminUserDeleteSchema(BaseModel):
