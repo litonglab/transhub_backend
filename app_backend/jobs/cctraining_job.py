@@ -214,7 +214,7 @@ def _update_rank(task, user):
         # 计算所有任务的总分
         total_upload_score = sum(t.task_score for t in all_tasks if t.task_score is not None)
         # 获取用户当前课程的榜单记录
-        rank_record = RankModel.query.filter_by(user_id=task.user_id, cname=task.cname).first()
+        rank_record = RankModel.query.get(task.competition_id)
         if rank_record:
             # 如果已有记录，检查是否需要更新
             # if rank_record.upload_time < task.created_time:
@@ -228,16 +228,17 @@ def _update_rank(task, user):
                     upload_time=task.created_time
                 )
                 logger.info(
-                    f"[task: {task_id}] Updated rank record with higher score: {total_upload_score} (previous: {rank_record.task_score})")
+                    f"[task: {task_id}] Updated rank record with higher score: {total_upload_score} (previous: {rank_record.task_score}), user: {user.username}, competition_id: {task.competition_id}")
             else:
                 # 当前分数更低，不更新记录
                 logger.warning(
-                    f"[task: {task_id}] Skipping rank update as current score {total_upload_score} is lower than existing score {rank_record.task_score}")
+                    f"[task: {task_id}] Skipping rank update as current score {total_upload_score} is lower than existing score {rank_record.task_score}, user: {user.username}, competition_id: {task.competition_id}")
         else:
             # 没有记录，创建新记录
             RankModel(
                 user_id=task.user_id,
                 upload_id=upload_id,
+                competition_id=task.competition_id,
                 task_score=total_upload_score,
                 algorithm=task.algorithm,
                 upload_time=task.created_time,
@@ -245,9 +246,10 @@ def _update_rank(task, user):
                 username=user.username
             ).insert()
             logger.info(
-                f"[task: {task_id}] Created new rank record for user: {user.username}, score: {total_upload_score}")
+                f"[task: {task_id}] Created new rank record for user: {user.username}, score: {total_upload_score}, competition_id: {task.competition_id}")
 
-        logger.info(f"[task: {task_id}] Rank update completed for upload_id: {upload_id}")
+        logger.info(
+            f"[task: {task_id}] Rank update completed for upload_id: {upload_id}, user: {user.username}, competition_id: {task.competition_id}")
         return True
 
 

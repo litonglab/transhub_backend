@@ -22,12 +22,8 @@ class RankModel(db.Model):
     competition_id = db.Column(db.Integer, db.ForeignKey('competition.id'), nullable=False)
     username = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)
     created_at = db.Column(db.DateTime, server_default=func.now(), nullable=False)
-    updated_at = db.Column(
-        db.DateTime,
-        server_default=func.now(),
-        server_onupdate=func.now(),
-        nullable=False
-    )
+    updated_at = db.Column(db.DateTime, server_default=func.now(),
+                           onupdate=func.now(), nullable=False)
 
     def update(self, **kwargs):
         logger.debug(f"Updating rank for user {self.username} with parameters: {kwargs}")

@@ -8,6 +8,7 @@ from flask_jwt_extended import jwt_required, get_jwt, current_user
 
 from app_backend import get_default_config
 from app_backend.jobs.cctraining_job import enqueue_cc_task
+from app_backend.model.competition_model import CompetitionModel
 from app_backend.model.task_model import TaskModel, TaskStatus
 from app_backend.security.bypass_decorators import admin_bypass
 from app_backend.utils.utils import generate_random_string
@@ -83,8 +84,11 @@ def upload_project_file():
     trace_files = config.get_course_trace_files(cname)
     enqueue_results = []  # 收集所有入队结果
     failed_tasks = []  # 记录失败的任务
+    competition_id = (CompetitionModel.query.filter_by(cname=cname, user_id=user.user_id)
+                      .first().id)
 
-    logger.info(f"Starting task creation for upload {upload_id}")
+    logger.info(
+        f"Starting task creation for upload {upload_id}, user {user.username}, cname {cname}, competition_id {competition_id}")
 
     for trace_name in trace_files:
         trace_conf = config.get_course_trace_config(cname, trace_name)
@@ -92,7 +96,7 @@ def upload_project_file():
             for buffer_size in trace_conf['buffer_size']:
                 for delay in trace_conf['delay']:
                     task = TaskModel(user_id=user.user_id, task_status=TaskStatus.QUEUED.value,
-                                     task_score=0, created_time=now_str, cname=cname,
+                                     task_score=0, created_time=now_str, cname=cname, competition_id=competition_id,
                                      task_dir=os.path.join(temp_dir, f"{trace_name}_{loss}_{buffer_size}_{delay}"),
                                      algorithm=algorithm, trace_name=trace_name, upload_id=upload_id,
                                      loss_rate=loss, buffer_size=buffer_size, delay=delay)

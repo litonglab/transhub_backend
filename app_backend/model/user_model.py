@@ -24,20 +24,16 @@ class UserRole(Enum):
 class UserModel(db.Model):
     __tablename__ = 'student'
     user_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    # username = db.Column(db.String(30), nullable=False)
     username = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)
     password = db.Column(db.String(128), nullable=False)  # 增加长度以适应加密
-    # real_name = db.Column(db.String(50), nullable=False)
     real_name = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)
     sno = db.Column(db.String(20), nullable=False)
-    # 角色字段
     role = db.Column(db.String(20), nullable=False, server_default=text(f"'{UserRole.STUDENT.value}'"))
-    # 锁定状态字段
     is_locked = db.Column(db.Boolean, nullable=False, server_default=text("0"))
-    # 软删除字段
     is_deleted = db.Column(db.Boolean, nullable=False, server_default=text("0"))
     created_at = db.Column(db.DateTime, server_default=func.now(), nullable=False)
-    updated_at = db.Column(db.DateTime, server_default=func.now(), server_onupdate=func.now(), nullable=False)
+    updated_at = db.Column(db.DateTime, server_default=func.now(),
+                           onupdate=func.now(), nullable=False)
 
     def set_password(self, raw_password):
         self.password = hashlib.sha256(raw_password.encode('utf-8')).hexdigest()
@@ -74,7 +70,6 @@ class UserModel(db.Model):
             'role': self.role,
             'is_locked': self.is_locked,
             'is_deleted': self.is_deleted,
-            'deleted_at': self.deleted_at.strftime("%Y-%m-%d %H:%M:%S") if self.deleted_at else None,
             'created_at': self.created_at.strftime("%Y-%m-%d %H:%M:%S"),
             'updated_at': self.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
         }
@@ -210,11 +205,9 @@ class UserModel(db.Model):
 
     def soft_delete(self):
         """软删除用户"""
-        from datetime import datetime
         logger.debug(f"Soft deleting user: {self.username}")
         try:
             self.is_deleted = True
-            self.deleted_at = datetime.now()
             # 软删除时同时锁定账户
             self.is_locked = True
             db.session.commit()
@@ -235,7 +228,6 @@ class UserModel(db.Model):
             raise ValueError(f"用户名 {self.username} 已被占用，无法恢复该用户")
         try:
             self.is_deleted = False
-            self.deleted_at = None
             # 恢复时解锁账户
             self.is_locked = False
             db.session.commit()
