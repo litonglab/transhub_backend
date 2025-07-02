@@ -245,7 +245,7 @@ def _update_rank(task, user):
                 username=user.username
             ).insert()
             logger.info(
-                f"[task: {task_id}] Created new rank record for user: {task.user_id}, score: {total_upload_score}")
+                f"[task: {task_id}] Created new rank record for user: {user.username}, score: {total_upload_score}")
 
         logger.info(f"[task: {task_id}] Rank update completed for upload_id: {upload_id}")
         return True
