@@ -28,7 +28,7 @@ config = get_default_config()
 def upload_project_file():
     user = current_user
     cname = get_jwt().get('cname')
-    logger.debug(f"File upload attempt for competition {cname} by user {user.user_id}")
+    logger.debug(f"File upload attempt for competition {cname} by user {user.username}")
 
     # 检查当前时间是否在比赛时间范围内
     if not config.is_now_in_competition(cname):
@@ -48,7 +48,7 @@ def upload_project_file():
     max_active_uploads_per_user = config.get_course_config(cname)['max_active_uploads_per_user']
     if running_or_queued_uploads >= max_active_uploads_per_user:
         logger.warning(
-            f"Upload rejected: User {user.user_id} has {running_or_queued_uploads} running or queued uploads, exceeds limit {max_active_uploads_per_user}.")
+            f"Upload rejected: User {user.username} has {running_or_queued_uploads} running or queued uploads, exceeds limit {max_active_uploads_per_user}.")
         return HttpResponse.fail(
             f"当前排队和运行中的提交数量已达到上限（{max_active_uploads_per_user}），请等待运行完成后再提交。")
 
@@ -60,7 +60,7 @@ def upload_project_file():
     filename = file.filename
     algorithm = filename.split('.')[0]
 
-    logger.info(f"Processing upload for user {user.user_id}, file: {filename}, algorithm: {algorithm}")
+    logger.info(f"Processing upload for user {user.username}, file: {filename}, algorithm: {algorithm}")
 
     now_str = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
     upload_dir_name = f"{now_str}_{generate_random_string(6)}"

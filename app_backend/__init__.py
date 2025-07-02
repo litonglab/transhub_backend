@@ -1,7 +1,6 @@
 import os
 import secrets
 import threading
-import uuid
 from logging import getLogger
 
 from flask import Flask, render_template
@@ -327,7 +326,7 @@ def _register_blueprints(app):
     for blueprint, name in blueprints:
         app.register_blueprint(blueprint)
         logger.info(f'Registered blueprint: {name}')
-    
+
     # 注册 dramatiq dashboard 的清理处理器
     register_cleanup_handler(app)
 
