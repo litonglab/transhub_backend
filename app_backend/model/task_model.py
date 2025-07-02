@@ -65,7 +65,7 @@ class TaskStatus(Enum):
 class TaskModel(db.Model):
     __tablename__ = 'task'
     task_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    upload_id = db.Column(db.String(36), nullable=False)  # 标识是哪次提交
+    upload_id = db.Column(db.String(36), nullable=False)  # 标识是哪次提交, 后续upload应单独建表
     loss_rate = db.Column(db.Float, nullable=False)  # 标识运行的环境,loss_rate
     buffer_size = db.Column(db.Integer, nullable=False)  # 标识运行的环境,buffer_size
     delay = db.Column(db.Integer, nullable=False)  # 标识运行的环境,delay
@@ -75,7 +75,8 @@ class TaskModel(db.Model):
     created_time = db.Column(db.DateTime, nullable=False)  # actually, it's upload time.
     # running_port = db.Column(db.Integer)
     task_score = db.Column(db.Float)
-    cname = db.Column(VARCHAR(50, charset='utf8mb4'), db.ForeignKey('competition.cname'), nullable=False)
+    cname = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)  # 后续修改相关查询逻辑后可删除
+    competition_id = db.Column(db.Integer, db.ForeignKey('competition.id'), nullable=False)
     # cname = db.Column(db.String(50))  # 任务类型，可以表示是哪个比赛的任务
     task_dir = db.Column(db.String(256))  # 任务的文件夹, 用于存放用户上传的文件
     algorithm = db.Column(db.String(50))  # 算法名称
