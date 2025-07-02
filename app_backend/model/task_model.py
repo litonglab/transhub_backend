@@ -2,8 +2,8 @@ import logging
 import uuid
 from enum import Enum
 
+from sqlalchemy import func, text
 from sqlalchemy.dialects.mysql import VARCHAR
-from sqlalchemy.sql.functions import func
 
 from app_backend import db, get_default_config
 
@@ -74,17 +74,20 @@ class TaskModel(db.Model):
     task_status = db.Column(db.String(16), nullable=False)
     created_time = db.Column(db.DateTime, nullable=False)  # actually, it's upload time.
     # running_port = db.Column(db.Integer)
-    task_score = db.Column(db.Float, default=0, nullable=False)  # 任务分数，默认0
+    task_score = db.Column(db.Float, server_default=text("0"), nullable=False)  # 任务分数，默认0
     cname = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)  # 后续修改相关查询逻辑后可删除
     competition_id = db.Column(db.Integer, db.ForeignKey('competition.id'), nullable=False)
     # cname = db.Column(db.String(50))  # 任务类型，可以表示是哪个比赛的任务
     task_dir = db.Column(db.String(256), nullable=False)  # 任务的文件夹, 用于存放用户上传的文件
     algorithm = db.Column(db.String(50), nullable=False)  # 算法名称
     error_log = db.Column(VARCHAR(15000, charset='utf8mb4'), )  # 错误日志
-    created_at = db.Column(db.DateTime, default=func.now(), nullable=False)
-    updated_at = db.Column(db.DateTime, default=func.now(),
-                           onupdate=func.now(),
-                           nullable=False)
+    created_at = db.Column(db.DateTime, server_default=func.now(), nullable=False)
+    updated_at = db.Column(
+        db.DateTime,
+        server_default=func.now(),
+        server_onupdate=func.now(),
+        nullable=False
+    )
 
     def __repr__(self):
         return f'<Task {self.task_id}>'

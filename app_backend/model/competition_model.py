@@ -1,7 +1,7 @@
 import logging
 
+from sqlalchemy import func
 from sqlalchemy.dialects.mysql import VARCHAR
-from sqlalchemy.sql.functions import func
 
 from app_backend import db
 
@@ -13,8 +13,13 @@ class CompetitionModel(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     cname = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)
     user_id = db.Column(db.String(36), db.ForeignKey('student.user_id'), nullable=False)
-    created_at = db.Column(db.DateTime, default=func.now(), nullable=False)
-    updated_at = db.Column(db.DateTime, default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = db.Column(db.DateTime, server_default=func.now(), nullable=False)
+    updated_at = db.Column(
+        db.DateTime,
+        server_default=func.now(),
+        server_onupdate=func.now(),
+        nullable=False
+    )
 
     def save(self):
         logger.debug(f"Saving competition entry for user {self.user_id} in competition {self.cname}")
