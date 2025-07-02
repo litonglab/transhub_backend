@@ -14,7 +14,7 @@ class RankModel(db.Model):
     rank_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     upload_id = db.Column(db.String(36), nullable=False)  # their newest upload's upload_id, 后续upload应单独建表
     user_id = db.Column(db.String(36), db.ForeignKey('student.user_id'),
-                        default=lambda: str(uuid.uuid4()))
+                        default=lambda: str(uuid.uuid4()), nullable=False)
     task_score = db.Column(db.Float, nullable=False)
     algorithm = db.Column(db.String(50), nullable=False)
     upload_time = db.Column(db.DateTime, nullable=False)

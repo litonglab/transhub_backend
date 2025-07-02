@@ -1,7 +1,7 @@
 import logging
 import uuid
 
-from sqlalchemy import func, text
+from sqlalchemy import func
 
 from app_backend import db
 
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class GraphModel(db.Model):
     __tablename__ = 'graph'
     graph_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    task_id = db.Column(db.String(36), db.ForeignKey('task.task_id'))
+    task_id = db.Column(db.String(36), db.ForeignKey('task.task_id'), nullable=False)
     # user_id = db.Column(db.String(36), primary_key=False)
     graph_type = db.Column(db.String(20), nullable=False)  # throughput, delay
     graph_path = db.Column(db.String(255), nullable=False)
