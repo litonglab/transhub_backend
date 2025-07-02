@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class RankModel(db.Model):
     __tablename__ = 'rank'
     rank_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    upload_id = db.Column(db.String(36))  # their newest upload's upload_id, 后续upload应单独建表
+    upload_id = db.Column(db.String(36), nullable=False)  # their newest upload's upload_id, 后续upload应单独建表
     user_id = db.Column(db.String(36), db.ForeignKey('student.user_id'),
                         default=lambda: str(uuid.uuid4()))
     task_score = db.Column(db.Float, nullable=False)
