@@ -13,11 +13,21 @@ from dotenv import load_dotenv
 
 app_env = os.getenv('APP_ENV', 'development')
 env_file = f'.env.{app_env}'
+
+
+# 由于循环导入，此模块不允许使用logger
+def _print_config_log(message: str):
+    """
+    打印配置加载日志
+    """
+    print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {message}")
+
+
 if os.path.exists(env_file):
     load_dotenv(env_file)
-    print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ✅ 已加载环境配置文件: {env_file}")
+    _print_config_log(f"✅ 已加载环境配置文件: {env_file}")
 else:
-    print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ⚠️  环境配置文件不存在: {env_file}")
+    _print_config_log(f"⚠️ 环境配置文件不存在: {env_file}, 请检查是否已正确配置, 完整路径: {os.path.abspath(env_file)}")
     exit(1)
 
 # 默认配置实例
@@ -77,9 +87,9 @@ def get_default_config() -> Union[DevelopmentConfig, ProductionConfig]:
     global _default_config
     if _default_config is None:
         _default_config = get_config()
-        print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ✅ 当前配置：{get_config_dict()}")
+        _print_config_log(f"✅ 当前配置：{get_config_dict()}")
         # 转换为json
-        # print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ✅ 当前配置（JSON格式）: {json.dumps(get_config_dict(), indent=2, ensure_ascii=False)}")
+        # _print_config_log(f"✅ 当前配置（JSON格式）: {json.dumps(get_config_dict(), indent=2, ensure_ascii=False)}")
     return _default_config
 
 

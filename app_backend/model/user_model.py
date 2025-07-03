@@ -70,8 +70,8 @@ class UserModel(db.Model):
             'role': self.role,
             'is_locked': self.is_locked,
             'is_deleted': self.is_deleted,
-            'created_at': self.created_at.strftime("%Y-%m-%d %H:%M:%S"),
-            'updated_at': self.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
+            'created_at': self.created_at,
+            'updated_at': self.updated_at,
         }
 
     def is_active(self) -> bool:

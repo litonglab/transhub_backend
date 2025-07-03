@@ -57,5 +57,5 @@ class RankModel(db.Model):
             'algorithm': self.algorithm,
             'upload_time': self.upload_time,
             'created_at': self.created_at,
-            'updated_at': self.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
+            'updated_at': self.updated_at,
         }
