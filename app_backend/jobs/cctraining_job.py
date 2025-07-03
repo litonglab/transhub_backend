@@ -214,7 +214,9 @@ def _update_rank(task, user):
         # 计算所有任务的总分
         total_upload_score = sum(t.task_score for t in all_tasks if t.task_score is not None)
         # 获取用户当前课程的榜单记录
-        rank_record = RankModel.query.get(task.competition_id)
+        rank_record = RankModel.query.filter_by(competition_id=task.competition_id).first()
+        logger.debug(
+            f"[task: {task_id}] is updating rank record: {rank_record}, user: {user.username}, competition_id: {task.competition_id}")
         if rank_record:
             # 如果已有记录，检查是否需要更新
             # if rank_record.upload_time < task.created_time:
