@@ -31,7 +31,7 @@ def _check_upload_not_exceeds_limit(user, cname, max_active_uploads_per_user):
         TaskModel.query.filter(
             TaskModel.user_id == user.user_id,
             TaskModel.cname == cname,
-            TaskModel.task_status.in_([TaskStatus.RUNNING.value, TaskStatus.QUEUED.value])
+            TaskModel.task_status.in_([TaskStatus.RUNNING, TaskStatus.QUEUED])
         )
         .with_entities(TaskModel.upload_id).distinct().count()
     )
@@ -95,7 +95,7 @@ def upload_project_file():
         for loss in trace_conf['loss_rate']:
             for buffer_size in trace_conf['buffer_size']:
                 for delay in trace_conf['delay']:
-                    task = TaskModel(user_id=user.user_id, task_status=TaskStatus.QUEUED.value,
+                    task = TaskModel(user_id=user.user_id, task_status=TaskStatus.QUEUED,
                                      task_score=0, created_time=now_str, cname=cname, competition_id=competition_id,
                                      task_dir=os.path.join(temp_dir, f"{trace_name}_{loss}_{buffer_size}_{delay}"),
                                      algorithm=algorithm, trace_name=trace_name, upload_id=upload_id,
@@ -113,7 +113,7 @@ def upload_project_file():
 
                     if not enqueue_result['success']:
                         # 如果入队失败，更新任务状态为错误
-                        task.update(task_status=TaskStatus.NOT_QUEUED.value)
+                        task.update(task_status=TaskStatus.NOT_QUEUED)
                         failed_tasks.append({
                             'task_id': task.task_id,
                             'trace_name': trace_name,

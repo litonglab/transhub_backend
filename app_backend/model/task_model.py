@@ -18,7 +18,6 @@ class TaskStatus(Enum):
     COMPILED = 'compiled'  # 编译完成
     COMPILED_FAILED = 'compile_failed'  # 编译失败
     RUNNING = 'running'  # 正在运行
-    # RETRYING = 'retrying'       # 重试中
     FINISHED = 'finished'  # 已完成
     ERROR = 'error'  # 发生错误
     NOT_QUEUED = 'not_queued'  # 未能入队
@@ -71,7 +70,7 @@ class TaskModel(db.Model):
     delay = db.Column(db.Integer, nullable=False)  # 标识运行的环境,delay
     trace_name = db.Column(db.String(50), nullable=False)  # 标识运行的trace
     user_id = db.Column(db.String(36), db.ForeignKey('student.user_id'), nullable=False)
-    task_status = db.Column(db.String(16), nullable=False)
+    task_status = db.Column(db.Enum(TaskStatus), nullable=False)
     created_time = db.Column(db.DateTime, nullable=False)  # actually, it's upload time.
     task_score = db.Column(db.Float, server_default=text("0"), nullable=False)  # 任务分数，默认0
     cname = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)  # 后续修改相关查询逻辑后可删除
@@ -103,8 +102,8 @@ class TaskModel(db.Model):
             with db.session.begin_nested():
                 # 检查状态转换是否有效
                 if 'task_status' in kwargs:
-                    current_status = TaskStatus(self.task_status)
-                    new_status = TaskStatus(kwargs['task_status'])
+                    current_status = self.task_status
+                    new_status = kwargs['task_status']
                     if not current_status.can_transition_to(new_status):
                         raise ValueError(f"Invalid status transition from {current_status.value} to {new_status.value}")
                     logger.info(
@@ -131,7 +130,6 @@ class TaskModel(db.Model):
             raise
 
     def to_detail_dict(self):
-        status = TaskStatus(self.task_status)
         trace_available = config.is_trace_available(self.cname, self.trace_name)
         res = {
             # 'user_id': self.user_id,
@@ -141,7 +139,7 @@ class TaskModel(db.Model):
             'buffer_size': self.buffer_size if trace_available else "*",
             'delay': self.delay if trace_available else "*",
             'trace_name': self.trace_name,
-            'task_status': self.task_status,
+            'task_status': self.task_status.value,
             'created_time': self.created_time,
             'task_score': self.task_score,
             'cname': self.cname,
@@ -151,10 +149,10 @@ class TaskModel(db.Model):
             'log': "No log available for this status, only error tasks have logs.\n当前状态不可查询，只有错误状态的任务才可查询日志。",
         }
 
-        if status == TaskStatus.ERROR:
+        if self.task_status == TaskStatus.ERROR:
             block_msg = "This trace has been blocked, log cannot be queried.\n此Trace已被屏蔽，不可查询日志。\n\n排查指南：\n代码可能编译失败或存在运行时错误，可通过查询本次提交下的其他任务日志排查此问题。\n如仍有疑问，请联系管理员。"
             res['log'] = self.error_log if trace_available else block_msg
-        elif status == TaskStatus.COMPILED_FAILED:
+        elif self.task_status == TaskStatus.COMPILED_FAILED:
             res['log'] = self.error_log
         return res
 
@@ -169,21 +167,21 @@ def to_history_dict(tasks: list):
                 "cname": task.cname,
                 "algorithm": task.algorithm,
                 "created_time": task.created_time,
-                "status": task.task_status,
+                "status": task.task_status.value,
                 "score": task.task_score,
                 "upload_id": task.upload_id,
                 'updated_at': task.updated_at,
                 'created_at': task.created_at,
             }
         else:
-            task_status = TaskStatus(task.task_status)
+            task_status = task.task_status
             current_status = TaskStatus(upload_id_dict[task.upload_id]['status'])
 
             # 如果新状态优先级更高，则更新状态
             if task_status.priority < current_status.priority:
                 upload_id_dict[task.upload_id]['status'] = task_status.value
                 # 如果是error或not_queued或compiled_failed状态，score设为0
-                if task_status == TaskStatus.ERROR or task_status == TaskStatus.NOT_QUEUED or task_status == TaskStatus.COMPILED_FAILED:
+                if task_status in [TaskStatus.ERROR, TaskStatus.NOT_QUEUED, TaskStatus.COMPILED_FAILED]:
                     upload_id_dict[task.upload_id]['score'] = 0
                     upload_id_dict[task.upload_id]['updated_at'] = task.updated_at
                 # 如果是finished状态，累加score

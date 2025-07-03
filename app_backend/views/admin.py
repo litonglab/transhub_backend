@@ -71,14 +71,9 @@ def get_users():
     # 新增：用户ID筛选
     if data.user_id:
         query = query.filter(UserModel.user_id == data.user_id)
-
     # 删除状态筛选
     if data.deleted is not None:
         query = query.filter(UserModel.is_deleted == data.deleted)
-    else:
-        # 默认只显示所有用户
-        query = query.filter()
-
     # 搜索筛选
     if data.keyword:
         query = query.filter(
@@ -92,7 +87,6 @@ def get_users():
         # 将验证过的字符串转换为枚举进行查询
         role_enum = UserRole(data.role)
         query = query.filter(UserModel.role == role_enum)
-
     # 课程报名筛选
     if data.cname:
         # 通过JOIN查询筛选报名了指定课程的用户
@@ -110,7 +104,6 @@ def get_users():
 
     # 分页计算
     total = query.count()
-
     # 使用JOIN查询直接获取用户及其课程信息，避免多次查询
     # 首先获取分页后的用户ID列表
     user_ids_query = query.with_entities(UserModel.user_id) \
@@ -202,7 +195,7 @@ def update_user():
 
     # 更新字段
     if data.role is not None:
-        target_user.set_role(data.role)
+        target_user.role = data.role
     if data.is_locked is not None:
         target_user.is_locked = data.is_locked
 
@@ -405,7 +398,7 @@ def _get_general_stats():
         ).with_entities(TaskModel.upload_id).distinct().count()
     }
     for status in TaskStatus:
-        count = TaskModel.query.filter(TaskModel.task_status == status.value).count()
+        count = TaskModel.query.filter(TaskModel.task_status == status).count()
         all_course_task_stats[status.value] = count
 
     # 添加过去10天每天的提交数量（所有课程）
@@ -453,7 +446,7 @@ def _get_course_specific_stats(cname):
     for status in TaskStatus:
         count = TaskModel.query.filter(
             TaskModel.cname == cname,
-            TaskModel.task_status == status.value
+            TaskModel.task_status == status
         ).count()
         current_course_task_stats[status.value] = count
 

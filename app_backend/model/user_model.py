@@ -4,7 +4,7 @@ import os
 import uuid
 from enum import Enum
 
-from sqlalchemy import func, text, Enum as SQLEnum
+from sqlalchemy import func, text
 from sqlalchemy.dialects.mysql import VARCHAR
 
 from app_backend import db, get_default_config
@@ -28,7 +28,7 @@ class UserModel(db.Model):
     password = db.Column(db.String(128), nullable=False)  # 增加长度以适应加密
     real_name = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)
     sno = db.Column(db.String(20), nullable=False)
-    role = db.Column(SQLEnum(UserRole), nullable=False, server_default=UserRole.STUDENT.value)
+    role = db.Column(db.Enum(UserRole), nullable=False, server_default=UserRole.STUDENT.value)
     is_locked = db.Column(db.Boolean, nullable=False, server_default=text("0"))
     is_deleted = db.Column(db.Boolean, nullable=False, server_default=text("0"))
     created_at = db.Column(db.DateTime, server_default=func.now(), nullable=False)
@@ -77,19 +77,6 @@ class UserModel(db.Model):
     def is_active(self) -> bool:
         """检查用户是否为活跃状态（未删除且未锁定）"""
         return not self.is_deleted and not self.is_locked
-
-    def set_role(self, role):
-        """设置用户角色"""
-        if isinstance(role, str):
-            # 如果传入字符串，转换为枚举
-            try:
-                self.role = UserRole(role)
-            except ValueError:
-                raise ValueError(f"无效的角色值: {role}")
-        elif isinstance(role, UserRole):
-            self.role = role
-        else:
-            raise TypeError("角色必须是字符串或UserRole枚举")
 
     def get_user_dir(self, cname):
         """

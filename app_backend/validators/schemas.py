@@ -8,6 +8,8 @@ from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 
 from app_backend import get_default_config
+from app_backend.model.graph_model import GraphType
+from app_backend.model.task_model import TaskStatus
 from app_backend.model.user_model import UserRole
 
 logger = logging.getLogger(__name__)
@@ -91,18 +93,6 @@ class CommonValidators:
             logger.warning(f"{field_name} is empty, validation failed.")
             raise ValueError(f'{field_name}不能为空')
         return v.strip()
-
-    @staticmethod
-    def validate_role(v: str) -> str:
-        """验证用户角色"""
-        if v is not None:
-            logger.debug(f"Validating role: {v}")
-            # 检查是否是有效的角色值
-            valid_roles = [role.value for role in UserRole]
-            if v not in valid_roles:
-                logger.warning(f"Invalid role: {v}")
-                raise ValueError(f'角色值无效')
-        return v
 
 
 class UserLoginSchema(BaseModel):
@@ -224,20 +214,11 @@ class SourceCodeSchema(BaseModel):
 class GraphSchema(BaseModel):
     """获取图表请求参数验证"""
     task_id: str = Field(..., description="任务ID")
-    graph_type: str = Field(..., description="图表类型")
+    graph_type: GraphType = Field(..., description="图表类型")
 
     @field_validator('task_id')
     def validate_task_id(cls, v):
         return CommonValidators.validate_not_empty(v, "task_id")
-
-    @field_validator('graph_type')
-    def validate_graph_type(cls, v):
-        logger.debug(f"Validating graph type: {v}")
-        allowed_types = ['throughput', 'delay']
-        if v not in allowed_types:
-            logger.warning(f"Invalid graph type: {v}")
-            raise ValueError(f'图表类型必须是以下之一: {", ".join(allowed_types)}')
-        return v
 
 
 class FileUploadSchema(BaseModel):
@@ -402,7 +383,7 @@ class AdminUserListSchema(BaseModel):
     page: int = Field(default=1, ge=1, description="页码")
     size: int = Field(default=20, ge=1, le=100, description="每页大小")
     keyword: Optional[str] = Field(default="", description="搜索关键词")
-    role: Optional[str] = Field(default=None, description="角色筛选")
+    role: Optional[UserRole] = Field(default=None, description="角色筛选")
     active: Optional[bool] = Field(default=None, description="活跃状态筛选")
     deleted: Optional[bool] = Field(default=None, description="删除状态筛选")
     cname: Optional[str] = Field(default=None, description="课程名称筛选，仅返回报名该课程的用户")
@@ -417,20 +398,12 @@ class AdminUserListSchema(BaseModel):
                 raise ValueError(f'课程名称必须是以下之一: {", ".join(config.Course.CNAME_LIST)}')
         return v
 
-    @field_validator('role')
-    def validate_role(cls, v):
-        return CommonValidators.validate_role(v)
-
 
 class AdminUserUpdateSchema(BaseModel):
     """管理员用户更新参数"""
     user_id: str = Field(..., description="用户ID")
-    role: Optional[str] = Field(default=None, description="用户角色")
+    role: Optional[UserRole] = Field(default=None, description="用户角色")
     is_locked: Optional[bool] = Field(default=None, description="是否锁定")
-
-    @field_validator('role')
-    def validate_role(cls, v):
-        return CommonValidators.validate_role(v)
 
 
 class AdminTaskListSchema(BaseModel):
@@ -438,7 +411,7 @@ class AdminTaskListSchema(BaseModel):
     page: int = Field(default=1, ge=1, description="页码")
     size: int = Field(default=20, ge=1, le=100, description="每页大小")
     username: Optional[str] = Field(default=None, description="用户名筛选")
-    status: Optional[str] = Field(default=None, description="状态筛选")
+    status: Optional[TaskStatus] = Field(default=None, description="状态筛选")
     cname: Optional[str] = Field(default=None, description="比赛名称筛选")
     trace_file: Optional[str] = Field(default=None, description="trace文件名筛选")
     sort_by: Optional[str] = Field(default="created_time", description="排序字段: created_time, score")

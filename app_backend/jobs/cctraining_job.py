@@ -12,7 +12,7 @@ from redis.lock import Lock
 
 from app_backend import db, redis_client, get_default_config
 from app_backend import get_app
-from app_backend.model.graph_model import GraphModel
+from app_backend.model.graph_model import GraphModel, GraphType
 from app_backend.model.rank_model import RankModel
 from app_backend.model.task_model import TaskModel, TaskStatus
 from app_backend.model.user_model import UserModel
@@ -50,14 +50,14 @@ def _compile_cc_file(task, course_project_dir, task_parent_dir, sender_path, rec
         if os.path.exists(sender_path) and os.path.exists(receiver_path):
             logger.info(
                 f"[task: {task_id}] Sender and receiver already exist in {task_parent_dir}, skipping compilation")
-            task.update(task_status=TaskStatus.COMPILED.value)
+            task.update(task_status=TaskStatus.COMPILED)
             return True
 
         # 判断父级目录是否存在compile_failed，如果有，说明之前编译失败过，直接返回False
         compile_failed_file = os.path.join(task_parent_dir, 'compile_failed')
         if os.path.exists(compile_failed_file):
             logger.warning(f"[task: {task_id}] Compilation failed previously, skipping compilation")
-            task.update(task_status=TaskStatus.ERROR.value,
+            task.update(task_status=TaskStatus.ERROR,
                         error_log="本次提交的代码在其他任务中编译失败，此任务不再尝试编译，如需查询编译日志，请查询本次提交下的其他任务。")
             return False
 
@@ -66,7 +66,7 @@ def _compile_cc_file(task, course_project_dir, task_parent_dir, sender_path, rec
         lock = Lock(redis_client, lock_name, timeout=300)
         logger.info(f'[task: {task_id}] Compiling CC file: {cc_file_name}, attempting to acquire lock: {lock_name}')
         with lock:
-            task.update(task_status=TaskStatus.COMPILING.value)
+            task.update(task_status=TaskStatus.COMPILING)
             logger.info(f"[task: {task_id}] Acquired lock: {lock_name}, starting compilation")
             assert os.path.exists(course_project_dir) and os.path.exists(
                 task_parent_dir), "Course project directory or task parent directory does not exist"
@@ -82,14 +82,14 @@ def _compile_cc_file(task, course_project_dir, task_parent_dir, sender_path, rec
                 # 如果编译失败，在父级目录创建一个文件，文件名为compile_failed，后续同cc_file的其他trace任务不用再重复编译
                 with open(compile_failed_file, 'w') as f:
                     pass
-                task.update(task_status=TaskStatus.COMPILED_FAILED.value, error_log=output)
+                task.update(task_status=TaskStatus.COMPILED_FAILED, error_log=output)
                 return False
 
             # 编译成功后，将sender和receiver移动到父级目录
             logger.info(f"[task: {task_id}] Moving sender and receiver to parent directory {task_parent_dir}")
             shutil.move(os.path.join(course_project_dir, 'sender'), sender_path)
             shutil.move(os.path.join(course_project_dir, 'receiver'), receiver_path)
-            task.update(task_status=TaskStatus.COMPILED.value)
+            task.update(task_status=TaskStatus.COMPILED)
             logger.info(f"[task: {task.task_id}] Compilation succeeded")
             return True
 
@@ -101,7 +101,7 @@ def _run_contest(task, course_project_dir, sender_path, receiver_path, result_pa
     """
     task_id = task.task_id
     program_script = "./run-contest.sh"
-    task.update(task_status=TaskStatus.RUNNING.value)
+    task.update(task_status=TaskStatus.RUNNING)
     # 该脚本接收9个参数，running_port uplink_file downlink_file result_path sender_path receiver_path loss_rate buffer_size delay
     # 运行端口 上行文件 下行文件 结果路径 发送端路径 接收端路径 丢包率 缓冲区大小 时延
     _config = config.get_course_config(task.cname)
@@ -178,9 +178,9 @@ def _graph(task, result_path):
     os.remove(delay_graph_svg)
     logger.info(f"[task: {task_id}] Converted delay graph SVG to PNG, svg removed.")
     logger.info(f"[task: {task_id}] Graphs generated successfully: {throughput_graph_svg}, {delay_graph_png}")
-    GraphModel(task_id=task_id, graph_type='throughput',
+    GraphModel(task_id=task_id, graph_type=GraphType.THROUGHPUT,
                graph_path=throughput_graph_svg).insert()
-    GraphModel(task_id=task_id, graph_type='delay',
+    GraphModel(task_id=task_id, graph_type=GraphType.DELAY,
                graph_path=delay_graph_png).insert()
     logger.info(f"[task: {task_id}] is generating graphs successfully")
 
@@ -205,7 +205,7 @@ def _update_rank(task, user):
         # 获取该 upload_id 下的所有任务
         all_tasks = TaskModel.query.filter_by(upload_id=upload_id).all()
         # 检查是否所有任务都已完成
-        all_tasks_completed = all(t.task_status == TaskStatus.FINISHED.value for t in all_tasks)
+        all_tasks_completed = all(t.task_status == TaskStatus.FINISHED for t in all_tasks)
 
         if not all_tasks_completed:
             logger.warning(f"[task: {task_id}] Not all tasks completed for upload_id {upload_id}, skipping rank update")
@@ -267,7 +267,7 @@ def run_cc_training_task(task_id):
                 return
 
             logger.info(f"[task: {task_id}] Start task")
-            assert task.task_status == TaskStatus.QUEUED.value, "Task status must be QUEUED to run"
+            assert task.task_status == TaskStatus.QUEUED, "Task status must be QUEUED to run"
             user = UserModel.query.filter_by(user_id=task.user_id).first()
 
             # 课程的项目目录，公共目录
@@ -299,7 +299,7 @@ def run_cc_training_task(task_id):
 
             _graph(task, result_path)
 
-            task.update(task_status=TaskStatus.FINISHED.value, task_score=total_score)
+            task.update(task_status=TaskStatus.FINISHED, task_score=total_score)
             # 更新完状态后再更新榜单，如果榜单更新失败，任务状态会回退至ERROR
             all_tasks_completed = _update_rank(task, user)
             if all_tasks_completed:
@@ -314,7 +314,7 @@ def run_cc_training_task(task_id):
                 # 日志长度和数据库设置的长度计算方式不同，这里限制为8000
                 if len(task_error_log_content) > 8000:
                     task_error_log_content = task_error_log_content[:8000] + '...'
-                task.update(task_status=TaskStatus.ERROR.value, error_log=task_error_log_content)
+                task.update(task_status=TaskStatus.ERROR, error_log=task_error_log_content)
                 logger.error(f"[task: {task_id}] Task status updated to ERROR due to exception")
             # 删除编译生成的二进制文件，注意不在finally中删除，因为正常结束的任务不一定需要删除，其他任务可能会复用
             if 'sender_path' in locals() and 'receiver_path' in locals():
