@@ -170,24 +170,15 @@ def get_users():
 def update_user():
     """更新用户信息"""
     data = get_validated_data(AdminUserUpdateSchema)
+    target_user, err_resp = _admin_user_common_checks(
+        data.user_id,
+        forbid_admin_msg="只有超级管理员可以修改管理员用户",
+        forbid_self_msg="不能修改自己的账户"
+    )
+    if err_resp:
+        return err_resp
 
-    target_user = UserModel.query.get(data.user_id)
-    if not target_user:
-        logger.warning(f"User update failed: User with ID {data.user_id} does not exist")
-        return HttpResponse.not_found("用户不存在")
-
-    # 权限检查：只有超级管理员可以修改其他管理员
-    if target_user.is_admin() and not current_user.is_super_admin():
-        logger.warning(
-            f"User update failed: User {current_user.username} tried to modify admin user {target_user.username}")
-        return HttpResponse.forbidden("只有超级管理员可以修改管理员用户")
-
-    # 防止自己锁定或降级自己
-    if target_user.user_id == current_user.user_id:
-        logger.warning(f"User update failed: User {current_user.username} tried to update their own account")
-        return HttpResponse.fail("不能修改自己的账户")
-
-    # 角色更改权限检查：只有超级管理员才能更改其他用户的角色
+    # 角色更改权限检查（仅超级管理员可更改）
     if data.role is not None and not current_user.is_super_admin():
         logger.warning(
             f"User update failed: User {current_user.username} tried to change role of user {target_user.username}")
@@ -201,7 +192,6 @@ def update_user():
 
     target_user.save()
     logger.info(f"Admin {current_user.username} updated user {target_user.username}")
-
     return HttpResponse.ok()
 
 
@@ -212,23 +202,13 @@ def update_user():
 def reset_user_password():
     """重置用户密码"""
     data = get_validated_data(AdminPasswordResetSchema)
-
-    target_user = UserModel.query.get(data.user_id)
-    if not target_user:
-        logger.warning(f"User reset password failed: User with ID {data.user_id} does not exist")
-        return HttpResponse.not_found("用户不存在")
-
-    # 权限检查：只有超级管理员可以重置其他管理员的密码
-    if target_user.is_admin() and not current_user.is_super_admin():
-        logger.warning(
-            f"User reset password failed: User {current_user.username} tried to reset password for admin user {target_user.username}")
-        return HttpResponse.forbidden("只有超级管理员可以重置管理员用户的密码")
-
-    # 防止重置自己的密码（建议管理员使用正常修改密码功能）
-    if target_user.user_id == current_user.user_id:
-        logger.warning(
-            f"User reset password failed: User {current_user.username} tried to reset their own password")
-        return HttpResponse.fail("不能重置自己的密码，请使用修改密码功能")
+    target_user, err_resp = _admin_user_common_checks(
+        data.user_id,
+        forbid_admin_msg="只有超级管理员可以重置管理员用户的密码",
+        forbid_self_msg="不能重置自己的密码，请使用修改密码功能"
+    )
+    if err_resp:
+        return err_resp
 
     # 重置密码（加密存储）
     target_user.reset_password(data.new_password)
@@ -243,27 +223,18 @@ def reset_user_password():
 def delete_user():
     """软删除用户"""
     data = get_validated_data(AdminUserDeleteSchema)
-
-    target_user = UserModel.query.get(data.user_id)
-    if not target_user:
-        logger.warning(f"User delete failed: User with ID {data.user_id} does not exist")
-        return HttpResponse.not_found("用户不存在")
+    target_user, err_resp = _admin_user_common_checks(
+        data.user_id,
+        forbid_admin_msg="只有超级管理员可以删除管理员用户",
+        forbid_self_msg="不能删除自己的账户"
+    )
+    if err_resp:
+        return err_resp
 
     # 检查用户是否已经被删除
     if target_user.is_deleted:
         logger.warning(f"User delete failed: User {target_user.username} is already deleted")
         return HttpResponse.fail("用户已经被删除")
-
-    # 权限检查：只有超级管理员可以删除其他管理员
-    if target_user.is_admin() and not current_user.is_super_admin():
-        logger.warning(
-            f"User delete failed: User {current_user.username} tried to delete admin user {target_user.username}")
-        return HttpResponse.forbidden("只有超级管理员可以删除管理员用户")
-
-    # 防止删除自己
-    if target_user.user_id == current_user.user_id:
-        logger.warning(f"User delete failed: User {current_user.username} tried to delete their own account")
-        return HttpResponse.fail("不能删除自己的账户")
 
     # 软删除用户
     target_user.soft_delete()
@@ -278,22 +249,17 @@ def delete_user():
 def restore_user():
     """恢复被删除的用户"""
     data = get_validated_data(AdminUserRestoreSchema)
-
-    target_user = UserModel.query.get(data.user_id)
-    if not target_user:
-        logger.warning(f"User restore failed: User with ID {data.user_id} does not exist")
-        return HttpResponse.not_found("用户不存在")
+    target_user, err_resp = _admin_user_common_checks(
+        data.user_id,
+        forbid_admin_msg="只有超级管理员可以恢复管理员用户"
+    )
+    if err_resp:
+        return err_resp
 
     # 检查用户是否已经被删除
     if not target_user.is_deleted:
         logger.warning(f"User restore failed: User {target_user.username} is not deleted")
         return HttpResponse.fail("用户未被删除，无需恢复")
-
-    # 权限检查：只有超级管理员可以恢复管理员用户
-    if target_user.is_admin() and not current_user.is_super_admin():
-        logger.warning(
-            f"User restore failed: User {current_user.username} tried to restore admin user {target_user.username}")
-        return HttpResponse.forbidden("只有超级管理员可以恢复管理员用户")
 
     # 恢复用户
     try:
@@ -309,6 +275,27 @@ def restore_user():
     return HttpResponse.ok(f"用户 {target_user.username} 已被恢复")
 
 
+# 通用的管理员用户操作检查
+def _admin_user_common_checks(user_id, forbid_admin_msg=None, forbid_self_msg=None, forbid_role_msg=None):
+    """
+    通用的管理员用户操作检查，返回 (target_user, error_response)
+    """
+    target_user = UserModel.query.get(user_id)
+    if not target_user:
+        logger.warning(f"User operation failed: User with ID {user_id} does not exist")
+        return None, HttpResponse.not_found("用户不存在")
+    # 权限检查：只有超级管理员可以操作其他管理员
+    if forbid_admin_msg and target_user.is_admin() and not current_user.is_super_admin():
+        logger.warning(
+            f"User operation failed: User {current_user.username} tried to operate admin user {target_user.username}")
+        return None, HttpResponse.forbidden(forbid_admin_msg)
+    # 防止操作自己
+    if forbid_self_msg and target_user.user_id == current_user.user_id:
+        logger.warning(f"User operation failed: User {current_user.username} tried to operate on their own account")
+        return None, HttpResponse.fail(forbid_self_msg)
+    return target_user, None
+
+
 @admin_bp.route('/admin/tasks', methods=['GET'])
 @jwt_required()
 @admin_required()
@@ -322,19 +309,15 @@ def get_tasks():
     # 新增：task_id筛选
     if data.task_id:
         query = query.filter(TaskModel.task_id == data.task_id)
-
     # 用户名筛选
     if data.username:
         query = query.filter(UserModel.username.contains(data.username))
-
     # 状态筛选
     if data.status:
         query = query.filter(TaskModel.task_status == data.status)
-
     # 比赛筛选
     if data.cname:
         query = query.filter(TaskModel.cname == data.cname)
-
     # trace文件筛选
     if data.trace_file:
         # 按trace文件名筛选（支持模糊匹配）
