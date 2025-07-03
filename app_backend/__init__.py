@@ -279,8 +279,8 @@ def _create_super_admin(app):
     existing_admin = UserModel.query.filter_by(username=admin_username).first()
     if existing_admin:
         # 确保现有用户是超级管理员角色
-        if existing_admin.role != UserRole.SUPER_ADMIN.value:
-            existing_admin.role = UserRole.SUPER_ADMIN.value
+        if existing_admin.role != UserRole.SUPER_ADMIN:
+            existing_admin.set_role(UserRole.SUPER_ADMIN)
             existing_admin.save()
             logger.info(f'Updated existing user {admin_username} to super admin role')
         else:
@@ -291,8 +291,8 @@ def _create_super_admin(app):
             username=admin_username,
             real_name=admin_real_name,
             sno="SuperAdmin",
-            role=UserRole.SUPER_ADMIN.value,
         )
+        super_admin.set_role(UserRole.SUPER_ADMIN)
         super_admin.set_password(admin_password)
         super_admin.save()
         logger.info(f'Super admin {admin_username} created successfully')

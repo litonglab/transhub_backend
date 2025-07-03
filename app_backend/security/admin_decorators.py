@@ -68,7 +68,7 @@ def role_required(*allowed_roles):
                 logger.warning(f"Role access denied: User not found, deleted, or locked")
                 return HttpResponse.not_authorized('用户不存在或账户已被禁用')
 
-            if user.role not in [role.value for role in allowed_roles]:
+            if user.role not in allowed_roles:
                 logger.warning(
                     f"Role access denied: user {user.username} has role {user.role}, required: {allowed_roles}")
                 return HttpResponse.forbidden('权限不足')

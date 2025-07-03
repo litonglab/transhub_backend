@@ -89,7 +89,9 @@ def get_users():
 
     # 角色筛选
     if data.role:
-        query = query.filter(UserModel.role == data.role)
+        # 将验证过的字符串转换为枚举进行查询
+        role_enum = UserRole(data.role)
+        query = query.filter(UserModel.role == role_enum)
 
     # 课程报名筛选
     if data.cname:
@@ -187,10 +189,10 @@ def update_user():
             f"User update failed: User {current_user.username} tried to modify admin user {target_user.username}")
         return HttpResponse.forbidden("只有超级管理员可以修改管理员用户")
 
-    # 防止自己锁定自己
-    if data.is_locked and target_user.user_id == current_user.user_id:
-        logger.warning(f"User update failed: User {current_user.username} tried to lock their own account")
-        return HttpResponse.fail("不能锁定自己的账户")
+    # 防止自己锁定或降级自己
+    if target_user.user_id == current_user.user_id:
+        logger.warning(f"User update failed: User {current_user.username} tried to update their own account")
+        return HttpResponse.fail("不能修改自己的账户")
 
     # 角色更改权限检查：只有超级管理员才能更改其他用户的角色
     if data.role is not None and not current_user.is_super_admin():
@@ -200,7 +202,7 @@ def update_user():
 
     # 更新字段
     if data.role is not None:
-        target_user.role = data.role
+        target_user.set_role(data.role)
     if data.is_locked is not None:
         target_user.is_locked = data.is_locked
 
@@ -428,7 +430,7 @@ def _get_general_stats():
     # 角色统计（仅统计未删除用户）
     role_stats = {}
     for role in UserRole:
-        count = UserModel.query.filter(UserModel.role == role.value, UserModel.is_deleted == False).count()
+        count = UserModel.query.filter(UserModel.role == role, UserModel.is_deleted == False).count()
         role_stats[role.value] = count
 
     logger.info("General stats fetched successfully")

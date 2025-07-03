@@ -58,7 +58,7 @@ def user_login():
         return HttpResponse.login_success(
             user_id=user.user_id,
             additional_claims=additional_claims,
-            role=user.role
+            role=user.role.value
         )
     else:
         # 更新：在编译目录统一使用公共目录后，实际上此逻辑已不再必要，这里保留下来作为首次登录的欢迎界面

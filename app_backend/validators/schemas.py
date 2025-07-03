@@ -8,6 +8,7 @@ from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 
 from app_backend import get_default_config
+from app_backend.model.user_model import UserRole
 
 logger = logging.getLogger(__name__)
 config = get_default_config()
@@ -90,6 +91,18 @@ class CommonValidators:
             logger.warning(f"{field_name} is empty, validation failed.")
             raise ValueError(f'{field_name}不能为空')
         return v.strip()
+
+    @staticmethod
+    def validate_role(v: str) -> str:
+        """验证用户角色"""
+        if v is not None:
+            logger.debug(f"Validating role: {v}")
+            # 检查是否是有效的角色值
+            valid_roles = [role.value for role in UserRole]
+            if v not in valid_roles:
+                logger.warning(f"Invalid role: {v}")
+                raise ValueError(f'角色值无效')
+        return v
 
 
 class UserLoginSchema(BaseModel):
@@ -404,6 +417,10 @@ class AdminUserListSchema(BaseModel):
                 raise ValueError(f'课程名称必须是以下之一: {", ".join(config.Course.CNAME_LIST)}')
         return v
 
+    @field_validator('role')
+    def validate_role(cls, v):
+        return CommonValidators.validate_role(v)
+
 
 class AdminUserUpdateSchema(BaseModel):
     """管理员用户更新参数"""
@@ -413,9 +430,7 @@ class AdminUserUpdateSchema(BaseModel):
 
     @field_validator('role')
     def validate_role(cls, v):
-        if v and v not in ['student', 'admin', 'super_admin']:
-            raise ValueError('角色必须是: student, admin, super_admin')
-        return v
+        return CommonValidators.validate_role(v)
 
 
 class AdminTaskListSchema(BaseModel):
