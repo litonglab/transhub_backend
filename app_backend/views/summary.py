@@ -15,33 +15,23 @@ logger = logging.getLogger(__name__)
 @cache.memoize(timeout=10)
 def get_ranks_for_competition(cname, is_admin=False):
     """获取比赛榜单的缓存函数"""
-    if is_admin:
-        # admin用户：使用JOIN查询一次性获取榜单和用户信息
-        ranks_with_users = RankModel.query.join(
-            UserModel, RankModel.user_id == UserModel.user_id
-        ).filter(RankModel.cname == cname)
-        ranks_with_users = ranks_with_users.with_entities(
-            RankModel,
-            UserModel.sno,
-            UserModel.real_name
-        ).all()
+    # 使用JOIN查询一次性获取榜单和用户信息
+    ranks_with_users = (RankModel.query
+                        .join(UserModel, RankModel.user_id == UserModel.user_id)
+                        .filter(RankModel.cname == cname)
+                        .with_entities(RankModel, UserModel.sno, UserModel.real_name)
+                        .all())
 
-        logger.debug(f"query {len(ranks_with_users)} ranks with user info for competition {cname}")
+    logger.debug(f"query {len(ranks_with_users)} ranks with user info for competition {cname}")
 
-        result = []
-        for rank, sno, real_name in ranks_with_users:
-            rank_dict = rank.to_dict()
-            rank_dict['to_admin'] = {
-                'sno': sno,
-                'real_name': real_name
-            }
-            result.append(rank_dict)
-        return result
-    else:
-        # 普通用户：只查询榜单信息，直接用to_dict
-        ranks = RankModel.query.filter_by(cname=cname).all()
-        logger.debug(f"query {len(ranks)} ranks for competition {cname}")
-        return [rank.to_dict() for rank in ranks]
+    result = []
+    for rank, sno, real_name in ranks_with_users:
+        rank_dict = rank.to_dict()
+        rank_dict['real_name'] = real_name
+        if is_admin:
+            rank_dict['to_admin'] = {'sno': sno, }
+        result.append(rank_dict)
+    return result
 
 
 @summary_bp.route("/summary_get_ranks", methods=["GET"])
