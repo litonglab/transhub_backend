@@ -23,11 +23,11 @@ class UserRole(Enum):
 
 class UserModel(db.Model):
     __tablename__ = 'student'
-    user_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = db.Column(VARCHAR(36, charset='utf8mb4'), primary_key=True, default=lambda: str(uuid.uuid4()))
     username = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)
-    password = db.Column(db.String(128), nullable=False)  # 增加长度以适应加密
+    password = db.Column(VARCHAR(128, charset='utf8mb4'), nullable=False)  # 增加长度以适应加密
     real_name = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)
-    sno = db.Column(db.String(20), nullable=False)
+    sno = db.Column(VARCHAR(20, charset='utf8mb4'), nullable=False)
     role = db.Column(db.Enum(UserRole), nullable=False, server_default=UserRole.STUDENT.value)
     is_locked = db.Column(db.Boolean, nullable=False, server_default=text("0"))
     is_deleted = db.Column(db.Boolean, nullable=False, server_default=text("0"))

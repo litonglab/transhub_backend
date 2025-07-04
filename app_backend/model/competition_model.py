@@ -12,7 +12,7 @@ class CompetitionModel(db.Model):
     __tablename__ = 'competition'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     cname = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)
-    user_id = db.Column(db.String(36), db.ForeignKey('student.user_id'), nullable=False)
+    user_id = db.Column(VARCHAR(36, charset='utf8mb4'), db.ForeignKey('student.user_id'), nullable=False)
     created_at = db.Column(db.DateTime, server_default=func.now(), nullable=False)
 
     def save(self):

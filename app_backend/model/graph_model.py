@@ -2,14 +2,14 @@ import logging
 import uuid
 
 from sqlalchemy import func
+from sqlalchemy.dialects.mysql import VARCHAR
 
 from app_backend import db
 
 logger = logging.getLogger(__name__)
 
-
-
 from enum import Enum
+
 
 class GraphType(Enum):
     THROUGHPUT = 'throughput'
@@ -18,11 +18,11 @@ class GraphType(Enum):
 
 class GraphModel(db.Model):
     __tablename__ = 'graph'
-    graph_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    task_id = db.Column(db.String(36), db.ForeignKey('task.task_id'), nullable=False)
-    # user_id = db.Column(db.String(36), primary_key=False)
+    graph_id = db.Column(VARCHAR(36, charset='utf8mb4'), primary_key=True, default=lambda: str(uuid.uuid4()))
+    task_id = db.Column(VARCHAR(36, charset='utf8mb4'), db.ForeignKey('task.task_id'), nullable=False)
+    # user_id = db.Column(VARCHAR(36, charset='utf8mb4'), primary_key=False)
     graph_type = db.Column(db.Enum(GraphType), nullable=False)  # throughput, delay
-    graph_path = db.Column(db.String(255), nullable=False)
+    graph_path = db.Column(VARCHAR(255, charset='utf8mb4'), nullable=False)
     created_at = db.Column(db.DateTime, server_default=func.now(), nullable=False)
 
     def update(self, **kwargs):
