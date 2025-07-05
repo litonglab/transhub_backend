@@ -244,11 +244,6 @@ class FileUploadSchema(BaseModel):
         filename = file.filename
         logger.debug(f"Validating file: {filename}")
 
-        # 文件名长度检查
-        if len(filename) > 30:
-            logger.warning(f"Filename too long: {filename}")
-            raise ValueError("文件名不能超过30个字符")
-
         # 验证文件后缀名
         allowed_extensions = ['.c', '.cc', '.cpp']
         file_extension = None
@@ -265,6 +260,13 @@ class FileUploadSchema(BaseModel):
         if not re.match(r'^[\u4e00-\u9fa5a-zA-Z0-9_.-]+$', filename):
             logger.warning(f"Invalid filename format: {filename}")
             raise ValueError("文件名只能包含中文、字母、数字、下划线、点号和连字符")
+
+        # 验证文件名长度，超过时截断前面的文件名，保留后缀
+        if len(filename) > 36:
+            # 截断文件名，保留后缀
+            base_name, ext = filename.rsplit('.', 1)
+            base_name = base_name[:30]
+            filename = f"{base_name}.{ext}"
 
         # 验证文件大小（例如限制为2MB）
         max_size = 2 * 1024 * 1024  # 2MB
