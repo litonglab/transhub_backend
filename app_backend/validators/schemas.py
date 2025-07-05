@@ -241,13 +241,13 @@ class FileUploadSchema(BaseModel):
             logger.warning("Empty filename")
             raise ValueError("文件名为空")
 
-        # 文件名长度检查
-        if len(file.filename) > 30:
-            logger.warning(f"Filename too long: {file.filename}")
-            raise ValueError("文件名不能超过30个字符")
-
         filename = file.filename
         logger.debug(f"Validating file: {filename}")
+
+        # 文件名长度检查
+        if len(filename) > 30:
+            logger.warning(f"Filename too long: {filename}")
+            raise ValueError("文件名不能超过30个字符")
 
         # 验证文件后缀名
         allowed_extensions = ['.c', '.cc', '.cpp']
