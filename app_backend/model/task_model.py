@@ -68,7 +68,7 @@ class TaskModel(db.Model):
     loss_rate = db.Column(db.Float, nullable=False)  # 标识运行的环境,loss_rate
     buffer_size = db.Column(db.Integer, nullable=False)  # 标识运行的环境,buffer_size
     delay = db.Column(db.Integer, nullable=False)  # 标识运行的环境,delay
-    trace_name = db.Column(VARCHAR(36, charset='utf8mb4'), nullable=False)  # 标识运行的trace
+    trace_name = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)  # 标识运行的trace
     user_id = db.Column(VARCHAR(36, charset='utf8mb4'), db.ForeignKey('student.user_id'), nullable=False)
     task_status = db.Column(db.Enum(TaskStatus), nullable=False)
     created_time = db.Column(db.DateTime, nullable=False)  # actually, it's upload time.
@@ -76,7 +76,7 @@ class TaskModel(db.Model):
     cname = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)  # 后续修改相关查询逻辑后可删除
     competition_id = db.Column(db.Integer, db.ForeignKey('competition.id'), nullable=False)
     task_dir = db.Column(VARCHAR(256, charset='utf8mb4'), nullable=False)  # 任务的文件夹, 用于存放用户上传的文件
-    algorithm = db.Column(VARCHAR(36, charset='utf8mb4'), nullable=False)  # 算法名称
+    algorithm = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)  # 算法名称
     error_log = db.Column(VARCHAR(15000, charset='utf8mb4'), )  # 错误日志
     created_at = db.Column(db.DateTime, server_default=func.now(), nullable=False)
     updated_at = db.Column(db.DateTime, server_default=func.now(),

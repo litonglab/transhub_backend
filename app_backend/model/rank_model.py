@@ -17,7 +17,7 @@ class RankModel(db.Model):
     user_id = db.Column(VARCHAR(36, charset='utf8mb4'), db.ForeignKey('student.user_id'),
                         default=lambda: str(uuid.uuid4()), nullable=False)
     task_score = db.Column(db.Float, nullable=False)
-    algorithm = db.Column(VARCHAR(36, charset='utf8mb4'), nullable=False)
+    algorithm = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)
     upload_time = db.Column(db.DateTime, nullable=False)
     cname = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)  # 后续修改相关查询逻辑后可删除
     competition_id = db.Column(db.Integer, db.ForeignKey('competition.id'), nullable=False)
