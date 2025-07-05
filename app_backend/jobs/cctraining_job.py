@@ -4,7 +4,6 @@ import shutil
 import signal
 import subprocess
 
-import cairosvg
 import dramatiq
 from dramatiq.brokers.redis import RedisBroker
 from dramatiq.middleware import TimeLimit
@@ -162,7 +161,7 @@ def _graph(task, result_path):
 
     throughput_graph_svg = os.path.join(task.task_dir, f"{task.trace_name}.throughput.svg")
     delay_graph_svg = os.path.join(task.task_dir, f"{task.trace_name}.delay.svg")
-    delay_graph_png = os.path.join(task.task_dir, f"{task.trace_name}.delay.png")
+    # delay_graph_png = os.path.join(task.task_dir, f"{task.trace_name}.delay.png")
     # 另一个画图逻辑
     # tunnel_graph = TunnelGraph(
     #     tunnel_log=result_path,
@@ -174,15 +173,16 @@ def _graph(task, result_path):
     run_cmd(f'mm-throughput-graph 500 {result_path} > {throughput_graph_svg}', task_id)
     run_cmd(f'mm-delay-graph {result_path} > {delay_graph_svg}', task_id)
     # 由于delay svg图太大，将svg转换为png以压缩
-    logger.info(f"[task: {task_id}] Converting delay graph SVG to PNG")
-    cairosvg.svg2png(url=delay_graph_svg, write_to=delay_graph_png)
-    os.remove(delay_graph_svg)
-    logger.info(f"[task: {task_id}] Converted delay graph SVG to PNG, svg removed.")
-    logger.info(f"[task: {task_id}] Graphs generated successfully: {throughput_graph_svg}, {delay_graph_png}")
+    # 实测高并发时，转换时长需要几十分钟，暂时删除此逻辑
+    # logger.info(f"[task: {task_id}] Converting delay graph SVG to PNG")
+    # cairosvg.svg2png(url=delay_graph_svg, write_to=delay_graph_png)
+    # os.remove(delay_graph_svg)
+    # logger.info(f"[task: {task_id}] Converted delay graph SVG to PNG, svg removed.")
+    logger.info(f"[task: {task_id}] Graphs generated successfully: {throughput_graph_svg}, {delay_graph_svg}")
     GraphModel(task_id=task_id, graph_type=GraphType.THROUGHPUT,
                graph_path=throughput_graph_svg).insert()
     GraphModel(task_id=task_id, graph_type=GraphType.DELAY,
-               graph_path=delay_graph_png).insert()
+               graph_path=delay_graph_svg).insert()
     logger.info(f"[task: {task_id}] is generating graphs successfully")
 
 
