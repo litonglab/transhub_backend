@@ -33,7 +33,7 @@ config = get_default_config()
 
 @help_bp.route("/help_get_tutorial", methods=["GET"])
 @jwt_required()
-def return_zhinan():
+def get_tutorial():
     cname = get_jwt().get('cname')
     logger.debug(f"Tutorial request for competition {cname}")
 
@@ -47,13 +47,13 @@ def return_zhinan():
 
 
 @help_bp.route('/help_get_pantheon', methods=["GET"])
-def return_pantheon():
+def get_pantheon():
     return HttpResponse.ok(pantheon=config.Course.CNAME_LIST)
 
 
-@help_bp.route("/help_get_competition_time", methods=["GET"])
+@help_bp.route("/help_get_competition_info", methods=["GET"])
 @jwt_required()
-def return_competition_time():
+def get_competition_info():
     """ Returns the start and end time of the competition for the current user.
     """
     cname = get_jwt().get('cname')
@@ -62,5 +62,10 @@ def return_competition_time():
     _config = config.get_course_config(cname)
     time_stmp = [int(time.mktime(time.strptime(_config['start_time'], "%Y-%m-%d %H:%M:%S"))),
                  int(time.mktime(time.strptime(_config['end_time'], "%Y-%m-%d %H:%M:%S")))]
-    logger.debug(f"Competition time for {cname}: start={_config['start_time']}, end={_config['end_time']}")
-    return HttpResponse.ok(data=time_stmp)
+    data = {
+        "time_stmp": time_stmp,
+        "max_active_uploads_per_user": _config['max_active_uploads_per_user'],
+    }
+    logger.debug(
+        f"Competition info for {cname}: start={_config['start_time']}, end={_config['end_time']}, max_active_uploads_per_user={_config['max_active_uploads_per_user']}")
+    return HttpResponse.ok(data=data)
