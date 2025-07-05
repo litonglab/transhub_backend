@@ -8,6 +8,7 @@ import cairosvg
 import dramatiq
 from dramatiq.brokers.redis import RedisBroker
 from dramatiq.middleware import TimeLimit
+from dramatiq.middleware.time_limit import TimeLimitExceeded
 from redis.lock import Lock
 
 from app_backend import db, redis_client, get_default_config
@@ -23,7 +24,7 @@ setup_logger()
 logger = logging.getLogger(__name__)
 config = get_default_config()
 redis_broker = RedisBroker(url=config.Cache.FLASK_REDIS_URL)
-redis_broker.add_middleware(TimeLimit())
+redis_broker.add_middleware(TimeLimit(time_limit=1200000))  # 20分钟全局超时限制
 dramatiq.set_broker(redis_broker)
 
 
@@ -255,6 +256,27 @@ def _update_rank(task, user):
         return True
 
 
+def _handle_exception(task_id, err_msg, task=None, sender_path=None, receiver_path=None):
+    """
+    处理异常，更新任务状态和错误日志
+    :param task: TaskModel对象
+    :param task_id: 任务ID
+    :param err_msg: 错误信息
+    """
+    task_error_log_content = f"发生意外错误，请将此信息反馈给管理员协助排查。\n[task_id: {task_id}]\nException occurred:\n{err_msg}\n"
+    logger.error(f"[task: {task_id}] {task_error_log_content}", exc_info=True)
+    if task:
+        # 日志长度和数据库设置的长度计算方式不同，这里限制为8000
+        if len(task_error_log_content) > 8000:
+            task_error_log_content = task_error_log_content[:8000] + '...'
+        task.update(task_status=TaskStatus.ERROR, error_log=task_error_log_content)
+        logger.error(f"[task: {task_id}] Task status updated to ERROR due to exception")
+    # 删除编译生成的二进制文件，注意不在finally中删除，因为正常结束的任务不一定需要删除，其他任务可能会复用
+    if sender_path and receiver_path:
+        _remove_binary_files(task_id, sender_path, receiver_path)
+
+
+# 20分钟超时（毫秒），此时间应大于cmd子进程的超时时间
 @dramatiq.actor(time_limit=1200000, max_retries=0)
 def run_cc_training_task(task_id):
     app = get_app()
@@ -305,20 +327,34 @@ def run_cc_training_task(task_id):
             if all_tasks_completed:
                 _remove_binary_files(task_id, sender_path, receiver_path)
             logger.info(f"[task: {task_id}] Task completed successfully, score: {total_score}")
+        except TimeLimitExceeded as e:
+            # 处理 Dramatiq 的超时异常，此异常不在Exception中，需单独处理
+            logger.error(f"[task: {task_id}] Task timed out due to Dramatiq TimeLimit middleware")
+            err_msg = f"{type(e).__name__}\n{str(e)}\nTask timed out after 20 minutes, this problem shouldn't happen, please contact admin."
+
+            _task = None
+            _sender_path = None
+            _receiver_path = None
+            if 'task' in locals():
+                _task = task
+            if 'sender_path' in locals() and 'receiver_path' in locals():
+                _sender_path = sender_path
+                _receiver_path = receiver_path
+            _handle_exception(task_id, err_msg, _task, _sender_path, _receiver_path)
+
         except Exception as e:
             # 理论上除了编译失败外，不应出现其他异常，如果出现，需要修复代码相关逻辑
             err_msg = f"{type(e).__name__}\n{str(e)}"
-            task_error_log_content = f"发生意外错误，请将此信息反馈给管理员协助排查。\n[task_id: {task_id}]\nException occurred:\n{err_msg}\n"
-            logger.error(f"[task: {task_id}] {task_error_log_content}", exc_info=True)
-            if 'task' in locals() and task:
-                # 日志长度和数据库设置的长度计算方式不同，这里限制为8000
-                if len(task_error_log_content) > 8000:
-                    task_error_log_content = task_error_log_content[:8000] + '...'
-                task.update(task_status=TaskStatus.ERROR, error_log=task_error_log_content)
-                logger.error(f"[task: {task_id}] Task status updated to ERROR due to exception")
-            # 删除编译生成的二进制文件，注意不在finally中删除，因为正常结束的任务不一定需要删除，其他任务可能会复用
+
+            _task = None
+            _sender_path = None
+            _receiver_path = None
+            if 'task' in locals():
+                _task = task
             if 'sender_path' in locals() and 'receiver_path' in locals():
-                _remove_binary_files(task_id, sender_path, receiver_path)
+                _sender_path = sender_path
+                _receiver_path = receiver_path
+            _handle_exception(task_id, err_msg, _task, _sender_path, _receiver_path)
         finally:
             try:
                 db.session.remove()
