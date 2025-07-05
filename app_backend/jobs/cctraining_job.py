@@ -365,6 +365,8 @@ def run_cc_training_task(task_id):
                     os.remove(result_path)
                     logger.info(f"[task: {task_id}] Removed result file: {result_path}")
 
+            except TimeLimitExceeded as e:
+                logger.error(f"[task: {task_id}] Error when finally cleanup: Dramatiq TimeLimitExceeded", exc_info=True)
             except Exception as e:
                 logger.error(f"[task: {task_id}] Error when finally cleanup: {str(e)}", exc_info=True)
 
