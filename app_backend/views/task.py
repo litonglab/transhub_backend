@@ -68,7 +68,7 @@ def upload_project_file():
 
     # 文件已经通过 Pydantic 验证，直接获取文件信息
     filename = file.filename
-    algorithm = filename.split('.')[0]
+    algorithm = filename.rsplit('.', 1)[0]
 
     logger.info(f"Processing upload for user {user.username}, file: {filename}, algorithm: {algorithm}")
 
