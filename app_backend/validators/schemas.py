@@ -256,10 +256,10 @@ class FileUploadSchema(BaseModel):
             logger.warning(f"Invalid file extension: {filename}")
             raise ValueError("文件必须是C程序(.c)或C++程序(.cc, .cpp)")
 
-        # 验证文件名格式（只允许字母、数字、下划线、点号）
-        if not re.match(r'^[a-zA-Z0-9_.-]+$', filename):
+        # 验证文件名格式（只允许中文、字母、数字、下划线、点号和连字符）
+        if not re.match(r'^[\u4e00-\u9fa5a-zA-Z0-9_.-]+$', filename):
             logger.warning(f"Invalid filename format: {filename}")
-            raise ValueError("文件名只能包含字母、数字、下划线、点号和连字符")
+            raise ValueError("文件名只能包含中文、字母、数字、下划线、点号和连字符")
 
         # 验证文件大小（例如限制为2MB）
         max_size = 2 * 1024 * 1024  # 2MB
