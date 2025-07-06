@@ -63,13 +63,13 @@ tracedir="$prefix/../share/mahimahi/traces"
 command="mm-delay $delay mm-loss uplink $loss_rate mm-link $downlink_file $uplink_file --uplink-queue=droptail --uplink-queue-args=\\\"packets=$buffer_size\\\" --once --uplink-log=$result_path -- bash -c '$sender_path \$MAHIMAHI_BASE $running_port > /dev/null'"
 
 # Run the command in background
-echo [$(date "+%Y-%m-%d %H:%M:%S")] "starting sender..."
+echo [$(date "+%Y-%m-%d %H:%M:%S")] "Starting sender..."
 
 # debug only: 打印实际执行的命令，仅用于调试，现网环境保持注释，不展示给用户
 # echo [$(date "+%Y-%m-%d %H:%M:%S")] "Executing sender command: $command"
 
 
-echo [$(date "+%Y-%m-%d %H:%M:%S")] "running contest..."
+echo [$(date "+%Y-%m-%d %H:%M:%S")] "Running contest..."
 eval $command &
 command_pid=$!
 
@@ -95,4 +95,4 @@ fi
 
 end_time=$(date +%s)
 elapsed=$((end_time - start_time))
-echo [$(date "+%Y-%m-%d %H:%M:%S")] "run contest done. Total time: ${elapsed}s."
+echo [$(date "+%Y-%m-%d %H:%M:%S")] "Run contest done. Total time: ${elapsed}s."
