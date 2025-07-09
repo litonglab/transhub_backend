@@ -1,50 +1,55 @@
 # 2025 计算机网络校内赛
 
-本次竞赛最终结果需要提交在本网站 “算法提交” 处并查看排名。但为了方便参赛者修改和调试自己的拥塞控制算法代码，需要各位在本地配置 Transhub 运行环境，以下是安装指南（在第二节对 Transhub 代码框架进行了简单介绍）。
+本次竞赛最终结果需要提交在本网站 “算法提交” 处并查看排名。但为了方便参赛者修改和调试自己的拥塞控制算法代码，需要各位在本地配置
+Transhub 运行环境，以下是安装指南（在第二节对 Transhub 代码框架进行了简单介绍）。
 
 本次比赛设置一二三等奖及优胜奖，并设立奖金，欢迎同学们积极参与！
 
 # Transhub 框架介绍
 
-将 Transhub 代码克隆到本地后，大家需要关心 /cc-training/datagrump 目录下的内容，该目录下的内容与比赛息息相关，以下是对 datagrump 目录下各文件的简单介绍。
+将 Transhub 代码克隆到本地后，大家需要关心 `/cc-training/datagrump` 目录下的内容，该目录下的内容与比赛息息相关，以下是对
+`datagrump` 目录下各文件的简单介绍。
 
 - **contest_message 文件**：规定数据报文的格式。
 
-在通信之前，我们需要事先在通信双方约定一个通信语法，也就是对应着一个报文格式标准，用来指定传输过程中数据的组织形式。报文格式标准没有固定的要求，唯一的要求就是发送端和接收端都接受相同的标准。
+  在通信之前，我们需要事先在通信双方约定一个通信语法，也就是对应着一个报文格式标准，用来指定传输过程中数据的组织形式。报文格式标准没有固定的要求，唯一的要求就是发送端和接收端都接受相同的标准。
 
-数据报文（Packet）总体来说分为两个部分：报文头部和包内数据。报文头部主要包含描述报文特性的一些元数据，例如报文序列号、报文的发送时间等等。比赛测试场景是固定发送端和接收端，因此报文头元数据部分更加简单，具体有以下一些字段：
+  数据报文（Packet）总体来说分为两个部分：报文头部和包内数据。报文头部主要包含描述报文特性的一些元数据，例如报文序列号、报文的发送时间等等。比赛测试场景是固定发送端和接收端，因此报文头元数据部分更加简单，具体有以下一些字段：
 
-`sequence_number`：数据报文的序列号
+  `sequence_number`：数据报文的序列号
 
-`send_timestamp`：数据报文的发送时间
+  `send_timestamp`：数据报文的发送时间
 
-`ack_sequence_number`：确认收到的数据报文序列号
+  `ack_sequence_number`：确认收到的数据报文序列号
 
-`ack_send_timestamp`：确认报文（ACK）的发送时间
+  `ack_send_timestamp`：确认报文（ACK）的发送时间
 
-`ack_recv_timestamp`：确认报文（ACK）的接收时间
+  `ack_recv_timestamp`：确认报文（ACK）的接收时间
 
-`ack_payload_length`：数据报文的有效载荷大小
+  `ack_payload_length`：数据报文的有效载荷大小
 
 - **sender.cc 文件**：模拟发送端的行为。
 
-发送端的行为遵循两个准则，一是如果发送端还有发送窗口空余，发送端就发送更多的数据报文来填满发送窗口；二是如果发送端收到了 ACK，处理该确认报文并通知 controller，进行拥塞控制。此外，如果超过了一定的时间（超时时间）发送端还没收到 ACK，发送端会认为这个报文丢失了，会进行重传。具体细节请参看 sender.cc 文件。
+  发送端的行为遵循两个准则，一是如果发送端还有发送窗口空余，发送端就发送更多的数据报文来填满发送窗口；二是如果发送端收到了
+  ACK，处理该确认报文并通知 `controller`，进行拥塞控制。此外，如果超过了一定的时间（超时时间）发送端还没收到
+  ACK，发送端会认为这个报文丢失了，会进行重传。具体细节请参看 `sender.cc` 文件。
 
 - **receiver.cc 文件**：模拟接收端的行为。
 
-接收端会为收到的每个数据报文发送 ACK，`ack_sequence_number` 就是数据报文的序列号 `sequence_number`，具体细节请参看 receiver.cc 文件和 contest_message.cc 文件中的 `transform_into_ack` 函数。
+  接收端会为收到的每个数据报文发送 ACK，`ack_sequence_number` 就是数据报文的序列号 `sequence_number`，具体细节请参看
+  `receiver.cc` 文件和 `contest_message.cc` 文件中的 `transform_into_ack` 函数。
 
-- **controller.cc 文件**：模拟进行拥塞控制的文件，也是参赛者们需要修改的文件。
+- **controller.cc 文件**：模拟进行拥塞控制的文件，也是参赛者们需要修改的文件。 有以下四个接口函数：
 
-有以下四个接口函数：
+  `window_size()`：返回给发送端当前的发送窗口大小。
 
-`window_size()`：返回给发送端当前的发送窗口大小。
+  `datagram_was_sent()`：发送端发送数据报文时调用 controller 中的该函数，参数中有 `const bool after_timeout`
+  标志位，标记该报文是否是因为超时发送的。
 
-`datagram_was_sent()`：发送端发送数据报文时调用 controller 中的该函数，参数中有 `const bool after_timeout` 标志位，标记该报文是否是因为超时发送的。
+  `ack_received()`：发送端收到 ACK 时会调用 controller 中的该函数，根据 ACK 报文中的信息，如确认序列号、数据报文的发送时间戳、ACK
+  的接收时间戳等信息，计算往返时延等变量，进行拥塞控制。
 
-`ack_received()`：发送端收到 ACK 时会调用 controller 中的该函数，根据 ACK 报文中的信息，如确认序列号、数据报文的发送时间戳、ACK 的接收时间戳等信息，计算往返时延等变量，进行拥塞控制。
-
-`timeout_ms()`：设置超时时间，返回给发送端。
+  `timeout_ms()`：设置超时时间，返回给发送端。
 
 - **run-contest 文件**：测试脚本。
 
@@ -67,7 +72,8 @@ Linux 版本要求：Ubuntu GNU/Linux 14.04 以上
 - 第一种方法为使用 Linux 虚拟机/主机，安装相关依赖，下载 transhub 代码并编译，编译完成后即可运行实验。
 - 第二种方法为使用已配置好的 Docker 镜像，镜像里已装好相关依赖和代码，**开箱即用**，可**直接**运行实验。
 
-❗ 由于以上部分依赖仅有 x86 架构的包，因此使用**\*\*Mac M 芯片\*\***的同学需要注意，如果使用第一种方法自行安装虚拟机，需安装 x86 架构的 Linux 系统，使用 Arm 架构的虚拟机将无法安装所有依赖。建议 Mac M 芯片同学使用**\*\*Docker 方法\*\***。
+❗ 由于以上部分依赖仅有 x86 架构的包，因此使用**Mac M 芯片**的同学需要注意，如果使用第一种方法自行安装虚拟机，需安装
+x86 架构的 Linux 系统，使用 Arm 架构的虚拟机将无法安装所有依赖。建议 Mac M 芯片同学使用**Docker 方法**。
 
 ❗ 高版本 Ubuntu、WSL 存在已知问题，详情请参阅附录-常见问题。
 
@@ -87,7 +93,8 @@ Linux 版本要求：Ubuntu GNU/Linux 14.04 以上
 
 官方下载链接：
 
-[https://support.broadcom.com/group/ecx/productdownloads?subfamily=VMware%20Workstation%20Pro](https://support.broadcom.com/group/ecx/productdownloads?subfamily=VMware Workstation Pro)
+[https://support.broadcom.com/group/ecx/productdownloads?subfamily=VMware%20Workstation%20Pro](https://support.broadcom.com/group/ecx/productdownloads?subfamily=VMware
+Workstation Pro)
 
 ⭐**官方所有版本下载链接（推荐，官方渠道且无需注册账户可直接下载）：**
 
@@ -97,7 +104,8 @@ https://softwareupdate.vmware.com/cds/vmw-desktop/ws/
 
 ![image-20250603下午60521956](https://gitee.com/ggbondzhu/transhub-md-pic/raw/master/image-20250603下午60521956.png)
 
-- 下载 Ubuntu 镜像（Ubuntu18 或 20、22 等版本，可根据自身需求选择。由于 vscode 限制，较老的系统版本无法使用 vscode 进行 ssh 远程连接）
+- 下载 Ubuntu 镜像（Ubuntu18 或 20、22 等版本，可根据自身需求选择。由于 vscode 限制，较老的系统版本无法使用 vscode 进行 ssh
+  远程连接）
 
 [Index of /ubuntu-releases/18.04/ | 清华大学开源软件镜像站 | Tsinghua Open Source Mirror](https://mirrors.tuna.tsinghua.edu.cn/ubuntu-releases/18.04/)
 
@@ -113,7 +121,8 @@ https://softwareupdate.vmware.com/cds/vmw-desktop/ws/
 sudo apt-get install build-essential git debhelper autotools-dev dh-autoreconf iptables protobuf-compiler libprotobuf-dev pkg-config libssl-dev dnsmasq-base ssl-cert libxcb-present-dev libcairo2-dev libpango1.0-dev iproute2 apache2-dev apache2-bin iptables dnsmasq-base gnuplot iproute2 apache2-api-20120211 libwww-perl
 ```
 
-（这些依赖项在[mahimahi / debian / control](https://github.com/keithw/mahimahi/blob/master/debian/control#L5)中列出，另外还有一些用于比赛的依赖项）
+（这些依赖项在[mahimahi / debian / control](https://github.com/keithw/mahimahi/blob/master/debian/control#L5)
+中列出，另外还有一些用于比赛的依赖项）
 
 - 下载 mahimahi 源代码
 
@@ -170,7 +179,8 @@ Linux 上如何安装使用 Docker 请自行查询相关教程，此处以 Mac �
 
 Mac 上可安装 Docker Desktop 或者 Orbstack，这里以 Orbstack 为例。
 
-> OrbStack 是一款专为 MacOS 设计的轻量级容器和虚拟机管理工具，旨在为开发者提供快速、高效的容器化开发和测试环境。它支持 Docker 容器和 Linux 虚拟机，特别针对 Apple Silicon（M1/M2 等 ARM 芯片）进行了优化，能够无缝运行 x86 和 ARM 架构的容器。
+> OrbStack 是一款专为 MacOS 设计的轻量级容器和虚拟机管理工具，旨在为开发者提供快速、高效的容器化开发和测试环境。它支持
+> Docker 容器和 Linux 虚拟机，特别针对 Apple Silicon（M1/M2 等 ARM 芯片）进行了优化，能够无缝运行 x86 和 ARM 架构的容器。
 
 访问https://orbstack.dev/download 下载并安装。安装好后，打开 Orbstack 完成初始化。
 
@@ -193,7 +203,7 @@ docker load -i transhub.tar
 
 ### 2.3. 创建并运行 Transhub 容器
 
-此步骤**\*\*仅需执行一次\*\***，使用以下命令创建并运行 transhub 容器：
+此步骤**仅需执行一次**，使用以下命令创建并运行 transhub 容器：
 
 ```bash
 sudo docker run --platform linux/amd64 --privileged -itd --name transhub transhub:v2.0
@@ -201,7 +211,9 @@ sudo docker run --platform linux/amd64 --privileged -itd --name transhub transhu
 
 ❗ 注意，在 m 芯片 mac 上，需要显式指定平台为 `linux/amd64`，强制运行 x86 架构的镜像
 
-❗ 注意，如需要使用 `-v`命令将主机上的目录挂载到容器目录，请勿覆盖容器内的 `/home/none_root/transhub` 目录。因为该目录下已包含配置好的代码文件，如映射后，将被主机目录覆盖。即如需使用 ` -v ~/Downloads/transhub:/home/none_root/transhub`，`:`后不得接 `/home/none_root/transhub`
+❗ 注意，如需要使用 `-v`命令将主机上的目录挂载到容器目录，请勿覆盖容器内的 `/home/none_root/transhub`
+目录。因为该目录下已包含配置好的代码文件，如映射后，将被主机目录覆盖。即如需使用
+` -v ~/Downloads/transhub:/home/none_root/transhub`，`:`后不得接 `/home/none_root/transhub`
 
 运行成功后，可以在 Orbstack 中看到其已处于运行状态：
 
@@ -209,10 +221,17 @@ sudo docker run --platform linux/amd64 --privileged -itd --name transhub transhu
 
 ### 2.4. 进入 Transhub 容器
 
-- 首先，确保容器已经启动并正在运行。在执行完 2.3 步后，容器已经处于运行状态。后续若需再次使用容器，则无需再重复执行 2.3 步骤，可使用以下方法来启动容器。
+- 首先，确保容器已经启动并正在运行。在执行完 2.3 步后，容器已经处于运行状态。后续若需再次使用容器，则无需再重复执行 2.3
+  步骤，可使用以下方法来启动容器。
 
-> `docker run`命令通常用于第一次启动一个新的容器。当你执行 `docker run` 时，Docker 会执行两个步骤：首先，它会从指定的镜像创建一个新的容器（相当于执行了 `docker create` 命令），然后它会启动这个容器，使其变成一个运行中的容器（这一步相当于执行了 `docker start`命令）。因此，`docker run` 是一个组合命令，它不仅创建容器，还会立即启动容器。如果在系统上找不到指定的镜像，`docker run` 甚至会尝试从 Docker Hub 拉取镜像。
-> 相比之下，`docker start` 命令用于启动一个已经存在的容器。如果你之前已经创建了一个容器（无论是通过 `docker create` 创建的，还是之前用 `docker run` 创建并启动过的），你可以使用 `docker start` 来重新启动这个容器。这意味着，使用 `docker start` 时，你必须知道要启动的容器的 ID 或名称。
+> `docker run`命令通常用于第一次启动一个新的容器。当你执行 `docker run` 时，Docker 会执行两个步骤：首先，它会从指定的镜像创建一个新的容器（相当于执行了
+`docker create` 命令），然后它会启动这个容器，使其变成一个运行中的容器（这一步相当于执行了 `docker start`命令）。因此，
+`docker run` 是一个组合命令，它不仅创建容器，还会立即启动容器。如果在系统上找不到指定的镜像，`docker run` 甚至会尝试从
+> Docker Hub 拉取镜像。
+> 相比之下，`docker start` 命令用于启动一个已经存在的容器。如果你之前已经创建了一个容器（无论是通过 `docker create`
+> 创建的，还是之前用 `docker run` 创建并启动过的），你可以使用 `docker start` 来重新启动这个容器。这意味着，使用
+`docker start`
+> 时，你必须知道要启动的容器的 ID 或名称。
 
 可以运行以下命令查看容器状态：
 
@@ -233,7 +252,7 @@ eecfe24288b1   transhub:v2.0   "/bin/bash"   5 minutes ago Up 5 minutes         
 docker start transhub
 ```
 
-- 使用 `docker exec` 命令进入容器的 Shell，后续即可在终端中**\*\*操作该容器\*\***
+- 使用 `docker exec` 命令进入容器的 Shell，后续即可在终端中**操作该容器**
 
 ```bash
 docker exec -it transhub /bin/bash
@@ -252,7 +271,8 @@ ls
 
 运行 `run-contest`开始测试后，程序将模拟 VerizonLTE 连接大约两分钟，请耐心等待，运行完成时会生成日志。
 
-💡`run-contest`工具负责将测试文件通过模拟 Verizon downlink 生成日志，并使用 mahimahi 仿真，提供传输过程中的性能信息，并显示 queueing delay 和 throughput 随时间变化的折线图。
+💡`run-contest`工具负责将测试文件通过模拟 Verizon downlink 生成日志，并使用 mahimahi 仿真，提供传输过程中的性能信息，并显示
+queueing delay 和 throughput 随时间变化的折线图。
 
 ### 2.1. 通过方式一安装的测试过程
 
@@ -284,7 +304,8 @@ Average throughput:平均吞吐量
 
 ### 2.2. 通过方式二安装的测试过程
 
-❗ 注意，在容器中运行时，运行 `run-contest`需要在非 root 用户下执行，而开启 linux 的 IP 转发以及编译源代码需要在 root 用户下。使用 `su none_root`切换为非 root 用户，使用 `exit`切换回 root 用户。在使用过程中请注意在两种用户间灵活切换。
+❗ 注意，在容器中运行时，运行 `run-contest`需要在非 root 用户下执行，而开启 linux 的 IP 转发以及编译源代码需要在 root 用户下。使用
+`su none_root`切换为非 root 用户，使用 `exit`切换回 root 用户。在使用过程中请注意在两种用户间灵活切换。
 
 - 运行 `run-contest`开始实验
 
@@ -333,17 +354,21 @@ Mac 可通过以下方式找到容器内文件：
 
 # （三）进行算法开发
 
-在 Ubuntu 内安装 vscode 或在宿主机使用 vscode 远程连接到虚拟机（连接方法可查看教程[让 Visual studio code 使用 SSH 连接虚拟机 Ubuntu 开发](https://zhuanlan.zhihu.com/p/681363165)或搜索关键词 `vscode连接虚拟机`）。
+在 Ubuntu 内安装 vscode 或在宿主机使用 vscode
+远程连接到虚拟机（连接方法可查看教程[让 Visual studio code 使用 SSH 连接虚拟机 Ubuntu 开发](https://zhuanlan.zhihu.com/p/681363165)
+或搜索关键词 `vscode连接虚拟机`）。
 
 打开代码目录，修改 `controlle.cc`代码，修改完成后，执行 `make`命令编译代码，然后运行测试验证代码效果即可。
 
 # （四）系统拥塞控制算法配置（可选）
 
-本节内容介绍了如何查看并修改系统拥塞控制算法，属于**\*\*拓展阅读\*\***部分。
+本节内容介绍了如何查看并修改系统拥塞控制算法，属于**拓展阅读**部分。
 
 Linux 系统中可选的拥塞控制算法包括 `reno`、`cubic`、`bbr`等。本节以配置 `bbr`算法为例：
 
-❗ 配置不同的拥塞控制算法会对传输结果产生不同的影响，可做相关实验验证（此处所指**实验并非**本 transhub 中的 `run-contest`实验，`run-contest`的拥塞控制算法为 `controller.cc`,与系统拥塞控制算法无关。如需验证系统拥塞控制算法，可使用 `iperf`等工具来做相关实验）。
+❗ 配置不同的拥塞控制算法会对传输结果产生不同的影响，可做相关实验验证（此处所指**实验并非**本 transhub 中的 `run-contest`
+实验，`run-contest`的拥塞控制算法为 `controller.cc`,与系统拥塞控制算法无关。如需验证系统拥塞控制算法，可使用 `iperf`
+等工具来做相关实验）。
 
 ### 3.1 通过方式一安装的操作过程
 
@@ -382,9 +407,15 @@ sudo sysctl net.ipv4.tcp_congestion_control
 - Docker 容器共享宿主机的内核，因此容器内的网络配置（如拥塞控制算法）受宿主机内核限制。
 - 如果宿主机内核不支持 BBR，容器内也无法使用 BBR。
 
-> [Docker](https://zhida.zhihu.com/search?content_id=461284401&content_type=Answer&match_order=1&q=Docker&zhida_source=entity)在[macOS](https://zhida.zhihu.com/search?content_id=461284401&content_type=Answer&match_order=1&q=macOS&zhida_source=entity)上和 Windows 上跑[Linux](https://zhida.zhihu.com/search?content_id=461284401&content_type=Answer&match_order=1&q=Linux&zhida_source=entity) docker 都是先套了个虚拟机，虚拟机里跑 Linux 提供[kernel](https://zhida.zhihu.com/search?content_id=461284401&content_type=Answer&match_order=1&q=kernel&zhida_source=entity)，再在里面跑 docker。目前虚拟机在 Windows 上是[Hyper-V](https://zhida.zhihu.com/search?content_id=461284401&content_type=Answer&match_order=1&q=Hyper-V&zhida_source=entity)或者 WSL，macOS 上有两套方案。
+> [Docker](https://zhida.zhihu.com/search?content_id=461284401&content_type=Answer&match_order=1&q=Docker&zhida_source=entity)
+> 在[macOS](https://zhida.zhihu.com/search?content_id=461284401&content_type=Answer&match_order=1&q=macOS&zhida_source=entity)
+> 上和Windows上跑[Linux](https://zhida.zhihu.com/search?content_id=461284401&content_type=Answer&match_order=1&q=Linux&zhida_source=entity)
+> docker都是先套了个虚拟机，虚拟机里跑Linux提供[kernel](https://zhida.zhihu.com/search?content_id=461284401&content_type=Answer&match_order=1&q=kernel&zhida_source=entity)
+> ，再在里面跑docker。目前虚拟机在Windows上是[Hyper-V](https://zhida.zhihu.com/search?content_id=461284401&content_type=Answer&match_order=1&q=Hyper-V&zhida_source=entity)
+> 或者WSL，macOS上有两套方案。
 
-**\*\*拥塞控制算法\*\***属于**\*\*内核算法\*\***，所以在 Docker 容器能够使用的拥塞控制算法受**\*\*宿主机内核\*\***确定。bbr 算法是较新的算法，并非在所有内核都支持。
+**拥塞控制算法**属于**内核算法**，所以在 Docker 容器能够使用的拥塞控制算法受**宿主机内核**确定。bbr
+算法是较新的算法，并非在所有内核都支持。
 
 使用命令 `sysctl net.ipv4.tcp_available_congestion_control`查看当前支持的拥塞控制算法：
 
@@ -396,7 +427,8 @@ sysctl net.ipv4.tcp_available_congestion_control
 ```
 
 - 如是 Linux 宿主机，可按照 3.1 节方法开启宿主机 bbr 算法，在容器中也将变更为 bbr 算法。
-- Mac 若是使用 Orbstack 的容器，可尝试使用 reno 或 cubic 算法。目前暂时没找到打开 bbr 的方法，因为容器内开启 bbr 算法需要**\*\*宿主机内核\*\***支持。而在 Orbstack 中，该内核实际上是由 Orbstack 提供的**\*\*定制化的内置 Linux 内核\*\***，用户无法修改。
+- Mac 若是使用 Orbstack 的容器，可尝试使用 reno 或 cubic 算法。目前暂时没找到打开 bbr 的方法，因为容器内开启 bbr 算法需要
+  **宿主机内核**支持。而在 Orbstack 中，该内核实际上是由 Orbstack 提供的**定制化的内置 Linux 内核**，用户无法修改。
 - Windows Docker 若是使用 WSL 后端，暂时不支持该操作。
 
 在 Docker 中切换拥塞控制算法的命令如下：
@@ -441,7 +473,8 @@ sysctl net.ipv4.tcp_congestion_control=cubic
 
 1. ##### Ubuntu24 版本默认安装 gnuplot 6.0 导致无法正确绘制流量图
 
-   对于 Ubuntu 24 版本，可能默认安装的 gnuplot 为 6.0 版本，将导致后续绘制流量图时出错（绘制的流量图无法正常打开），需要将 gnuplot 降级到 5.4，Ubuntu 22 及以下版本默认安装的是 5.4 版本，不会有此问题。
+   对于 Ubuntu 24 版本，可能默认安装的 gnuplot 为 6.0 版本，将导致后续绘制流量图时出错（绘制的流量图无法正常打开），需要将
+   gnuplot 降级到 5.4，Ubuntu 22 及以下版本默认安装的是 5.4 版本，不会有此问题。
 
    使用以下命令降级到 5.4 版本
 
@@ -480,11 +513,12 @@ sysctl net.ipv4.tcp_congestion_control=cubic
 
 3. ##### WSL 无法正常安装 transhub
 
-   根据实测，使用 Windows WSL 无法成功安装 transhub，因此不建议使用 WSL Docker。对于 Windows 用户，同学们可使用 Linux 虚拟机直接安装 transhub 或者在 Linux 虚拟机中使用 Docker。
+   根据实测，使用 Windows WSL 无法成功安装 transhub，因此不建议使用 WSL Docker。对于 Windows 用户，同学们可使用 Linux
+   虚拟机直接安装 transhub 或者在 Linux 虚拟机中使用 Docker。
 
 4. ##### 丢包环境下 mm-throughput-graph 无法绘制
 
-需要修改 `/usr/local/bin/mm-throughput-graph`⽂件使得该脚本能对有丢包事件的⽇志进⾏画图操作，具体改动如下图所⽰（改动之处⽤红框标出）：
-TODO: pic
+   需要修改 `/usr/local/bin/mm-throughput-graph`⽂件使得该脚本能对有丢包事件的⽇志进⾏画图操作，具体改动如下图所⽰（改动之处⽤红框标出）
+   ![image-20250603下午61359463](https://gitee.com/ggbondzhu/transhub-md-pic/raw/master/image-20250709214500.png)
 
 本文档更新时间：2025 年 07 月 09 日 星期三
