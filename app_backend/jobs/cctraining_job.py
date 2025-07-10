@@ -4,8 +4,9 @@ import re
 import shutil
 import signal
 import subprocess
-
+import math
 import dramatiq
+
 from dramatiq.brokers.redis import RedisBroker
 from dramatiq.middleware.time_limit import TimeLimitExceeded
 from redis.lock import Lock
@@ -17,7 +18,7 @@ from app_backend.model.rank_model import RankModel
 from app_backend.model.task_model import TaskModel, TaskStatus
 from app_backend.model.user_model import UserModel
 from app_backend.utils.utils import get_available_port, release_port, setup_logger
-
+from app_backend.analysis.tunnel_parse import TunnelParse
 # 设置日志记录器
 setup_logger()
 logger = logging.getLogger(__name__)
@@ -147,7 +148,7 @@ def _get_score(task, result_path):
     run_cmd(
         f'{extract_program} 500 {result_path} 2> {task.task_dir}/{task.trace_name}.score > /dev/null',
         task_id)
-    total_score = evaluate_score(task, f'{task.task_dir}/{task.trace_name}.score')
+    total_score = evaluate_score(task, result_path)
     total_score = round(total_score, 4)
     logger.debug(f"[task: {task_id}] Score extracted successfully: {total_score}")
     return total_score
@@ -552,53 +553,14 @@ def enqueue_multiple_tasks(task_ids):
     }
 
 
-def evaluate_score(task: TaskModel, score_file: str):
+def evaluate_score(task: TaskModel, log_file: str):
     # 评分
-    """
-    Average capacity: 5.04 Mbits/s
-    Average throughput: 3.41 Mbits/s (67.7% utilization)
-    95th percentile per-packet queueing delay: 52 ms
-    95th percentile signal delay: 116 ms
-
-    :param task:
-    :param score_file:
-    :return:
-    """
-    capacity = 0
-    throughput = 0
-    queueing_delay = 0
-    signal_delay = 0
-    with open(score_file, 'r') as f:
-        lines = f.readlines()
-        for line in lines:
-            if line.startswith("Average throughput"):
-                throughput = float(line.split()[2])
-                task.update(score=throughput)
-            if line.startswith("Average capacity"):
-                capacity = float(line.split()[2])
-            if line.startswith("95th percentile per-packet queueing delay"):
-                queueing_delay = float(line.split()[5])
-            if line.startswith("95th percentile signal delay"):
-                signal_delay = float(line.split()[4])
-
-        # 假设评分标准如下：
-        # - 吞吐量（越高越好），占比40%
-        # - 容量（越高越好），占比30%
-        # - 排队延迟（越低越好），占比15%
-        # - 信号延迟（越低越好），占比15%
-
-    # 归一化
-    max_throughput = capacity  # 假设最大值
-    max_queueing_delay = 2000.0  # 假设最大值
-    max_signal_delay = 2000.0  # 假设最大值
-
-    # 计算各项评分
-    throughput_score = (throughput / max_throughput) * 40
-    queueing_delay_score = ((max_queueing_delay - queueing_delay) / max_queueing_delay) * 15
-    signal_delay_score = ((max_signal_delay - signal_delay) / max_signal_delay) * 15
-
-    # 总评分
-    score = throughput_score + queueing_delay_score + signal_delay_score
+    tunnel_graph = TunnelParse(tunnel_log=log_file, ms_per_bin=500)
+    tunnel_results = tunnel_graph.run()
+    throughput = tunnel_results['throughput']
+    queueing_delay = tunnel_results['delay']
+    loss_rate = tunnel_results['loss']
+    score = math.log((throughput * (1 - loss_rate)) / (queueing_delay + task.delay + 1))
 
     # 更新任务的分数
     task.update(score=score)

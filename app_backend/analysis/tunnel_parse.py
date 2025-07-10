@@ -3,9 +3,6 @@
 import itertools
 import math
 import sys
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 import numpy as np
 
 
@@ -17,9 +14,8 @@ def flip(items, ncol):
     return list(itertools.chain(*[items[i::ncol] for i in range(ncol)]))
 
 
-class TunnelGraph(object):
-    def __init__(self, tunnel_log, throughput_graph=None, delay_graph=None,
-                 ms_per_bin=500):
+class TunnelParse(object):
+    def __init__(self, tunnel_log, ms_per_bin=500):
         self.total_duration = None
         self.egress_tput = None
         self.ingress_tput = None
@@ -28,8 +24,6 @@ class TunnelGraph(object):
         self.delays_t = None
         self.flows = None
         self.tunnel_log = tunnel_log
-        self.throughput_graph = throughput_graph
-        self.delay_graph = delay_graph
         self.ms_per_bin = ms_per_bin
 
     def ms_to_bin(self, ts, first_ts):
@@ -265,199 +259,6 @@ class TunnelGraph(object):
             self.total_percentile_delay = np.percentile(
                 total_delays, 95, interpolation='nearest')
 
-    # def plot_throughput_graph(self):
-    #     empty_graph = True
-    #     fig, ax = plt.subplots()
-    #
-    #     if self.link_capacity:
-    #         empty_graph = False
-    #         ax.fill_between(self.link_capacity_t, 0, self.link_capacity,
-    #                         facecolor='linen')
-    #
-    #     colors = ['b', 'g', 'r', 'y', 'c', 'm']
-    #     color_i = 0
-    #     for flow_id in self.flows:
-    #         color = colors[color_i]
-    #
-    #         if flow_id in self.ingress_tput and flow_id in self.ingress_t:
-    #             empty_graph = False
-    #             ax.plot(self.ingress_t[flow_id], self.ingress_tput[flow_id],
-    #                     label='Flow %s ingress (mean %.2f Mbit/s)'
-    #                     % (flow_id, self.avg_ingress.get(flow_id, 0)),
-    #                     color=color, linestyle='dashed')
-    #
-    #         if flow_id in self.egress_tput and flow_id in self.egress_t:
-    #             empty_graph = False
-    #             ax.plot(self.egress_t[flow_id], self.egress_tput[flow_id],
-    #                     label='Flow %s egress (mean %.2f Mbit/s)'
-    #                     % (flow_id, self.avg_egress.get(flow_id, 0)),
-    #                     color=color)
-    #
-    #         color_i += 1
-    #         if color_i == len(colors):
-    #             color_i = 0
-    #
-    #     if empty_graph:
-    #         sys.stderr.write('No valid throughput graph is generated\n')
-    #         return
-    #
-    #     ax.set_xlabel('Time (s)', fontsize=12)
-    #     ax.set_ylabel('Throughput (Mbit/s)', fontsize=12)
-    #
-    #     if self.link_capacity and self.avg_capacity:
-    #         ax.set_title('Average capacity %.2f Mbit/s (shaded region)'
-    #                      % self.avg_capacity)
-    #
-    #     ax.grid()
-    #     handles, labels = ax.get_legend_handles_labels()
-    #     lgd = ax.legend(self.flip(handles, 2), self.flip(labels, 2),
-    #                     scatterpoints=1, bbox_to_anchor=(0.5, -0.1),
-    #                     loc='upper center', ncol=2, fontsize=12)
-    #
-    #     fig.set_size_inches(12, 6)
-    #     fig.savefig(self.throughput_graph, bbox_extra_artists=(lgd,),
-    #                 bbox_inches='tight', pad_inches=0.2)
-    #
-    # def plot_delay_graph(self):
-    #     empty_graph = True
-    #     fig, ax = plt.subplots()
-    #
-    #     max_delay = 0
-    #     colors = ['b', 'g', 'r', 'y', 'c', 'm']
-    #     color_i = 0
-    #     for flow_id in self.flows:
-    #         color = colors[color_i]
-    #         if flow_id in self.delays and flow_id in self.delays_t:
-    #             empty_graph = False
-    #             max_delay = max(max_delay, max(self.delays_t[flow_id]))
-    #
-    #             ax.scatter(self.delays_t[flow_id], self.delays[flow_id], s=1,
-    #                        color=color, marker='.',
-    #                        label='Flow %s (95th percentile %.2f ms)'
-    #                        % (flow_id, self.percentile_delay.get(flow_id, 0)))
-    #
-    #             color_i += 1
-    #             if color_i == len(colors):
-    #                 color_i = 0
-    #
-    #     if empty_graph:
-    #         sys.stderr.write('No valid delay graph is generated\n')
-    #         return
-    #
-    #     ax.set_xlim(0, int(math.ceil(max_delay)))
-    #     ax.set_xlabel('Time (s)', fontsize=12)
-    #     ax.set_ylabel('Per-packet one-way delay (ms)', fontsize=12)
-    #
-    #     ax.grid()
-    #     handles, labels = ax.get_legend_handles_labels()
-    #     lgd = ax.legend(self.flip(handles, 3), self.flip(labels, 3),
-    #                     scatterpoints=1, bbox_to_anchor=(0.5, -0.1),
-    #                     loc='upper center', ncol=3, fontsize=12,
-    #                     markerscale=5, handletextpad=0)
-    #
-    #     fig.set_size_inches(12, 6)
-    #     fig.savefig(self.delay_graph, bbox_extra_artists=(lgd,),
-    #                 bbox_inches='tight', pad_inches=0.2)
-    def plot_throughput_graph(self):
-        empty_graph = True
-        fig, ax = plt.subplots()
-
-        if self.link_capacity:
-            empty_graph = False
-            sampled_capacity_t = sample_data(self.link_capacity_t, 10)
-            sampled_capacity = sample_data(self.link_capacity, 10)
-            ax.fill_between(sampled_capacity_t, 0, sampled_capacity, facecolor='linen')
-
-        colors = ['b', 'g', 'r', 'y', 'c', 'm']
-        color_i = 0
-        for flow_id in self.flows:
-            color = colors[color_i]
-
-            if flow_id in self.ingress_tput and flow_id in self.ingress_t:
-                empty_graph = False
-                sampled_ingress_t = sample_data(self.ingress_t[flow_id], 10)
-                sampled_ingress_tput = sample_data(self.ingress_tput[flow_id], 10)
-                ax.plot(sampled_ingress_t, sampled_ingress_tput,
-                        label='Flow %s ingress (mean %.2f Mbit/s)'
-                              % (flow_id, self.avg_ingress.get(flow_id, 0)),
-                        color=color, linestyle='dashed')
-
-            if flow_id in self.egress_tput and flow_id in self.egress_t:
-                empty_graph = False
-                sampled_egress_t = sample_data(self.egress_t[flow_id], 10)
-                sampled_egress_tput = sample_data(self.egress_tput[flow_id], 10)
-                ax.plot(sampled_egress_t, sampled_egress_tput,
-                        label='Flow %s egress (mean %.2f Mbit/s)'
-                              % (flow_id, self.avg_egress.get(flow_id, 0)),
-                        color=color)
-
-            color_i += 1
-            if color_i == len(colors):
-                color_i = 0
-
-        if empty_graph:
-            sys.stderr.write('No valid throughput graph is generated\n')
-            return
-
-        ax.set_xlabel('Time (s)', fontsize=12)
-        ax.set_ylabel('Throughput (Mbit/s)', fontsize=12)
-
-        if self.link_capacity and self.avg_capacity:
-            ax.set_title('Average capacity %.2f Mbit/s (shaded region)'
-                         % self.avg_capacity)
-
-        ax.grid()
-        handles, labels = ax.get_legend_handles_labels()
-        lgd = ax.legend(flip(handles, 2), flip(labels, 2),
-                        scatterpoints=1, bbox_to_anchor=(0.5, -0.1),
-                        loc='upper center', ncol=2, fontsize=12)
-
-        fig.set_size_inches(12, 6)
-        fig.savefig(self.throughput_graph, bbox_extra_artists=(lgd,),
-                    bbox_inches='tight', pad_inches=0.2)
-
-    def plot_delay_graph(self):
-        empty_graph = True
-        fig, ax = plt.subplots()
-
-        max_delay = 0
-        colors = ['b', 'g', 'r', 'y', 'c', 'm']
-        color_i = 0
-        for flow_id in self.flows:
-            color = colors[color_i]
-            if flow_id in self.delays and flow_id in self.delays_t:
-                empty_graph = False
-                max_delay = max(max_delay, max(self.delays_t[flow_id]))
-
-                sampled_delays_t = sample_data(self.delays_t[flow_id], 10)
-                sampled_delays = sample_data(self.delays[flow_id], 10)
-                ax.scatter(sampled_delays_t, sampled_delays, s=1,
-                           color=color, marker='.',
-                           label='Flow %s (95th percentile %.2f ms)'
-                                 % (flow_id, self.percentile_delay.get(flow_id, 0)))
-
-                color_i += 1
-                if color_i == len(colors):
-                    color_i = 0
-
-        if empty_graph:
-            sys.stderr.write('No valid delay graph is generated\n')
-            return
-
-        ax.set_xlim(0, int(math.ceil(max_delay)))
-        ax.set_xlabel('Time (s)', fontsize=12)
-        ax.set_ylabel('Per-packet one-way delay (ms)', fontsize=12)
-
-        ax.grid()
-        handles, labels = ax.get_legend_handles_labels()
-        lgd = ax.legend(flip(handles, 3), flip(labels, 3),
-                        scatterpoints=1, bbox_to_anchor=(0.5, -0.1),
-                        loc='upper center', ncol=3, fontsize=12,
-                        markerscale=5, handletextpad=0)
-
-        fig.set_size_inches(12, 6)
-        fig.savefig(self.delay_graph, bbox_extra_artists=(lgd,),
-                    bbox_inches='tight', pad_inches=0.2)
 
     def statistics_string(self):
         if len(self.flows) == 1:
@@ -506,13 +307,6 @@ class TunnelGraph(object):
     def run(self):
         self.parse_tunnel_log()
 
-        # if self.throughput_graph:
-        #     self.plot_throughput_graph()
-
-        # if self.delay_graph:
-        #     self.plot_delay_graph()
-
-        plt.close('all')
 
         tunnel_results = {}
         tunnel_results['throughput'] = self.total_avg_egress
