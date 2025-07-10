@@ -65,7 +65,7 @@ Linux 版本要求：Ubuntu GNU/Linux 14.04 以上
 
 **拥塞控制算法的运行示意图如下：**
 
-![image-20250603下午60436103](https://gitee.com/ggbondzhu/transhub-md-pic/raw/master/image-20250603下午60436103.png)
+![image-20250603下午60436103](https://img.picui.cn/free/2025/07/10/686f6e2f66ba1.png)
 
 本教程提供两种安装方式，两种方式**任选其一**：
 
@@ -102,14 +102,14 @@ https://softwareupdate.vmware.com/cds/vmw-desktop/ws/
 
 例如选择 17.6.2 版本：
 
-![image-20250603下午60521956](https://gitee.com/ggbondzhu/transhub-md-pic/raw/master/image-20250603下午60521956.png)
+![image-20250603下午60521956](https://img.picui.cn/free/2025/07/10/686f6e3139e2c.png)
 
 - 下载 Ubuntu 镜像（Ubuntu18 或 20、22 等版本，可根据自身需求选择。由于 vscode 限制，较老的系统版本无法使用 vscode 进行 ssh
   远程连接）
 
 [Index of /ubuntu-releases/18.04/ | 清华大学开源软件镜像站 | Tsinghua Open Source Mirror](https://mirrors.tuna.tsinghua.edu.cn/ubuntu-releases/18.04/)
 
-![image-20250603下午60604839](https://gitee.com/ggbondzhu/transhub-md-pic/raw/master/image-20250603下午60604839.png)
+![image-20250603下午60604839](https://img.picui.cn/free/2025/07/10/686f6fdd5805a.png)
 
 - 使用 VMware 创建 Ubuntu 虚拟机
 
@@ -151,7 +151,7 @@ exit
 
 （若要检查是否安装成功，可运行 `mm_delay 20`，若出现 delay 20ms 字样，说明安装成功）
 
-![image-20250603下午60750174](https://gitee.com/ggbondzhu/transhub-md-pic/raw/master/image-20250603下午60750174.png)
+![image-20250603下午60750174](https://img.picui.cn/free/2025/07/10/686f6e2f21fbf.png)
 
 ### 1.3. 编译 Transhub 代码
 
@@ -199,7 +199,7 @@ docker load -i transhub.tar
 
 导入成功后，可以在 Orbstack 看到该镜像：
 
-![image-20250603下午60904876](https://gitee.com/ggbondzhu/transhub-md-pic/raw/master/image-20250603下午60904876.png)
+![image-20250603下午60904876](https://img.picui.cn/free/2025/07/10/686f6e2fe5a0e.png)
 
 ### 2.3. 创建并运行 Transhub 容器
 
@@ -217,7 +217,7 @@ sudo docker run --platform linux/amd64 --privileged -itd --name transhub transhu
 
 运行成功后，可以在 Orbstack 中看到其已处于运行状态：
 
-![image-20250603下午60938646](https://gitee.com/ggbondzhu/transhub-md-pic/raw/master/image-20250603下午60938646.png)
+![image-20250603下午60938646](https://img.picui.cn/free/2025/07/10/686f6e3042e7c.png)
 
 ### 2.4. 进入 Transhub 容器
 
@@ -265,7 +265,7 @@ cd home/none_root/transhub/
 ls
 ```
 
-![image-20250603下午61010718](https://gitee.com/ggbondzhu/transhub-md-pic/raw/master/image-20250603下午61010718.png)
+![image-20250603下午61010718](https://img.picui.cn/free/2025/07/10/686f6e84d9b2c.png)
 
 # （二）运行实验测试
 
@@ -284,7 +284,7 @@ cd datagrump #（前提已经在cc-training目录下）
 ./run-contest [scheme_name] #（scheme_name就是你给自己文件命名的名称，第一次使用时可以将[scheme_name] 替换为controller.cc）
 ```
 
-![image-20250603下午61050716](https://gitee.com/ggbondzhu/transhub-md-pic/raw/master/image-20250603下午61050716.png)
+![image-20250603下午61050716](https://img.picui.cn/free/2025/07/10/686f6e843c5bf.png)
 
 - 使用如下命令获取实验结果
 
@@ -298,9 +298,9 @@ Average throughput:平均吞吐量
 95(th) percentile signal delay:95%信号延迟
 ```
 
-![image-20250603下午61131069](https://gitee.com/ggbondzhu/transhub-md-pic/raw/master/image-20250603下午61131069.png)
+![image-20250603下午61131069](https://img.picui.cn/free/2025/07/10/686f6e84143af.png)
 
-![image-20250603下午61146187](https://gitee.com/ggbondzhu/transhub-md-pic/raw/master/image-20250603下午61146187.png)
+![image-20250603下午61146187](https://img.picui.cn/free/2025/07/10/686f6e8455d47.png)
 
 ### 2.2. 通过方式二安装的测试过程
 
@@ -328,7 +328,7 @@ Died on std::runtime_error: mm-delay: please run as non-root
 
 由非 root 用户切换回 root 用户示意图：
 
-![image-20250603下午61214104](https://gitee.com/ggbondzhu/transhub-md-pic/raw/master/image-20250603下午61214104.png)
+![image-20250603下午61214104](https://img.picui.cn/free/2025/07/10/686f6e848c48a.png)
 
 - 使用如下命令获取实验结果
 
@@ -342,13 +342,13 @@ Average throughput:平均吞吐量
 95(th) percentile signal delay:95%信号延迟
 ```
 
-![image-20250603下午61237420](https://gitee.com/ggbondzhu/transhub-md-pic/raw/master/image-20250603下午61237420.png)
+![image-20250603下午61237420](https://img.picui.cn/free/2025/07/10/686f6ea5b5a7a.png)
 
 Mac 可通过以下方式找到容器内文件：
 
-![image-20250603下午61259332](https://gitee.com/ggbondzhu/transhub-md-pic/raw/master/image-20250603下午61259332.png)
+![image-20250603下午61259332](https://img.picui.cn/free/2025/07/10/686f6ea58c833.png)
 
-![image-20250603下午61315594](https://gitee.com/ggbondzhu/transhub-md-pic/raw/master/image-20250603下午61315594.png)
+![image-20250603下午61315594](https://img.picui.cn/free/2025/07/10/686f6ea553b4b.png)
 
 🎉**Congratulations！至此，你已成功安装 transhub，接下来请按照后续任务书要求，完成相应任务。**
 
@@ -408,10 +408,14 @@ sudo sysctl net.ipv4.tcp_congestion_control
 - 如果宿主机内核不支持 BBR，容器内也无法使用 BBR。
 
 > [Docker](https://zhida.zhihu.com/search?content_id=461284401&content_type=Answer&match_order=1&q=Docker&zhida_source=entity)
-> 在[macOS](https://zhida.zhihu.com/search?content_id=461284401&content_type=Answer&match_order=1&q=macOS&zhida_source=entity)
-> 上和Windows上跑[Linux](https://zhida.zhihu.com/search?content_id=461284401&content_type=Answer&match_order=1&q=Linux&zhida_source=entity)
-> docker都是先套了个虚拟机，虚拟机里跑Linux提供[kernel](https://zhida.zhihu.com/search?content_id=461284401&content_type=Answer&match_order=1&q=kernel&zhida_source=entity)
-> ，再在里面跑docker。目前虚拟机在Windows上是[Hyper-V](https://zhida.zhihu.com/search?content_id=461284401&content_type=Answer&match_order=1&q=Hyper-V&zhida_source=entity)
+>
+在[macOS](https://zhida.zhihu.com/search?content_id=461284401&content_type=Answer&match_order=1&q=macOS&zhida_source=entity)
+>
+上和Windows上跑[Linux](https://zhida.zhihu.com/search?content_id=461284401&content_type=Answer&match_order=1&q=Linux&zhida_source=entity)
+>
+docker都是先套了个虚拟机，虚拟机里跑Linux提供[kernel](https://zhida.zhihu.com/search?content_id=461284401&content_type=Answer&match_order=1&q=kernel&zhida_source=entity)
+>
+，再在里面跑docker。目前虚拟机在Windows上是[Hyper-V](https://zhida.zhihu.com/search?content_id=461284401&content_type=Answer&match_order=1&q=Hyper-V&zhida_source=entity)
 > 或者WSL，macOS上有两套方案。
 
 **拥塞控制算法**属于**内核算法**，所以在 Docker 容器能够使用的拥塞控制算法受**宿主机内核**确定。bbr
@@ -465,7 +469,7 @@ sysctl net.ipv4.tcp_congestion_control=reno
 sysctl net.ipv4.tcp_congestion_control=cubic
 ```
 
-![image-20250603下午61359463](https://gitee.com/ggbondzhu/transhub-md-pic/raw/master/image-20250603下午61359463.png)
+![image-20250603下午61359463](https://img.picui.cn/free/2025/07/10/686f6ea57d33b.png)
 
 # （五）附录
 
@@ -519,6 +523,6 @@ sysctl net.ipv4.tcp_congestion_control=cubic
 4. ##### 丢包环境下 mm-throughput-graph 无法绘制
 
    需要修改 `/usr/local/bin/mm-throughput-graph`⽂件使得该脚本能对有丢包事件的⽇志进⾏画图操作，具体改动如下图所⽰（改动之处⽤红框标出）
-   ![image-20250603下午61359463](https://gitee.com/ggbondzhu/transhub-md-pic/raw/master/image-20250709214500.png)
+   ![image-20250603下午61359463](https://img.picui.cn/free/2025/07/10/686f6ea52d83b.png)
 
 本文档更新时间：2025 年 07 月 09 日 星期三
