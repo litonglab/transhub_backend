@@ -81,11 +81,11 @@ x86 架构的 Linux 系统，使用 Arm 架构的虚拟机将无法安装所有�
 
 # （一）安装 transhub
 
-## 1. 方式一：使用 Linux 虚拟机/主机直接安装 transhub
+## 1.1. 方式一：使用 Linux 虚拟机/主机直接安装 transhub
 
 > ⭐**Windows 系统推荐使用此方式**
 
-### 1.1. 安装 Linux 虚拟机（若直接使用 Linux 物理机可跳过此步）
+### 1.1.1 安装 Linux 虚拟机（若直接使用 Linux 物理机可跳过此步）
 
 - 下载 VMware 软件
 
@@ -119,7 +119,7 @@ https://github.com/yanghao5/VM-download
 
 - 使用 VMware 创建 Ubuntu 虚拟机
 
-### 1.2. 安装 Mahimahi
+### 1.1.2. 安装 Mahimahi
 
 - 在其终端中运行如下代码，安装依赖项：
 
@@ -159,7 +159,7 @@ exit
 
 ![image-20250603下午60750174](./images/image-20250603下午60750174.png)
 
-### 1.3. 编译 Transhub 代码
+### 1.1.3. 编译 Transhub 代码
 
 ```bash
 #退出mahimahi目录，回到用户目录
@@ -171,13 +171,13 @@ cd cc-training
 ./autogen.sh && ./configure && make
 ```
 
-## 2.方式二：使用已安装好 Transhub 的 Docker 镜像
+## 1.2.方式二：使用已安装好 Transhub 的 Docker 镜像
 
 > ⭐**MacOS 系统推荐使用此方式**
 
 > 2.1 部分仅限 Mac，Linux/Windows 平台参照对应教程安装好 Docker 后，后续方法（2.2-2.4）通用。
 
-### 2.1. 安装 Docker
+### 1.2.1. 安装 Docker
 
 Linux 上如何安装使用 Docker 请自行查询相关教程，此处以 Mac 安装 Docker 为例。
 
@@ -190,7 +190,7 @@ Mac 上可安装 Docker Desktop 或者 Orbstack，这里以 Orbstack 为例。
 
 访问https://orbstack.dev/download 下载并安装。安装好后，打开 Orbstack 完成初始化。
 
-### 2.2. 下载并**导入 Transhub 镜像**
+### 1.2.2. 下载并**导入 Transhub 镜像**
 
 访问以下链接下载已配置好的 transhub 镜像：
 
@@ -207,7 +207,7 @@ docker load -i transhub.tar
 
 ![image-20250603下午60904876](./images/image-20250603下午60904876.png)
 
-### 2.3. 创建并运行 Transhub 容器
+### 1.2.3. 创建并运行 Transhub 容器
 
 此步骤**仅需执行一次**，使用以下命令创建并运行 transhub 容器：
 
@@ -225,7 +225,7 @@ sudo docker run --platform linux/amd64 --privileged -itd --name transhub transhu
 
 ![image-20250603下午60938646](./images/image-20250603下午60938646.png)
 
-### 2.4. 进入 Transhub 容器
+### 1.2.4. 进入 Transhub 容器
 
 - 首先，确保容器已经启动并正在运行。在执行完 2.3 步后，容器已经处于运行状态。后续若需再次使用容器，则无需再重复执行 2.3
   步骤，可使用以下方法来启动容器。
@@ -382,7 +382,7 @@ Linux 系统中可选的拥塞控制算法包括 `reno`、`cubic`、`bbr`等。�
 实验，`run-contest`的拥塞控制算法为 `controller.cc`,与系统拥塞控制算法无关。如需验证系统拥塞控制算法，可使用 `iperf`
 等工具来做相关实验）。
 
-### 3.1 通过方式一安装的操作过程
+### 4.1. 通过方式一安装的操作过程
 
 💡 在 Linux 主机上启用 BBR 算法
 
@@ -410,7 +410,7 @@ sudo sysctl net.ipv4.tcp_congestion_control=cubic
 sudo sysctl net.ipv4.tcp_congestion_control
 ```
 
-### 3.2 通过方式二安装的操作过程
+### 4.2. 通过方式二安装的操作过程
 
 💡 在 Docker 容器中启用 BBR 算法
 
@@ -481,7 +481,7 @@ sysctl net.ipv4.tcp_congestion_control=cubic
 
 # （五）常见问题
 
-### 5.1 Ubuntu24 版本默认安装 gnuplot 6.0 导致无法正确绘制流量图
+### 5.1. Ubuntu24 版本默认安装 gnuplot 6.0 导致无法正确绘制流量图
 
 对于 Ubuntu 24 版本，可能默认安装的 gnuplot 为 6.0 版本，将导致后续绘制流量图时出错（绘制的流量图无法正常打开），需要将
 gnuplot 降级到 5.4，Ubuntu 22 及以下版本默认安装的是 5.4 版本，不会有此问题。
@@ -513,7 +513,7 @@ gnuplot 降级到 5.4，Ubuntu 22 及以下版本默认安装的是 5.4 版本�
    gnuplot --version
    ```
 
-### 5.2 Ubuntu20 版本由于防火墙导致无法运行实验
+### 5.2. Ubuntu20 版本由于防火墙导致无法运行实验
 
 Ubuntu20、22 版本也可正常完成 transhub 安装，但在运行实验时，需要关闭防火墙，否则实验跑不通。使用以下命令关闭防火墙：
 
@@ -521,12 +521,12 @@ Ubuntu20、22 版本也可正常完成 transhub 安装，但在运行实验时�
    sudo ufw disable
    ```
 
-### 5.3 WSL 无法正常安装 transhub
+### 5.3. WSL 无法正常安装 transhub
 
 根据实测，使用 Windows WSL 无法成功安装 transhub，因此不建议使用 WSL Docker。对于 Windows 用户，同学们可使用 Linux
 虚拟机直接安装 transhub 或者在 Linux 虚拟机中使用 Docker。
 
-### 5.4 丢包环境下 mm-throughput-graph 无法绘制
+### 5.4. 丢包环境下 mm-throughput-graph 无法绘制
 
 需要修改 `/usr/local/bin/mm-throughput-graph`⽂件使得该脚本能对有丢包事件的⽇志进⾏画图操作，具体改动如下图所⽰（改动之处⽤红框标出）
 ![image-20250709214500](./images/image-20250709214500.png)
