@@ -57,6 +57,8 @@ Transhub 运行环境，以下是安装指南（在第二节对 Transhub 代码�
 
 比赛开始后公布。
 
+系统测试期间，Trace和评分标准可能会随时更新，显示分数不作为算法评价依据。
+
 # Transhub 安装指南 2025 版
 
 硬件环境：一台 Linux 主机（在本文中，Linux 主机包括运行 Linux 系统的实体机、虚拟机或云服务器）
@@ -96,9 +98,13 @@ x86 架构的 Linux 系统，使用 Arm 架构的虚拟机将无法安装所有�
 [https://support.broadcom.com/group/ecx/productdownloads?subfamily=VMware%20Workstation%20Pro](https://support.broadcom.com/group/ecx/productdownloads?subfamily=VMware
 Workstation Pro)
 
-⭐**官方所有版本下载链接（推荐，官方渠道且无需注册账户可直接下载）：**
+~~⭐**官方所有版本下载链接（推荐，官方渠道且无需注册账户可直接下载）：**~~
 
-https://softwareupdate.vmware.com/cds/vmw-desktop/ws/
+~~https://softwareupdate.vmware.com/cds/vmw-desktop/ws/~~
+
+上述链接已失效，可访问以下链接下载：
+
+https://github.com/yanghao5/VM-download
 
 例如选择 17.6.2 版本：
 
@@ -175,7 +181,7 @@ cd cc-training
 
 Linux 上如何安装使用 Docker 请自行查询相关教程，此处以 Mac 安装 Docker 为例。
 
-❗️ 根据同学实测，Windows 使用 Docker 无法正常运行实验，Windows 用户请使用 Linux 虚拟机或者 Linux 虚拟机内安装 Docker。
+❗️ 实测 Windows 使用 Docker 无法正常运行实验，请查看第五节-常见问题。
 
 Mac 上可安装 Docker Desktop 或者 Orbstack，这里以 Orbstack 为例。
 
@@ -188,8 +194,8 @@ Mac 上可安装 Docker Desktop 或者 Orbstack，这里以 Orbstack 为例。
 
 访问以下链接下载已配置好的 transhub 镜像：
 
-- 百度网盘：链接: https://pan.baidu.com/s/10ltC9-XBsS0XKMpb7JBK0w?pwd=rt9x 提取码: rt9x
-- WPS365-大作业文件夹：链接：https://kdocs.cn/folder/cuf2moIDgPpi 解压密码：transhub2025
+- 百度网盘：通过网盘分享的文件：transhub.tar.zip
+  链接: https://pan.baidu.com/s/1Lkx7VVvNTCAVaBJozT-8Lg?pwd=wnxf 提取码: wnxf
 
 在**镜像所在目录**运行终端，执行以下命令导入 transhub 镜像
 
@@ -362,9 +368,9 @@ Mac 可通过以下方式找到容器内文件：
 
 如果是使用docker方式安装，由于docker镜像系统版本较低，无法使用最新vscode进行远程连接（弹出如下提示），可以通过目录映射将docker容器内目录映射到宿主机上进行开发。
 
-![image_2025-07-10_17-58-05](./images/image_2025-07-10_17-58-05.png)
-
 对于 Mac 用户，Orbstack默认进行了目录挂载，可在vscode中直接打开目录 `~/OrbStack/docker/containers/transhub/home/none_root`
+
+![image_2025-07-10_17-58-05](./images/image_2025-07-10_17-58-05.png)
 
 # （四）系统拥塞控制算法配置（可选）
 
@@ -414,14 +420,10 @@ sudo sysctl net.ipv4.tcp_congestion_control
 - 如果宿主机内核不支持 BBR，容器内也无法使用 BBR。
 
 > [Docker](https://zhida.zhihu.com/search?content_id=461284401&content_type=Answer&match_order=1&q=Docker&zhida_source=entity)
->
-在[macOS](https://zhida.zhihu.com/search?content_id=461284401&content_type=Answer&match_order=1&q=macOS&zhida_source=entity)
->
-上和Windows上跑[Linux](https://zhida.zhihu.com/search?content_id=461284401&content_type=Answer&match_order=1&q=Linux&zhida_source=entity)
->
-docker都是先套了个虚拟机，虚拟机里跑Linux提供[kernel](https://zhida.zhihu.com/search?content_id=461284401&content_type=Answer&match_order=1&q=kernel&zhida_source=entity)
->
-，再在里面跑docker。目前虚拟机在Windows上是[Hyper-V](https://zhida.zhihu.com/search?content_id=461284401&content_type=Answer&match_order=1&q=Hyper-V&zhida_source=entity)
+> 在[macOS](https://zhida.zhihu.com/search?content_id=461284401&content_type=Answer&match_order=1&q=macOS&zhida_source=entity)
+> 上和Windows上跑[Linux](https://zhida.zhihu.com/search?content_id=461284401&content_type=Answer&match_order=1&q=Linux&zhida_source=entity)
+> docker都是先套了个虚拟机，虚拟机里跑Linux提供[kernel](https://zhida.zhihu.com/search?content_id=461284401&content_type=Answer&match_order=1&q=kernel&zhida_source=entity)
+> ，再在里面跑docker。目前虚拟机在Windows上是[Hyper-V](https://zhida.zhihu.com/search?content_id=461284401&content_type=Answer&match_order=1&q=Hyper-V&zhida_source=entity)
 > 或者WSL，macOS上有两套方案。
 
 **拥塞控制算法**属于**内核算法**，所以在 Docker 容器能够使用的拥塞控制算法受**宿主机内核**确定。bbr
@@ -477,16 +479,14 @@ sysctl net.ipv4.tcp_congestion_control=cubic
 
 ![image-20250603下午61359463](./images/image-20250603下午61359463.png)
 
-# （五）附录
+# （五）常见问题
 
-## 常见问题
+### 5.1 Ubuntu24 版本默认安装 gnuplot 6.0 导致无法正确绘制流量图
 
-1. ##### Ubuntu24 版本默认安装 gnuplot 6.0 导致无法正确绘制流量图
+对于 Ubuntu 24 版本，可能默认安装的 gnuplot 为 6.0 版本，将导致后续绘制流量图时出错（绘制的流量图无法正常打开），需要将
+gnuplot 降级到 5.4，Ubuntu 22 及以下版本默认安装的是 5.4 版本，不会有此问题。
 
-   对于 Ubuntu 24 版本，可能默认安装的 gnuplot 为 6.0 版本，将导致后续绘制流量图时出错（绘制的流量图无法正常打开），需要将
-   gnuplot 降级到 5.4，Ubuntu 22 及以下版本默认安装的是 5.4 版本，不会有此问题。
-
-   使用以下命令降级到 5.4 版本
+使用以下命令降级到 5.4 版本
 
    ```sh
    # 1. 卸载当前版本
@@ -513,22 +513,22 @@ sysctl net.ipv4.tcp_congestion_control=cubic
    gnuplot --version
    ```
 
-2. ##### Ubuntu20 版本由于防火墙导致无法运行实验
+### 5.2 Ubuntu20 版本由于防火墙导致无法运行实验
 
-   Ubuntu20、22 版本也可正常完成 transhub 安装，但在运行实验时，需要关闭防火墙，否则实验跑不通。使用以下命令关闭防火墙：
+Ubuntu20、22 版本也可正常完成 transhub 安装，但在运行实验时，需要关闭防火墙，否则实验跑不通。使用以下命令关闭防火墙：
 
    ```shell
    sudo ufw disable
    ```
 
-3. ##### WSL 无法正常安装 transhub
+### 5.3 WSL 无法正常安装 transhub
 
-   根据实测，使用 Windows WSL 无法成功安装 transhub，因此不建议使用 WSL Docker。对于 Windows 用户，同学们可使用 Linux
-   虚拟机直接安装 transhub 或者在 Linux 虚拟机中使用 Docker。
+根据实测，使用 Windows WSL 无法成功安装 transhub，因此不建议使用 WSL Docker。对于 Windows 用户，同学们可使用 Linux
+虚拟机直接安装 transhub 或者在 Linux 虚拟机中使用 Docker。
 
-4. ##### 丢包环境下 mm-throughput-graph 无法绘制
+### 5.4 丢包环境下 mm-throughput-graph 无法绘制
 
-   需要修改 `/usr/local/bin/mm-throughput-graph`⽂件使得该脚本能对有丢包事件的⽇志进⾏画图操作，具体改动如下图所⽰（改动之处⽤红框标出）
-   ![image-20250709214500](./images/image-20250709214500.png)
+需要修改 `/usr/local/bin/mm-throughput-graph`⽂件使得该脚本能对有丢包事件的⽇志进⾏画图操作，具体改动如下图所⽰（改动之处⽤红框标出）
+![image-20250709214500](./images/image-20250709214500.png)
 
-本文档更新时间：2025 年 07 月 09 日 星期三
+本文档更新时间：2025 年 07 月 11 日 星期五
