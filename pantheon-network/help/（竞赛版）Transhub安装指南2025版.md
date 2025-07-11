@@ -360,6 +360,12 @@ Mac 可通过以下方式找到容器内文件：
 
 打开代码目录，修改 `controlle.cc`代码，修改完成后，执行 `make`命令编译代码，然后运行测试验证代码效果即可。
 
+如果是使用docker方式安装，由于docker镜像系统版本较低，无法使用最新vscode进行远程连接（弹出如下提示），可以通过目录映射将docker容器内目录映射到宿主机上进行开发。
+
+![image-686f8ec8d5902](https://img.picui.cn/free/2025/07/10/686f8ec8d5902.png)
+
+对于 Mac 用户，Orbstack默认进行了目录挂载，可在vscode中直接打开目录 `~/OrbStack/docker/containers/transhub/home/none_root`
+
 # （四）系统拥塞控制算法配置（可选）
 
 本节内容介绍了如何查看并修改系统拥塞控制算法，属于**拓展阅读**部分。
