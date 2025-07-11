@@ -350,7 +350,7 @@ Mac 可通过以下方式找到容器内文件：
 
 ![image-20250603下午61315594](./images/image-20250603下午61315594.png)
 
-🎉**Congratulations！至此，你已成功安装 transhub，接下来请按照后续任务书要求，完成相应任务。**
+🎉**Congratulations！至此，你已成功安装 transhub，接下来请设计你的算法，并提交验证！**
 
 # （三）进行算法开发
 
@@ -362,7 +362,7 @@ Mac 可通过以下方式找到容器内文件：
 
 如果是使用docker方式安装，由于docker镜像系统版本较低，无法使用最新vscode进行远程连接（弹出如下提示），可以通过目录映射将docker容器内目录映射到宿主机上进行开发。
 
-![image-686f8ec8d5902](./images/image-686f8ec8d5902.png)
+![image_2025-07-10_17-58-05](./images/image_2025-07-10_17-58-05.png)
 
 对于 Mac 用户，Orbstack默认进行了目录挂载，可在vscode中直接打开目录 `~/OrbStack/docker/containers/transhub/home/none_root`
 
@@ -529,6 +529,6 @@ sysctl net.ipv4.tcp_congestion_control=cubic
 4. ##### 丢包环境下 mm-throughput-graph 无法绘制
 
    需要修改 `/usr/local/bin/mm-throughput-graph`⽂件使得该脚本能对有丢包事件的⽇志进⾏画图操作，具体改动如下图所⽰（改动之处⽤红框标出）
-   ![image_2025-07-10_17-58-05](./images/image_2025-07-10_17-58-05.png)
+   ![image-20250709214500](./images/image-20250709214500.png)
 
 本文档更新时间：2025 年 07 月 09 日 星期三
