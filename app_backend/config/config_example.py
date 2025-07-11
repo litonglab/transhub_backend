@@ -40,6 +40,7 @@ class ExampleConfig(BaseConfig):
                 # ===system generated start.===
                 "path": "",  # 系统生成
                 "zhinan_path": "",  # 系统生成
+                "image_path": "",  # 系统生成，指南文档的图片路径
                 "downlink_dir": "",  # 系统生成
                 "uplink_dir": "",  # 系统生成
                 "student_list": [],  # 系统生成
@@ -74,6 +75,7 @@ class ExampleConfig(BaseConfig):
                 # ===system generated start.===
                 "path": "",  # 系统生成
                 "zhinan_path": "",  # 系统生成
+                "image_path": "",  # 系统生成，指南文档的图片路径
                 "downlink_dir": "",  # 系统生成
                 "uplink_dir": "",  # 系统生成
                 "student_list": [],  # 系统生成

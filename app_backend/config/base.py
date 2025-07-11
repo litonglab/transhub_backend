@@ -79,6 +79,7 @@ class BaseConfig:
         for cname, config in self.Course.ALL_CLASS.items():
             config["path"] = os.path.join(self.App.BASEDIR, config["name"])
             config["zhinan_path"] = os.path.join(config["path"], 'help', 'zhinan.md')
+            config["image_path"] = os.path.join(config["path"], 'help', 'images')
             config["downlink_dir"] = os.path.join(config["path"], 'test_data', 'downlink')
             config["uplink_dir"] = os.path.join(config["path"], 'test_data', 'uplink')
             config["student_list"] = []

@@ -50,6 +50,42 @@ def get_tutorial():
         return HttpResponse.not_found("文档不存在")
 
 
+# 此url参数手动校验，不使用 @validate_request(Schema)
+@help_bp.route("/help_get_tutorial_images/images/<image_file_name>", methods=["GET"])
+@jwt_required()
+def get_tutorial_image(image_file_name):
+    cname = get_jwt().get('cname')
+    logger.debug(f"Tutorial image request for competition {cname}, image: {image_file_name}")
+    _config = config.get_course_config(cname)
+
+    if not _config:
+        logger.error(f"Configuration not found for competition {cname}")
+        return HttpResponse.not_found("配置不存在")
+
+    # 获取文件后缀并校验
+    allowed_image_exts = ('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp')
+    _, ext = os.path.splitext(image_file_name)
+    if ext.lower() not in allowed_image_exts:
+        logger.error(f"Illegal image file extension: {image_file_name}")
+        return HttpResponse.fail("不支持的文件类型")
+
+    image_dir = _config['image_path']
+    image_path = os.path.join(image_dir, image_file_name)
+
+    real_image_path = os.path.realpath(image_path)
+    real_image_dir = os.path.realpath(image_dir)
+    if not real_image_path.startswith(real_image_dir):
+        logger.error(f"Directory traversal attempt: {image_file_name}")
+        return HttpResponse.fail("非法访问")
+
+    if os.path.exists(image_path) and os.path.isfile(image_path):
+        logger.debug(f"Sending tutorial image file: {image_path}")
+        return HttpResponse.send_attachment_file(image_path)
+    else:
+        logger.error(f"Tutorial image not found: {image_path}")
+        return HttpResponse.not_found()
+
+
 @help_bp.route('/help_get_pantheon', methods=["GET"])
 def get_pantheon():
     return HttpResponse.ok(pantheon=config.Course.CNAME_LIST)
@@ -78,7 +114,7 @@ def get_competition_info():
 @cache.memoize(timeout=2)
 def _get_system_status():
     """获取系统状态"""
-    cpu_percent = psutil.cpu_percent(interval=0.5)
+    cpu_percent = psutil.cpu_percent()
     mem_percent = psutil.virtual_memory().percent
 
     if cpu_percent > 95 or mem_percent > 90:
