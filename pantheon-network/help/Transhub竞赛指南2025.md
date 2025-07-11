@@ -77,7 +77,7 @@ Linux 版本要求：Ubuntu GNU/Linux 14.04 以上
 ❗ 由于以上部分依赖仅有 x86 架构的包，因此使用**Mac M 芯片**的同学需要注意，如果使用第一种方法自行安装虚拟机，需安装
 x86 架构的 Linux 系统，使用 Arm 架构的虚拟机将无法安装所有依赖。建议 Mac M 芯片同学使用**Docker 方法**。
 
-❗ 高版本 Ubuntu、WSL 存在已知问题，详情请参阅附录-常见问题。
+❗ 高版本 Ubuntu、WSL 存在已知问题，详情请参阅常见问题章节。
 
 # （一）安装 transhub
 
@@ -95,16 +95,15 @@ x86 架构的 Linux 系统，使用 Arm 架构的虚拟机将无法安装所有�
 
 官方下载链接：
 
-[https://support.broadcom.com/group/ecx/productdownloads?subfamily=VMware%20Workstation%20Pro](https://support.broadcom.com/group/ecx/productdownloads?subfamily=VMware
-Workstation Pro)
+[https://support.broadcom.com/group/ecx/productdownloads?subfamily=VMware%20Workstation%20Pro](https://support.broadcom.com/group/ecx/productdownloads?subfamily=VMware%20Workstation%20Pro)
 
 ~~⭐**官方所有版本下载链接（推荐，官方渠道且无需注册账户可直接下载）：**~~
 
-~~https://softwareupdate.vmware.com/cds/vmw-desktop/ws/~~
+~~[https://softwareupdate.vmware.com/cds/vmw-desktop/ws/](https://softwareupdate.vmware.com/cds/vmw-desktop/ws/)~~
 
 上述链接已失效，可访问以下链接下载：
 
-https://github.com/yanghao5/VM-download
+[https://github.com/yanghao5/VM-download](https://github.com/yanghao5/VM-download)
 
 例如选择 17.6.2 版本：
 
@@ -171,7 +170,7 @@ cd cc-training
 ./autogen.sh && ./configure && make
 ```
 
-## 1.2.方式二：使用已安装好 Transhub 的 Docker 镜像
+## 1.2. 方式二：使用已安装好 Transhub 的 Docker 镜像
 
 > ⭐**MacOS 系统推荐使用此方式**
 
@@ -181,21 +180,21 @@ cd cc-training
 
 Linux 上如何安装使用 Docker 请自行查询相关教程，此处以 Mac 安装 Docker 为例。
 
-❗️ 实测 Windows 使用 Docker 无法正常运行实验，请查看第五节-常见问题。
+❗️ 实测 Windows 使用 Docker 无法正常运行实验，请查看常见问题章节。
 
 Mac 上可安装 Docker Desktop 或者 Orbstack，这里以 Orbstack 为例。
 
 > OrbStack 是一款专为 MacOS 设计的轻量级容器和虚拟机管理工具，旨在为开发者提供快速、高效的容器化开发和测试环境。它支持
 > Docker 容器和 Linux 虚拟机，特别针对 Apple Silicon（M1/M2 等 ARM 芯片）进行了优化，能够无缝运行 x86 和 ARM 架构的容器。
 
-访问https://orbstack.dev/download 下载并安装。安装好后，打开 Orbstack 完成初始化。
+访问[https://orbstack.dev/download](https://orbstack.dev/download)下载并安装。安装好后，打开 Orbstack 完成初始化。
 
 ### 1.2.2. 下载并**导入 Transhub 镜像**
 
 访问以下链接下载已配置好的 transhub 镜像：
 
 - 百度网盘：通过网盘分享的文件：transhub.tar.zip
-  链接: https://pan.baidu.com/s/1Lkx7VVvNTCAVaBJozT-8Lg?pwd=wnxf 提取码: wnxf
+  链接: [https://pan.baidu.com/s/1Lkx7VVvNTCAVaBJozT-8Lg?pwd=wnxf](https://pan.baidu.com/s/1Lkx7VVvNTCAVaBJozT-8Lg?pwd=wnxf) 提取码: wnxf
 
 在**镜像所在目录**运行终端，执行以下命令导入 transhub 镜像
 
