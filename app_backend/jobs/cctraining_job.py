@@ -560,7 +560,7 @@ def evaluate_score(task: TaskModel, log_file: str):
     throughput = tunnel_results['throughput']
     queueing_delay = tunnel_results['delay']
     loss_rate = tunnel_results['loss']
-    score = math.log((throughput * (1 - loss_rate)) / (queueing_delay + task.delay + 1) * 1000.0 + 1.0) * 10
+    score = math.log((throughput * (1 - loss_rate)) / (queueing_delay + task.delay + 1) + 1.0) * 1000.0
 
     # 更新任务的分数
     task.update(score=score)
