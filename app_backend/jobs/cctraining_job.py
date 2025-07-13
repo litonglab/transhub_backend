@@ -1,4 +1,5 @@
 import logging
+import math
 import os
 import re
 import shutil
@@ -6,19 +7,19 @@ import signal
 import subprocess
 import math
 import dramatiq
-
 from dramatiq.brokers.redis import RedisBroker
 from dramatiq.middleware.time_limit import TimeLimitExceeded
 from redis.lock import Lock
 
 from app_backend import db, redis_client, get_default_config
 from app_backend import get_app
+from app_backend.analysis.tunnel_parse import TunnelParse
 from app_backend.model.graph_model import GraphModel, GraphType
 from app_backend.model.rank_model import RankModel
 from app_backend.model.task_model import TaskModel, TaskStatus
 from app_backend.model.user_model import UserModel
 from app_backend.utils.utils import get_available_port, release_port, setup_logger
-from app_backend.analysis.tunnel_parse import TunnelParse
+
 # 设置日志记录器
 setup_logger()
 logger = logging.getLogger(__name__)
@@ -598,7 +599,9 @@ def evaluate_score(task: TaskModel, log_file: str):
         latency_score = 0
     else:
         latency_score = 35 * (2.0 - rtt_inflation) / 1.9
-    score = throughput_score + loss_score + latency_score
+    score = throughput_score + loss_score + latency_score    logger.info(
+        f"[task: {task.task_id}] Calculated score: {score} (throughput: {throughput}, delay: {queueing_delay}({task.delay}), loss_rate: {loss_rate})")
+
     # 更新任务的分数
     task.update(score=score)
 
