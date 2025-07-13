@@ -6,7 +6,6 @@ import subprocess
 
 import dramatiq
 from dramatiq.brokers.redis import RedisBroker
-from dramatiq.middleware import TimeLimit
 from dramatiq.middleware.time_limit import TimeLimitExceeded
 from redis.lock import Lock
 
@@ -23,7 +22,6 @@ setup_logger()
 logger = logging.getLogger(__name__)
 config = get_default_config()
 redis_broker = RedisBroker(url=config.Cache.FLASK_REDIS_URL)
-redis_broker.add_middleware(TimeLimit(time_limit=1200000))  # 20分钟全局超时限制
 dramatiq.set_broker(redis_broker)
 
 
