@@ -560,8 +560,45 @@ def evaluate_score(task: TaskModel, log_file: str):
     throughput = tunnel_results['throughput']
     queueing_delay = tunnel_results['delay']
     loss_rate = tunnel_results['loss']
-    score = math.log((throughput * (1 - loss_rate)) / (queueing_delay + task.delay + 1) + 1.0) * 1000.0
-
+    capacity = tunnel_results['capacity']
+    throughput_score = 0
+    loss_score = 0
+    latency_score = 0
+    # 1. 吞吐量效率评分 (0-35分)
+    # 基于理论吞吐量的利用率
+    efficiency = 0
+    if (capacity > 0):
+        efficiency = throughput / capacity
+    if efficiency >= 0.95:  # 95%以上利用率满分
+        throughput_score = 35
+    elif efficiency >= 0.8:  # 80-95%高分区间
+        throughput_score = 30 + 5 * (efficiency - 0.8) / 0.15
+    elif efficiency >= 0.5:  # 50-80%中等区间
+        throughput_score = 20 + 10 * (efficiency - 0.5) / 0.3
+    else:  # 50%以下低分区间
+        throughput_score = 20 * efficiency / 0.5
+    
+    # 2. 丢包控制评分 (0-30分)
+    if loss_rate <= 0.001:
+        loss_score = 30
+    elif loss_rate >= 0.1:
+        loss_score = 0
+    else:
+        # 使用对数尺度
+        loss_score = 30 * (1 - math.log10(loss_rate * 1000 + 1) / math.log10(101))
+    
+    # 3. 延迟控制评分 (0-35分)
+    # 基于RTT膨胀程度
+    rtt_inflation = 2.0
+    if (task.delay > 0):
+        rtt_inflation = queueing_delay / task.delay
+    if rtt_inflation <= 0.1:  # RTT增长10%以内满分
+        latency_score = 35
+    elif rtt_inflation >= 2.0:  # RTT增长200%以上为0分
+        latency_score = 0
+    else:
+        latency_score = 35 * (2.0 - rtt_inflation) / 1.9
+    score = throughput_score + loss_score + latency_score
     # 更新任务的分数
     task.update(score=score)
 

@@ -313,6 +313,7 @@ class TunnelParse(object):
         tunnel_results['delay'] = self.total_percentile_delay
         tunnel_results['loss'] = self.total_loss_rate
         tunnel_results['duration'] = self.total_duration
+        tunnel_results['capacity'] = self.avg_capacity
         tunnel_results['stats'] = self.statistics_string()
 
         flow_data = {}
