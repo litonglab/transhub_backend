@@ -570,35 +570,32 @@ def evaluate_score(task: TaskModel, log_file: str):
     efficiency = 0
     if (capacity > 0):
         efficiency = throughput / capacity
-    if efficiency >= 0.95:  # 95%以上利用率满分
+    if efficiency >= 1.0:  # 100%以上利用率满分
         throughput_score = 35
-    elif efficiency >= 0.8:  # 80-95%高分区间
-        throughput_score = 30 + 5 * (efficiency - 0.8) / 0.15
-    elif efficiency >= 0.5:  # 50-80%中等区间
-        throughput_score = 20 + 10 * (efficiency - 0.5) / 0.3
-    else:  # 50%以下低分区间
-        throughput_score = 20 * efficiency / 0.5
+    elif efficiency >= 0:
+        throughput_score = 35 * efficiency
+    else:
+        throughput_score = 0
     
     # 2. 丢包控制评分 (0-30分)
-    if loss_rate <= 0.001:
+    if loss_rate <= 0.000001:
         loss_score = 30
-    elif loss_rate >= 0.1:
+    elif loss_rate >= 1:
         loss_score = 0
     else:
-        # 使用对数尺度
-        loss_score = 30 * (1 - math.log10(loss_rate * 1000 + 1) / math.log10(101))
+        loss_score = 30 * (1.0 - loss_rate)
     
     # 3. 延迟控制评分 (0-35分)
     # 基于RTT膨胀程度
     rtt_inflation = 2.0
     if (task.delay > 0):
         rtt_inflation = queueing_delay / task.delay
-    if rtt_inflation <= 0.1:  # RTT增长10%以内满分
+    if rtt_inflation <= 0.01:
         latency_score = 35
-    elif rtt_inflation >= 2.0:  # RTT增长200%以上为0分
-        latency_score = 0
+    elif rtt_inflation <= 20.0:
+        latency_score = 17.5 + 17.5 * (20.0 - rtt_inflation) / 19.99
     else:
-        latency_score = 35 * (2.0 - rtt_inflation) / 1.9
+        latency_score = 35 * 10.0 / rtt_inflation
     score = throughput_score + loss_score + latency_score
     logger.info(
         f"[task: {task.task_id}] Calculated score: {score} (throughput: {throughput}, delay: {queueing_delay}({task.delay}), loss_rate: {loss_rate})")
