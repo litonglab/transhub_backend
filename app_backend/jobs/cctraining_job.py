@@ -56,8 +56,9 @@ def _compile_cc_file(task, course_project_dir, task_parent_dir, sender_path, rec
         compile_failed_file = os.path.join(task_parent_dir, 'compile_failed')
         if os.path.exists(compile_failed_file):
             logger.warning(f"[task: {task_id}] Compilation failed previously, skipping compilation")
-            task.update(task_status=TaskStatus.ERROR,
-                        error_log="本次提交的代码在其他任务中编译失败，此任务不再尝试编译，如需查询编译日志，请查询本次提交下的其他任务。")
+            task.update_task_log(
+                "本次提交的代码在其他任务中编译失败，此任务不再尝试编译，如需查询编译日志，请查询本次提交下的其他任务。")
+            task.update(task_status=TaskStatus.ERROR)
             return False
 
         # 如果没有编译好的文件，开始编译
@@ -81,7 +82,8 @@ def _compile_cc_file(task, course_project_dir, task_parent_dir, sender_path, rec
                 # 如果编译失败，在父级目录创建一个文件，文件名为compile_failed，后续同cc_file的其他trace任务不用再重复编译
                 with open(compile_failed_file, 'w') as f:
                     pass
-                task.update(task_status=TaskStatus.COMPILED_FAILED, error_log=output)
+                task.update_task_log(f"Compilation failed, make output:\n\n{_sanitize_sensitive(output)}")
+                task.update(task_status=TaskStatus.COMPILED_FAILED)
                 return False
 
             # 编译成功后，将sender和receiver移动到父级目录
@@ -111,10 +113,11 @@ def _run_contest(task, course_project_dir, sender_path, receiver_path, result_pa
     downlink_dir = _config['downlink_dir']
     uplink_file = uplink_dir + "/" + task.trace_name + ".up"
     downlink_file = downlink_dir + "/" + task.trace_name + ".down"
-    run_cmd(
+    _, output = run_cmd(
         f"cd {course_project_dir} && {program_script} {running_port} {uplink_file} {downlink_file} {result_path} {sender_path} {receiver_path} {loss_rate} {buffer_size} {delay}",
         task_id)
     logger.info(f"[task: {task_id}] run-contest.sh completed successfully")
+    task.update_task_log(f"Contest done, program logs:\n\n{output}")
 
 
 def _remove_binary_files(task_id, sender_path, receiver_path):
@@ -262,13 +265,11 @@ def _handle_exception(task_id, err_msg, task=None, sender_path=None, receiver_pa
     :param task_id: 任务ID
     :param err_msg: 错误信息
     """
-    task_error_log_content = f"发生意外错误，请将此信息反馈给管理员协助排查。\n[task_id: {task_id}]\nException occurred:\n{err_msg}\n"
+    task_error_log_content = f"发生意外错误，请稍后再试。若问题仍存在可将此信息反馈给管理员协助排查。\n[task_id: {task_id}]\nException occurred:\n{err_msg}\n"
     logger.error(f"[task: {task_id}] {task_error_log_content}", exc_info=True)
     if task:
-        # 日志长度和数据库设置的长度计算方式不同，这里限制为8000
-        if len(task_error_log_content) > 8000:
-            task_error_log_content = task_error_log_content[:8000] + '...'
-        task.update(task_status=TaskStatus.ERROR, error_log=task_error_log_content)
+        task.update_task_log(task_error_log_content)
+        task.update(task_status=TaskStatus.ERROR)
         logger.error(f"[task: {task_id}] Task status updated to ERROR due to exception")
     # 删除编译生成的二进制文件，注意不在finally中删除，因为正常结束的任务不一定需要删除，其他任务可能会复用
     if sender_path and receiver_path:
@@ -430,7 +431,7 @@ def run_cmd(cmd, task_id, raise_exception=True):
             # 限制输出长度，避免用户代码内的输出过多内容影响系统日志
             stdout = stdout[:16000]
             stderr = stderr[:16000]
-            output = f"stderr:\n{stderr}\nstdout:\n{stdout}\n"
+            output = f"stdout:\n{stdout}\nstderr:\n{stderr}\n"
             logger.info(f"[task: {task_id}] Command output: \n{output}")
             # 脱敏处理输出中的路径和敏感命令参数
             output = _sanitize_sensitive(output)
