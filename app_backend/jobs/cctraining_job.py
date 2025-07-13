@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -387,6 +388,19 @@ def _force_kill_process_group(process, task_id):
         logger.error(f"[task: {task_id}] Failed to kill process group: {str(e)}")
 
 
+def _sanitize_sensitive(text):
+    # 路径脱敏（保留文件名）
+    text = re.sub(r'(/[^/\s]+)+/([^/\s]+)', r'[path_hidden]/\2', text)
+    # 需要脱敏参数的命令列表
+    # 日志示例：Died on std::runtime_error: `mm-link Verizon-LTE-140.down Verizon-LTE-140.up --uplink-queue=droptail --uplink-queue-args="packets=250" --once
+    # --uplink-log=Verizon-LTE-140.log -- bash -c sender $MAHIMAHI_BASE 50001 > null': process exited with failure status 1
+    sensitive_cmds = ['mm-link', 'mm-loss']
+    for cmd in sensitive_cmds:
+        # 匹配命令本身及其后所有参数，直到下一个单引号或字符串结尾
+        text = re.sub(rf'({cmd})[^\']*', r'\1 [command_hidden]', text)
+    return text
+
+
 def run_cmd(cmd, task_id, raise_exception=True):
     logger.info(f"[task: {task_id}] Running command: {cmd}")
     timeout = 600  # 设置超时时间为10分钟（600秒）
@@ -417,7 +431,9 @@ def run_cmd(cmd, task_id, raise_exception=True):
             stdout = stdout[:16000]
             stderr = stderr[:16000]
             output = f"stderr:\n{stderr}\nstdout:\n{stdout}\n"
-            logger.info(f"[task: {task_id}] Command output: {output}")
+            logger.info(f"[task: {task_id}] Command output: \n{output}")
+            # 脱敏处理输出中的路径和敏感命令参数
+            output = _sanitize_sensitive(output)
 
             if process.returncode != 0:
                 logger.error(
