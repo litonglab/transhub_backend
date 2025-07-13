@@ -424,6 +424,12 @@ class AdminTaskListSchema(BaseModel):
     sort_by: Optional[str] = Field(default="created_time", description="排序字段: created_time, score")
     sort_order: Optional[str] = Field(default="desc", description="排序方向: asc, desc")
     task_id: Optional[str] = Field(default=None, description="任务ID筛选")
+    delay: Optional[str] = Field(default=None, description="时延区间筛选，如10-50，单位ms")
+    loss_rate: Optional[str] = Field(default=None, description="丢包率区间筛选，如0-0.1")
+    buffer_size: Optional[str] = Field(default=None, description="缓冲区大小区间筛选，如100-200")
+    task_score: Optional[str] = Field(default=None, description="得分区间筛选，如60-90")
+    created_time_start: Optional[str] = Field(default=None, description="任务创建时间起始(ISO格式)")
+    created_time_end: Optional[str] = Field(default=None, description="任务创建时间结束(ISO格式)")
 
     @field_validator('sort_by')
     def validate_sort_by(cls, v):

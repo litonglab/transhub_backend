@@ -309,6 +309,19 @@ def _admin_user_common_checks(user_id, forbid_admin_msg=None, forbid_self_msg=No
     return target_user, None
 
 
+def parse_range(value):
+    """解析数字区间字符串，返回(min, max)，如'10-50' -> (10, 50)"""
+    if not value:
+        return None, None
+    parts = value.split('-')
+    if len(parts) == 2:
+        return float(parts[0]), float(parts[1])
+    elif len(parts) == 1:
+        v = float(parts[0])
+        return v, v
+    raise ValueError("Invalid range format, expected 'min-max' or 'value'.")
+
+
 @admin_bp.route('/admin/tasks', methods=['GET'])
 @jwt_required()
 @admin_required()
@@ -335,6 +348,43 @@ def get_tasks():
     if data.trace_file:
         # 按trace文件名筛选（支持模糊匹配）
         query = query.filter(TaskModel.trace_name.contains(data.trace_file))
+    # 时延区间筛选
+    try:
+        delay_min, delay_max = parse_range(getattr(data, 'delay', None))
+        if delay_min is not None:
+            query = query.filter(TaskModel.delay >= delay_min)
+        if delay_max is not None:
+            query = query.filter(TaskModel.delay <= delay_max)
+        # 丢包率区间筛选
+        loss_min, loss_max = parse_range(getattr(data, 'loss_rate', None))
+        if loss_min is not None:
+            query = query.filter(TaskModel.loss_rate >= loss_min)
+        if loss_max is not None:
+            query = query.filter(TaskModel.loss_rate <= loss_max)
+        # 缓冲区大小区间筛选
+        buffer_min, buffer_max = parse_range(getattr(data, 'buffer_size', None))
+        if buffer_min is not None:
+            query = query.filter(TaskModel.buffer_size >= buffer_min)
+        if buffer_max is not None:
+            query = query.filter(TaskModel.buffer_size <= buffer_max)
+        # 得分区间筛选
+        score_min, score_max = parse_range(getattr(data, 'task_score', None))
+        if score_min is not None:
+            query = query.filter(TaskModel.task_score >= score_min)
+        if score_max is not None:
+            query = query.filter(TaskModel.task_score <= score_max)
+        # 任务创建时间区间筛选
+        created_time_start = getattr(data, 'created_time_start', None)
+        created_time_end = getattr(data, 'created_time_end', None)
+        if created_time_start:
+            start_dt = datetime.fromisoformat(created_time_start)
+            query = query.filter(TaskModel.created_time >= start_dt)
+        if created_time_end:
+            end_dt = datetime.fromisoformat(created_time_end)
+            query = query.filter(TaskModel.created_time <= end_dt)
+    except ValueError as e:
+        logger.error(f"Invalid range format in task filter: {str(e)}", exc_info=True)
+        return HttpResponse.fail(f"无效的筛选条件格式：{str(e)}")
 
     # 排序
     if data.sort_by == 'score':
