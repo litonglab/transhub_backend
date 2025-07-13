@@ -102,6 +102,19 @@ def get_users():
             # 非活跃用户：已删除或已锁定
             query = query.filter((UserModel.is_deleted == True) | (UserModel.is_locked == True))
 
+    sort_by = getattr(data, 'sort_by', None)
+    sort_order = getattr(data, 'sort_order', 'desc')
+    if sort_by == 'updated_at':
+        if sort_order == 'asc':
+            query = query.order_by(UserModel.updated_at.asc())
+        else:
+            query = query.order_by(UserModel.updated_at.desc())
+    else:  # 默认按创建时间排序
+        if sort_order == 'asc':
+            query = query.order_by(UserModel.created_at.asc())
+        else:
+            query = query.order_by(UserModel.created_at.desc())
+
     # 分页计算
     total = query.count()
     # 使用JOIN查询直接获取用户及其课程信息，避免多次查询

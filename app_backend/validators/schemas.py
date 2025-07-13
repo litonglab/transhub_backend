@@ -94,6 +94,14 @@ class CommonValidators:
             raise ValueError(f'{field_name}不能为空')
         return v.strip()
 
+    @staticmethod
+    def validate_sort_order(v: str) -> str:
+        """校验排序方向，仅支持 asc/desc"""
+        if v not in ('asc', 'desc'):
+            logger.warning(f"Invalid sort_order: {v}")
+            raise ValueError("sort_order 仅支持 'asc' 或 'desc'")
+        return v
+
 
 class UserLoginSchema(BaseModel):
     """用户登录请求参数验证"""
@@ -375,6 +383,8 @@ class AdminUserListSchema(BaseModel):
     deleted: Optional[bool] = Field(default=None, description="删除状态筛选")
     cname: Optional[str] = Field(default=None, description="课程名称筛选，仅返回报名该课程的用户")
     user_id: Optional[str] = Field(default=None, description="用户ID筛选")
+    sort_by: Optional[str] = Field(default=None, description="排序字段，可选 'created_at' 或 'updated_at'")
+    sort_order: Optional[str] = Field(default='desc', description="排序方式，可选 'asc' 或 'desc'")
 
     @field_validator('cname')
     def validate_cname(cls, v):
@@ -384,6 +394,16 @@ class AdminUserListSchema(BaseModel):
                 logger.warning(f"Invalid course name for filtering: {v}")
                 raise ValueError(f'课程名称必须是以下之一: {", ".join(config.Course.CNAME_LIST)}')
         return v
+
+    @field_validator('sort_by')
+    def validate_sort_by(cls, v):
+        if v is not None and v not in ('created_at', 'updated_at'):
+            raise ValueError("sort_by 仅支持 'created_at' 或 'updated_at'")
+        return v
+
+    @field_validator('sort_order')
+    def validate_sort_order(cls, v):
+        return CommonValidators.validate_sort_order(v)
 
 
 class AdminUserUpdateSchema(BaseModel):
@@ -413,8 +433,8 @@ class AdminTaskListSchema(BaseModel):
 
     @field_validator('sort_order')
     def validate_sort_order(cls, v):
-        if v and v not in ['asc', 'desc']:
-            raise ValueError('排序方向必须是: asc, desc')
+        if v:
+            return CommonValidators.validate_sort_order(v)
         return v
 
 
