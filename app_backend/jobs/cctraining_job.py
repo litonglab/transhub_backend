@@ -599,9 +599,9 @@ def evaluate_score(task: TaskModel, log_file: str):
         latency_score = 0
     else:
         latency_score = 35 * (2.0 - rtt_inflation) / 1.9
-    score = throughput_score + loss_score + latency_score    logger.info(
+    score = throughput_score + loss_score + latency_score
+    logger.info(
         f"[task: {task.task_id}] Calculated score: {score} (throughput: {throughput}, delay: {queueing_delay}({task.delay}), loss_rate: {loss_rate})")
-
     # 更新任务的分数
     task.update(score=score)
 
