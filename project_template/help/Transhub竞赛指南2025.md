@@ -174,7 +174,7 @@ cd cc-training
 
 > ⭐**MacOS 系统推荐使用此方式**
 
-> 2.1 部分仅限 Mac，Linux/Windows 平台参照对应教程安装好 Docker 后，后续方法（2.2-2.4）通用。
+> 1.2.1 部分仅限 Mac，Linux/Windows 平台参照对应教程安装好 Docker 后，后续方法（1.2.2-1.2.4）通用。
 
 ### 1.2.1. 安装 Docker
 
@@ -527,7 +527,7 @@ Ubuntu20、22 版本也可正常完成 transhub 安装，但在运行实验时�
 
 ### 5.4. 丢包环境下 mm-throughput-graph 无法绘制
 
-需要修改 `/usr/local/bin/mm-throughput-graph`⽂件使得该脚本能对有丢包事件的⽇志进⾏画图操作，具体改动如下图所⽰（改动之处⽤红框标出）
+需要修改 `/usr/local/bin/mm-throughput-graph` 文件使得该脚本能对有丢包事件的日志进行画图操作，具体改动如下图所示（改动之处用红框标出）
 ![image-20250709214500](./images/image-20250709214500.png)
 
 本文档更新时间：2025 年 07 月 11 日 星期五
