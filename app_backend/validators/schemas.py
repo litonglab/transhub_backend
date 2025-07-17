@@ -9,8 +9,8 @@ from pydantic import BaseModel, Field, field_validator
 
 from app_backend import get_default_config
 from app_backend.model.graph_model import GraphType
-from app_backend.model.task_model import TaskStatus
-from app_backend.model.user_model import UserRole
+from app_backend.model.task_model import TaskStatus, TASK_MODEL_ALGORITHM_MAX_LEN
+from app_backend.model.user_model import UserRole, USER_MODEL_USERNAME_MAX_LEN, USER_MODEL_REAL_NAME_MAX_LEN
 
 logger = logging.getLogger(__name__)
 config = get_default_config()
@@ -19,11 +19,11 @@ config = get_default_config()
 class FieldRules:
     """字段验证规则常量"""
     USERNAME_MIN_LEN = 4
-    USERNAME_MAX_LEN = 16
+    USERNAME_MAX_LEN = USER_MODEL_USERNAME_MAX_LEN
     PASSWORD_MIN_LEN = 6
     PASSWORD_MAX_LEN = 18
     REAL_NAME_MIN_LEN = 1
-    REAL_NAME_MAX_LEN = 50
+    REAL_NAME_MAX_LEN = USER_MODEL_REAL_NAME_MAX_LEN
     STUDENT_ID_LEN = 10
 
 
@@ -270,9 +270,9 @@ class FileUploadSchema(BaseModel):
             raise ValueError("文件名只能包含中文、字母、数字、下划线、点号和连字符")
 
         # 验证文件名长度
-        if len(filename) > 50:
+        if len(filename) > TASK_MODEL_ALGORITHM_MAX_LEN:
             logger.warning(f"Filename too long: {filename}")
-            raise ValueError("文件名长度不能超过50个字符")
+            raise ValueError(f"文件名长度不能超过{TASK_MODEL_ALGORITHM_MAX_LEN}个字符")
 
         # 验证文件大小（例如限制为2MB）
         max_size = 2 * 1024 * 1024  # 2MB

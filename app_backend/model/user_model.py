@@ -21,12 +21,17 @@ class UserRole(Enum):
     SUPER_ADMIN = "super_admin"
 
 
+# Define the maximum length, also used in the validator schema
+USER_MODEL_USERNAME_MAX_LEN = 50
+USER_MODEL_REAL_NAME_MAX_LEN = 50
+
+
 class UserModel(db.Model):
     __tablename__ = 'student'
     user_id = db.Column(VARCHAR(36, charset='utf8mb4'), primary_key=True, default=lambda: str(uuid.uuid4()))
-    username = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)
+    username = db.Column(VARCHAR(USER_MODEL_USERNAME_MAX_LEN, charset='utf8mb4'), nullable=False)
     password = db.Column(VARCHAR(128, charset='utf8mb4'), nullable=False)  # 增加长度以适应加密
-    real_name = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)
+    real_name = db.Column(VARCHAR(USER_MODEL_REAL_NAME_MAX_LEN, charset='utf8mb4'), nullable=False)
     sno = db.Column(VARCHAR(20, charset='utf8mb4'), nullable=False)
     role = db.Column(db.Enum(UserRole), nullable=False, server_default=UserRole.STUDENT.value)
     is_locked = db.Column(db.Boolean, nullable=False, server_default=text("0"))

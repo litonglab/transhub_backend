@@ -64,6 +64,11 @@ class TaskStatus(Enum):
         return new_status in self.get_valid_transitions()[self]
 
 
+# Define the maximum length, also used in the validator schema
+TASK_MODEL_ALGORITHM_MAX_LEN = 50
+TASK_MODEL_ERROR_LOG_MAX_LEN = 15000
+
+
 class TaskModel(db.Model):
     __tablename__ = 'task'
     task_id = db.Column(VARCHAR(36, charset='utf8mb4'), primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -79,8 +84,8 @@ class TaskModel(db.Model):
     cname = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)  # 后续修改相关查询逻辑后可删除
     competition_id = db.Column(db.Integer, db.ForeignKey('competition.id'), nullable=False)
     task_dir = db.Column(VARCHAR(256, charset='utf8mb4'), nullable=False)  # 任务的文件夹, 用于存放用户上传的文件
-    algorithm = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)  # 算法名称
-    error_log = db.Column(VARCHAR(15000, charset='utf8mb4'), nullable=False,
+    algorithm = db.Column(VARCHAR(TASK_MODEL_ALGORITHM_MAX_LEN, charset='utf8mb4'), nullable=False)  # 算法名称
+    error_log = db.Column(VARCHAR(TASK_MODEL_ERROR_LOG_MAX_LEN, charset='utf8mb4'), nullable=False,
                           server_default=text("''"))  # 错误日志，显示编译或运行日志
     created_at = db.Column(db.DateTime, server_default=func.now(), nullable=False)
     updated_at = db.Column(db.DateTime, server_default=func.now(),
@@ -106,8 +111,10 @@ class TaskModel(db.Model):
             :param log_content: 日志内容
             """
         self.error_log += f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {log_content}\n"
-        if len(self.error_log) > 12000:
-            self.error_log = self.error_log[:12000] + '...'
+        if len(self.error_log) > TASK_MODEL_ERROR_LOG_MAX_LEN:
+            self.error_log = self.error_log[
+                             :TASK_MODEL_ERROR_LOG_MAX_LEN - 100] + '...\nlog is too long and has been truncated.'
+        logger.error(f"len of error_log: {len(self.error_log)}")
         logger.info(f"[task: {self.task_id}] Task log updated successfully")
 
     def update(self, **kwargs):
