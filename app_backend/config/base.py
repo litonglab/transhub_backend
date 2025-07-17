@@ -141,6 +141,13 @@ class BaseConfig:
         now_time = time.time()
         return start_time <= now_time <= end_time
 
+    def is_competition_ended(self, cname: str) -> bool:
+        """检查指定课程的比赛是否已经结束"""
+        _config = self.Course.ALL_CLASS[cname]
+        end_time = time.mktime(time.strptime(_config['end_time'], "%Y-%m-%d %H:%M:%S"))
+        now_time = time.time()
+        return now_time > end_time
+
     def get_course_config(self, cname: str) -> Dict[str, Any]:
         """获取指定课程的配置"""
         if cname not in self.Course.ALL_CLASS:
@@ -169,8 +176,8 @@ class BaseConfig:
             cname: 课程名称
             trace_name: trace名称
         """
-        # 如果当前时间不在比赛时间内，则不屏蔽trace
-        if not self.is_now_in_competition(cname):
+        # 如果比赛已截止，则不屏蔽trace
+        if self.is_competition_ended(cname):
             return True
 
         trace_conf = self.get_course_trace_config(cname, trace_name)
