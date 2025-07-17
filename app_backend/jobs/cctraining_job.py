@@ -565,38 +565,40 @@ def evaluate_score(task: TaskModel, log_file: str):
     throughput_score = 0
     loss_score = 0
     latency_score = 0
-    # 1. 吞吐量效率评分 (0-35分)
+    # 1. 吞吐量效率评分 (0-100分)
     # 基于理论吞吐量的利用率
     efficiency = 0
     if (capacity > 0):
         efficiency = throughput / capacity
     if efficiency >= 1.0:  # 100%以上利用率满分
-        throughput_score = 35
+        throughput_score = 100
     elif efficiency >= 0:
-        throughput_score = 35 * efficiency
+        throughput_score = 100 * efficiency
     else:
         throughput_score = 0
     
-    # 2. 丢包控制评分 (0-30分)
+    # 2. 丢包控制评分 (0-100分)
     if loss_rate <= 0.000001:
-        loss_score = 30
+        loss_score = 100
     elif loss_rate >= 1:
         loss_score = 0
     else:
-        loss_score = 30 * (1.0 - loss_rate)
+        loss_score = 100 * (1.0 - loss_rate)
     
-    # 3. 延迟控制评分 (0-35分)
+    # 3. 延迟控制评分 (0-100分)
     # 基于RTT膨胀程度
     rtt_inflation = 2.0
     if (task.delay > 0):
         rtt_inflation = queueing_delay / task.delay
     if rtt_inflation <= 0.01:
-        latency_score = 35
+        latency_score = 100
     elif rtt_inflation <= 20.0:
-        latency_score = 17.5 + 17.5 * (20.0 - rtt_inflation) / 19.99
+        latency_score = 50 + 50 * (20.0 - rtt_inflation) / 19.99
     else:
-        latency_score = 35 * 10.0 / rtt_inflation
-    score = throughput_score + loss_score + latency_score
+        latency_score = 100 * 10.0 / rtt_inflation
+
+    # 计算总分
+    score = 0.35 * throughput_score + 0.3 * loss_score + 0.35 * latency_score
     logger.info(
         f"[task: {task.task_id}] Calculated score: {score} (throughput: {throughput}, delay: {queueing_delay}({task.delay}), loss_rate: {loss_rate})")
     # 更新任务的分数
