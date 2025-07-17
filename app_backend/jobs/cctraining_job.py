@@ -428,12 +428,10 @@ def run_cmd(cmd, task_id, raise_exception=True):
 
         try:
             stdout, stderr = process.communicate(timeout=timeout)
-            # 限制输出长度，避免用户代码内的输出过多内容影响系统日志
-            stdout = stdout[:16000]
-            stderr = stderr[:16000]
-            output = f"stdout:\n{stdout}\nstderr:\n{stderr}\n"
-            logger.info(f"[task: {task_id}] Command output: \n{output}")
+            # 打印日志时限制输出长度，避免用户代码内的输出过多内容影响系统日志
+            logger.info(f"[task: {task_id}] Command output: \nstdout:\n{stdout[:6000]}\nstderr:\n{stderr[:6000]}\n")
             # 脱敏处理输出中的路径和敏感命令参数
+            output = f"stdout:\n{stdout}\nstderr:\n{stderr}\n"
             output = _sanitize_sensitive(output)
 
             if process.returncode != 0:

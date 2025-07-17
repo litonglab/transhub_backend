@@ -5,6 +5,7 @@ from enum import Enum
 
 from flask_jwt_extended import current_user
 from sqlalchemy import func, text
+from sqlalchemy.dialects.mysql import MEDIUMTEXT
 from sqlalchemy.dialects.mysql import VARCHAR
 
 from app_backend import db, get_default_config
@@ -66,7 +67,7 @@ class TaskStatus(Enum):
 
 # Define the maximum length, also used in the validator schema
 TASK_MODEL_ALGORITHM_MAX_LEN = 50
-TASK_MODEL_ERROR_LOG_MAX_LEN = 15000
+TASK_MODEL_ERROR_LOG_MAX_LEN = 16777215  # 16MB, MySQL MEDIUMTEXT max length
 
 
 class TaskModel(db.Model):
@@ -85,8 +86,7 @@ class TaskModel(db.Model):
     competition_id = db.Column(db.Integer, db.ForeignKey('competition.id'), nullable=False)
     task_dir = db.Column(VARCHAR(256, charset='utf8mb4'), nullable=False)  # 任务的文件夹, 用于存放用户上传的文件
     algorithm = db.Column(VARCHAR(TASK_MODEL_ALGORITHM_MAX_LEN, charset='utf8mb4'), nullable=False)  # 算法名称
-    error_log = db.Column(VARCHAR(TASK_MODEL_ERROR_LOG_MAX_LEN, charset='utf8mb4'), nullable=False,
-                          server_default=text("''"))  # 错误日志，显示编译或运行日志
+    error_log = db.Column(MEDIUMTEXT(charset='utf8mb4'), nullable=False)  # 错误日志，显示编译或运行日志
     created_at = db.Column(db.DateTime, server_default=func.now(), nullable=False)
     updated_at = db.Column(db.DateTime, server_default=func.now(),
                            onupdate=func.now(), nullable=False)
@@ -111,10 +111,14 @@ class TaskModel(db.Model):
             :param log_content: 日志内容
             """
         self.error_log += f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {log_content}\n"
-        if len(self.error_log) > TASK_MODEL_ERROR_LOG_MAX_LEN:
-            self.error_log = self.error_log[
-                             :TASK_MODEL_ERROR_LOG_MAX_LEN - 100] + '...\nlog is too long and has been truncated.'
-        logger.error(f"len of error_log: {len(self.error_log)}")
+        # 按 utf-8 编码后的字节长度判断
+        max_bytes = TASK_MODEL_ERROR_LOG_MAX_LEN
+        error_log_bytes = self.error_log.encode('utf-8')
+        if len(error_log_bytes) > max_bytes:
+            logger.warning(
+                f"[task: {self.task_id}] task log length {len(error_log_bytes)} bytes exceeds maximum length of {max_bytes} bytes, truncating.")
+            truncated = error_log_bytes[:max_bytes - 100].decode('utf-8', errors='ignore')
+            self.error_log = truncated + '...\nlog is too long and has been truncated.'
         logger.info(f"[task: {self.task_id}] Task log updated successfully")
 
     def update(self, **kwargs):

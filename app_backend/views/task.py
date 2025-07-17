@@ -101,7 +101,7 @@ def upload_project_file():
                              task_score=0, created_time=now_str, cname=cname, competition_id=competition_id,
                              task_dir=os.path.join(temp_dir, f"{trace_name}_{loss}_{buffer_size}_{delay}"),
                              algorithm=algorithm, trace_name=trace_name, upload_id=upload_id,
-                             loss_rate=loss, buffer_size=buffer_size, delay=delay)
+                             loss_rate=loss, buffer_size=buffer_size, delay=delay, error_log='')
 
             # 保存任务到数据库
             task.save()
