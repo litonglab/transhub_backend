@@ -1,6 +1,7 @@
 old/
 sourdough/
 .idea/
+.vscode/
 __pycache__/
 .trunk/
 packages/

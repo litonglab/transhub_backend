@@ -8,6 +8,7 @@ import time
 from typing import Dict, Any
 
 from app_backend.config import env_file
+from app_backend.security.bypass_decorators import admin_bypass
 
 
 # 由于循环导入，此模块不允许使用logger
@@ -28,6 +29,7 @@ class BaseConfig:
         NAME = _get_env_variable('APP_NAME')
         BASEDIR = _get_env_variable('BASEDIR')
         USER_DIR_PATH = os.path.join(BASEDIR, "user_data")
+        SENDER_MAX_WINDOW_SIZE = int(_get_env_variable('SENDER_MAX_WINDOW_SIZE'))
 
     class Cache:
         """缓存配置"""
@@ -39,6 +41,15 @@ class BaseConfig:
         # CORS 配置 - 开发环境允许所有来源
         CORS_ORIGINS = _get_env_variable('CORS_ORIGINS')
         JWT_ACCESS_TOKEN_EXPIRES = int(_get_env_variable('FLASK_JWT_ACCESS_TOKEN_EXPIRES'))
+
+    class SuperAdmin:
+        """超级管理员配置"""
+        USERNAME = os.getenv('SUPER_ADMIN_USERNAME')
+        PASSWORD = os.getenv('SUPER_ADMIN_PASSWORD')
+        REAL_NAME = os.getenv('SUPER_ADMIN_REAL_NAME', '系统管理员')
+
+        # 检查是否配置了必要的超级管理员信息
+        ENABLED = USERNAME and PASSWORD and len(USERNAME) > 0 and len(PASSWORD) > 0
 
     class Logging:
         """日志配置"""
@@ -55,16 +66,6 @@ class BaseConfig:
         CNAME_LIST = list()
         REGISTER_STUDENT_LIST = list()
 
-    class DramatiqDashboard:
-        """DRAMATIQ_DASHBOARD后台配置"""
-        DRAMATIQ_DASHBOARD_USERNAME = os.getenv('DRAMATIQ_DASHBOARD_USERNAME')
-        DRAMATIQ_DASHBOARD_PASSWORD = os.getenv('DRAMATIQ_DASHBOARD_PASSWORD')
-        DRAMATIQ_DASHBOARD_URL = os.getenv('DRAMATIQ_DASHBOARD_URL')
-        # 必须设置上述三个环境变量，且不能为空，否则不启用DRAMATIQ_DASHBOARD
-        DRAMATIQ_DASHBOARD_ENABLED = DRAMATIQ_DASHBOARD_USERNAME and DRAMATIQ_DASHBOARD_PASSWORD and DRAMATIQ_DASHBOARD_URL and len(
-            DRAMATIQ_DASHBOARD_USERNAME) > 0 and len(DRAMATIQ_DASHBOARD_PASSWORD) > 0 and len(
-            DRAMATIQ_DASHBOARD_URL) > 0
-
     def __init__(self):
         """初始化配置"""
         self._setup_class_config()
@@ -78,8 +79,8 @@ class BaseConfig:
         for cname, config in self.Course.ALL_CLASS.items():
             config["path"] = os.path.join(self.App.BASEDIR, config["name"])
             config["zhinan_path"] = os.path.join(config["path"], 'help', 'zhinan.md')
-            config["downlink_dir"] = os.path.join(config["path"], 'test_data', 'downlink')
-            config["uplink_dir"] = os.path.join(config["path"], 'test_data', 'uplink')
+            config["image_path"] = os.path.join(config["path"], 'help', 'images')
+            config["trace_path"] = os.path.join(config["path"], 'trace')
             config["student_list"] = []
 
             # 读取学生列表
@@ -88,6 +89,14 @@ class BaseConfig:
                 with open(student_list_path, 'r') as f:
                     config["student_list"] = [line.strip() for line in f if line.strip()]
                     self.Course.REGISTER_STUDENT_LIST.update(config["student_list"])
+
+            # 验证配置的trace文件是否存在
+            for trace_name, trace_conf in config["trace"].items():
+                uplink_file = os.path.join(config['trace_path'], trace_conf['uplink_file'])
+                downlink_file = os.path.join(config['trace_path'], trace_conf['downlink_file'])
+                if not os.path.exists(uplink_file) or not os.path.exists(downlink_file):
+                    raise ValueError(
+                        f"课程 {cname} 的 {trace_name} Trace上下行文件（{uplink_file}, {downlink_file}）不存在，请检查配置")
         self.Course.REGISTER_STUDENT_LIST = list(self.Course.REGISTER_STUDENT_LIST)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -115,6 +124,7 @@ class BaseConfig:
         config_dict['Cache']['FLASK_REDIS_URL'] = '******'
         return config_dict
 
+    @admin_bypass
     def is_now_in_competition(self, cname: str) -> bool:
         """检查当前时间是否在指定课程的比赛时间内"""
         _config = self.Course.ALL_CLASS[cname]
@@ -122,6 +132,13 @@ class BaseConfig:
         end_time = time.mktime(time.strptime(_config['end_time'], "%Y-%m-%d %H:%M:%S"))
         now_time = time.time()
         return start_time <= now_time <= end_time
+
+    def is_competition_ended(self, cname: str) -> bool:
+        """检查指定课程的比赛是否已经结束"""
+        _config = self.Course.ALL_CLASS[cname]
+        end_time = time.mktime(time.strptime(_config['end_time'], "%Y-%m-%d %H:%M:%S"))
+        now_time = time.time()
+        return now_time > end_time
 
     def get_course_config(self, cname: str) -> Dict[str, Any]:
         """获取指定课程的配置"""
@@ -133,16 +150,19 @@ class BaseConfig:
         """获取指定课程某个trace的配置"""
         course = self.get_course_config(cname)
         trace_dict = course["trace"]
-        if trace_name not in trace_dict:
-            assert "default" in trace_dict, f"课程 {cname} 的trace配置中未配置default项，请检查配置"
-            return trace_dict["default"]
         return trace_dict[trace_name]
 
-    def is_trace_blocked(self, cname: str, trace_name: str) -> bool:
-        """检查指定课程某个trace是否被屏蔽"""
-        # 如果当前时间不在比赛时间内，则不屏蔽trace
-        if not self.is_now_in_competition(cname):
-            return False
+    @admin_bypass
+    def is_trace_available(self, cname: str, trace_name: str) -> bool:
+        """检查指定课程某个trace是否可用，如果用户是管理员，则不屏蔽trace。
+
+        Args:
+            cname: 课程名称
+            trace_name: trace名称
+        """
+        # 如果比赛已截止，则不屏蔽trace
+        if self.is_competition_ended(cname):
+            return True
 
         trace_conf = self.get_course_trace_config(cname, trace_name)
-        return trace_conf['block']
+        return not trace_conf['block']

@@ -3,8 +3,6 @@ import secrets
 import threading
 from logging import getLogger
 
-import dramatiq_dashboard
-from dramatiq.brokers.redis import RedisBroker
 from flask import Flask, render_template
 from flask_caching import Cache
 from flask_cors import CORS
@@ -14,7 +12,6 @@ from werkzeug.exceptions import HTTPException
 
 from app_backend.config import get_config, get_default_config
 from app_backend.security.auth import init_auth
-from app_backend.security.dramatiq_auth import create_auth_middleware
 from app_backend.utils.utils import setup_logger
 from app_backend.vo.http_response import HttpResponse
 
@@ -264,6 +261,43 @@ def _create_tables(app):
         raise
 
 
+def _create_super_admin(app):
+    """Create super admin user if configured in environment variables."""
+
+    from app_backend.model.user_model import UserModel, UserRole
+
+    # 获取超级管理员配置
+    admin_username = config.SuperAdmin.USERNAME
+    admin_password = config.SuperAdmin.PASSWORD
+    admin_real_name = config.SuperAdmin.REAL_NAME
+
+    # 如果没有配置超级管理员信息，跳过创建
+    if not config.SuperAdmin.ENABLED:
+        logger.info('Super admin credentials not configured, skipping auto-creation')
+        return
+
+    existing_admin = UserModel.query.filter_by(username=admin_username).first()
+    if existing_admin:
+        # 确保现有用户是超级管理员角色
+        if existing_admin.role != UserRole.SUPER_ADMIN:
+            existing_admin.role = UserRole.SUPER_ADMIN
+            existing_admin.save()
+            logger.info(f'Updated existing user {admin_username} to super admin role')
+        else:
+            logger.info(f'Super admin {admin_username} already exists')
+    else:
+        # 创建新的超级管理员
+        super_admin = UserModel(
+            username=admin_username,
+            real_name=admin_real_name,
+            role=UserRole.SUPER_ADMIN,
+            sno="SuperAdmin",
+        )
+        super_admin.set_password(admin_password)
+        super_admin.save()
+        logger.info(f'Super admin {admin_username} created successfully')
+
+
 def _register_blueprints(app):
     """Register all application blueprints."""
     from app_backend.views.user import user_bp
@@ -273,6 +307,8 @@ def _register_blueprints(app):
     from app_backend.views.summary import summary_bp
     from app_backend.views.source_code import source_code_bp
     from app_backend.views.graph import graph_bp
+    from app_backend.views.admin import admin_bp
+    from app_backend.views.dramatiq_dashboard import dramatiq_dashboard_bp, register_cleanup_handler
 
     blueprints = [
         (user_bp, 'user'),
@@ -282,11 +318,16 @@ def _register_blueprints(app):
         (summary_bp, 'summary'),
         (source_code_bp, 'source_code'),
         (graph_bp, 'graph'),
+        (admin_bp, 'admin'),
+        (dramatiq_dashboard_bp, 'dramatiq_dashboard'),
     ]
 
     for blueprint, name in blueprints:
         app.register_blueprint(blueprint)
         logger.info(f'Registered blueprint: {name}')
+
+    # 注册 dramatiq dashboard 的清理处理器
+    register_cleanup_handler(app)
 
 
 def _configure_error_handlers(app):
@@ -315,27 +356,6 @@ def _initialize_auth(app):
         raise
 
 
-def _configure_dramatiq_dashboard(app):
-    """配置 dramatiq dashboard 中间件"""
-    if not config.DramatiqDashboard.DRAMATIQ_DASHBOARD_ENABLED:
-        logger.warning("Dramatiq dashboard is disabled in the configuration.")
-        return
-    try:
-        # 创建 dramatiq dashboard 中间件
-        redis_broker = RedisBroker(url=config.Cache.FLASK_REDIS_URL)
-        redis_broker.declare_queue("default")
-        dashboard_middleware = dramatiq_dashboard.make_wsgi_middleware(
-            config.DramatiqDashboard.DRAMATIQ_DASHBOARD_URL, redis_broker)
-
-        # 创建并应用带有认证的中间件
-        auth_middleware = create_auth_middleware(dashboard_middleware)
-        app.wsgi_app = auth_middleware(app.wsgi_app)
-
-        logger.info('Dramatiq dashboard middleware configured successfully')
-    except Exception as e:
-        logger.error(f'Failed to configure dramatiq dashboard middleware: {e}')
-
-
 def create_app():
     """Create and fully configure Flask application."""
     import time
@@ -347,6 +367,8 @@ def create_app():
     with app.app_context():
         # Create database tables
         _create_tables(app)
+        # Create super admin user if configured
+        _create_super_admin(app)
         # Create the necessary directories
         _make_dir()
         # Register blueprints
@@ -355,8 +377,6 @@ def create_app():
         _initialize_auth(app)
         # Configure error handlers
         _configure_error_handlers(app)
-        # Configure dramatiq dashboard middleware
-        _configure_dramatiq_dashboard(app)
         # Configure secret key
         _configure_secret_key(app)
         # Configure cors

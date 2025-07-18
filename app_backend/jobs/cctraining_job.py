@@ -1,18 +1,18 @@
 import logging
 import os
+import re
 import shutil
 import signal
 import subprocess
-import uuid
 
 import dramatiq
 from dramatiq.brokers.redis import RedisBroker
-from dramatiq.middleware import TimeLimit
+from dramatiq.middleware.time_limit import TimeLimitExceeded
 from redis.lock import Lock
 
 from app_backend import db, redis_client, get_default_config
 from app_backend import get_app
-from app_backend.model.graph_model import GraphModel
+from app_backend.model.graph_model import GraphModel, GraphType
 from app_backend.model.rank_model import RankModel
 from app_backend.model.task_model import TaskModel, TaskStatus
 from app_backend.model.user_model import UserModel
@@ -23,7 +23,6 @@ setup_logger()
 logger = logging.getLogger(__name__)
 config = get_default_config()
 redis_broker = RedisBroker(url=config.Cache.FLASK_REDIS_URL)
-redis_broker.add_middleware(TimeLimit())
 dramatiq.set_broker(redis_broker)
 
 
@@ -50,15 +49,16 @@ def _compile_cc_file(task, course_project_dir, task_parent_dir, sender_path, rec
         if os.path.exists(sender_path) and os.path.exists(receiver_path):
             logger.info(
                 f"[task: {task_id}] Sender and receiver already exist in {task_parent_dir}, skipping compilation")
-            task.update(task_status=TaskStatus.COMPILED.value)
+            task.update(task_status=TaskStatus.COMPILED)
             return True
 
         # 判断父级目录是否存在compile_failed，如果有，说明之前编译失败过，直接返回False
         compile_failed_file = os.path.join(task_parent_dir, 'compile_failed')
         if os.path.exists(compile_failed_file):
             logger.warning(f"[task: {task_id}] Compilation failed previously, skipping compilation")
-            task.update(task_status=TaskStatus.ERROR.value,
-                        error_log="本次提交的代码在其他任务中编译失败，此任务不再尝试编译，如需查询编译日志，请查询本次提交下的其他任务。")
+            task.update_task_log(
+                "本次提交的代码在其他任务中编译失败，此任务不再尝试编译，如需查询编译日志，请查询本次提交下的其他任务。")
+            task.update(task_status=TaskStatus.ERROR)
             return False
 
         # 如果没有编译好的文件，开始编译
@@ -66,7 +66,7 @@ def _compile_cc_file(task, course_project_dir, task_parent_dir, sender_path, rec
         lock = Lock(redis_client, lock_name, timeout=300)
         logger.info(f'[task: {task_id}] Compiling CC file: {cc_file_name}, attempting to acquire lock: {lock_name}')
         with lock:
-            task.update(task_status=TaskStatus.COMPILING.value)
+            task.update(task_status=TaskStatus.COMPILING)
             logger.info(f"[task: {task_id}] Acquired lock: {lock_name}, starting compilation")
             assert os.path.exists(course_project_dir) and os.path.exists(
                 task_parent_dir), "Course project directory or task parent directory does not exist"
@@ -82,14 +82,15 @@ def _compile_cc_file(task, course_project_dir, task_parent_dir, sender_path, rec
                 # 如果编译失败，在父级目录创建一个文件，文件名为compile_failed，后续同cc_file的其他trace任务不用再重复编译
                 with open(compile_failed_file, 'w') as f:
                     pass
-                task.update(task_status=TaskStatus.COMPILED_FAILED.value, error_log=output)
+                task.update_task_log(f"Compilation failed, make output:\n\n{_sanitize_sensitive(output)}")
+                task.update(task_status=TaskStatus.COMPILED_FAILED)
                 return False
 
             # 编译成功后，将sender和receiver移动到父级目录
             logger.info(f"[task: {task_id}] Moving sender and receiver to parent directory {task_parent_dir}")
             shutil.move(os.path.join(course_project_dir, 'sender'), sender_path)
             shutil.move(os.path.join(course_project_dir, 'receiver'), receiver_path)
-            task.update(task_status=TaskStatus.COMPILED.value)
+            task.update(task_status=TaskStatus.COMPILED)
             logger.info(f"[task: {task.task_id}] Compilation succeeded")
             return True
 
@@ -101,23 +102,21 @@ def _run_contest(task, course_project_dir, sender_path, receiver_path, result_pa
     """
     task_id = task.task_id
     program_script = "./run-contest.sh"
-    task.update(task_status=TaskStatus.RUNNING.value)
-    # 该脚本接收五个参数，running_port loss_rate uplink_file downlink_file result_path
-    # running_port: 运行端口
-    # loss_rate: 丢包率
-    # uplink_file: 上行文件
-    # downlink_file: 下行文件
-    # result_path: 结果路径
+    task.update(task_status=TaskStatus.RUNNING)
+    # 该脚本接收9个参数，running_port uplink_file downlink_file result_path sender_path receiver_path loss_rate buffer_size delay
+    # 运行端口 上行文件 下行文件 结果路径 发送端路径 接收端路径 丢包率 缓冲区大小 时延
     _config = config.get_course_config(task.cname)
     loss_rate = task.loss_rate
-    uplink_dir = _config['uplink_dir']
-    downlink_dir = _config['downlink_dir']
-    uplink_file = uplink_dir + "/" + task.trace_name + ".up"
-    downlink_file = downlink_dir + "/" + task.trace_name + ".down"
-    run_cmd(
-        f"cd {course_project_dir} && {program_script} {running_port} {loss_rate} {uplink_file} {downlink_file} {result_path} {sender_path} {receiver_path} {task.buffer_size}",
+    buffer_size = task.buffer_size
+    delay = task.delay
+    trace_conf = config.get_course_trace_config(task.cname, task.trace_name)
+    uplink_file = os.path.join(_config['trace_path'], trace_conf['uplink_file'])
+    downlink_file = os.path.join(_config['trace_path'], trace_conf['downlink_file'])
+    _, output = run_cmd(
+        f"cd {course_project_dir} && {program_script} {running_port} {uplink_file} {downlink_file} {result_path} {sender_path} {receiver_path} {loss_rate} {buffer_size} {delay}",
         task_id)
     logger.info(f"[task: {task_id}] run-contest.sh completed successfully")
+    task.update_task_log(f"Contest done, program logs:\n\n{output}")
 
 
 def _remove_binary_files(task_id, sender_path, receiver_path):
@@ -142,7 +141,6 @@ def _get_score(task, result_path):
     获取评分
     :return: None or float, 返回评分，如果失败则返回None
     """
-    # 这里可以添加获取评分的逻辑
     task_id = task.task_id
     extract_program = "mm-throughput-graph"
     logger.debug(f"[task: {task_id}] is getting score from {result_path} using {extract_program}")
@@ -161,7 +159,11 @@ def _graph(task, result_path):
     :return: None
     """
     task_id = task.task_id
-    # 这里可以添加画图的逻辑
+
+    throughput_graph_svg = os.path.join(task.task_dir, f"{task.trace_name}.throughput.svg")
+    delay_graph_svg = os.path.join(task.task_dir, f"{task.trace_name}.delay.svg")
+    # delay_graph_png = os.path.join(task.task_dir, f"{task.trace_name}.delay.png")
+    # 另一个画图逻辑
     # tunnel_graph = TunnelGraph(
     #     tunnel_log=result_path,
     #     throughput_graph=task.task_dir + "/" + task.trace_name + ".throughput.png",
@@ -169,19 +171,19 @@ def _graph(task, result_path):
     #     ms_per_bin=500)
     # tunnel_graph.run()
     logger.info(f"[task: {task_id}] is generating graphs")
-    run_cmd(
-        f'mm-throughput-graph 500 {result_path} > ' + task.task_dir + "/" + task.trace_name + ".throughput.svg",
-        task_id)
-    run_cmd(
-        f'mm-delay-graph {result_path} > ' + task.task_dir + "/" + task.trace_name + ".delay.svg",
-        task_id)
-    # 6. 保存图
-    graph_id1 = uuid.uuid4().hex
-    graph_id2 = uuid.uuid4().hex
-    GraphModel(task_id=task_id, graph_id=str(graph_id1), graph_type='throughput',
-               graph_path=task.task_dir + "/" + task.trace_name + ".throughput.svg").insert()
-    GraphModel(task_id=task_id, graph_id=str(graph_id2), graph_type='delay',
-               graph_path=task.task_dir + "/" + task.trace_name + ".delay.svg").insert()
+    run_cmd(f'mm-throughput-graph 500 {result_path} > {throughput_graph_svg}', task_id)
+    run_cmd(f'mm-delay-graph {result_path} > {delay_graph_svg}', task_id)
+    # 由于delay svg图太大，将svg转换为png以压缩
+    # 实测高并发时，转换时长需要几十分钟，暂时删除此逻辑
+    # logger.info(f"[task: {task_id}] Converting delay graph SVG to PNG")
+    # cairosvg.svg2png(url=delay_graph_svg, write_to=delay_graph_png)
+    # os.remove(delay_graph_svg)
+    # logger.info(f"[task: {task_id}] Converted delay graph SVG to PNG, svg removed.")
+    logger.info(f"[task: {task_id}] Graphs generated successfully: {throughput_graph_svg}, {delay_graph_svg}")
+    GraphModel(task_id=task_id, graph_type=GraphType.THROUGHPUT,
+               graph_path=throughput_graph_svg).insert()
+    GraphModel(task_id=task_id, graph_type=GraphType.DELAY,
+               graph_path=delay_graph_svg).insert()
     logger.info(f"[task: {task_id}] is generating graphs successfully")
 
 
@@ -204,9 +206,8 @@ def _update_rank(task, user):
         logger.info(f"[task: {task_id}] try to update rank")
         # 获取该 upload_id 下的所有任务
         all_tasks = TaskModel.query.filter_by(upload_id=upload_id).all()
-
         # 检查是否所有任务都已完成
-        all_tasks_completed = all(t.task_status == TaskStatus.FINISHED.value for t in all_tasks)
+        all_tasks_completed = all(t.task_status == TaskStatus.FINISHED for t in all_tasks)
 
         if not all_tasks_completed:
             logger.warning(f"[task: {task_id}] Not all tasks completed for upload_id {upload_id}, skipping rank update")
@@ -214,10 +215,10 @@ def _update_rank(task, user):
 
         # 计算所有任务的总分
         total_upload_score = sum(t.task_score for t in all_tasks if t.task_score is not None)
-
         # 获取用户当前课程的榜单记录
-        rank_record = RankModel.query.filter_by(user_id=task.user_id, cname=task.cname).first()
-
+        rank_record = RankModel.query.filter_by(competition_id=task.competition_id).first()
+        logger.debug(
+            f"[task: {task_id}] is updating rank record: {rank_record}, user: {user.username}, competition_id: {task.competition_id}")
         if rank_record:
             # 如果已有记录，检查是否需要更新
             # if rank_record.upload_time < task.created_time:
@@ -231,16 +232,17 @@ def _update_rank(task, user):
                     upload_time=task.created_time
                 )
                 logger.info(
-                    f"[task: {task_id}] Updated rank record with higher score: {total_upload_score} (previous: {rank_record.task_score})")
+                    f"[task: {task_id}] Updated rank record with higher score: {total_upload_score} (previous: {rank_record.task_score}), user: {user.username}, competition_id: {task.competition_id}")
             else:
                 # 当前分数更低，不更新记录
                 logger.warning(
-                    f"[task: {task_id}] Skipping rank update as current score {total_upload_score} is lower than existing score {rank_record.task_score}")
+                    f"[task: {task_id}] Skipping rank update as current score {total_upload_score} is lower than existing score {rank_record.task_score}, user: {user.username}, competition_id: {task.competition_id}")
         else:
             # 没有记录，创建新记录
             RankModel(
                 user_id=task.user_id,
                 upload_id=upload_id,
+                competition_id=task.competition_id,
                 task_score=total_upload_score,
                 algorithm=task.algorithm,
                 upload_time=task.created_time,
@@ -248,12 +250,32 @@ def _update_rank(task, user):
                 username=user.username
             ).insert()
             logger.info(
-                f"[task: {task_id}] Created new rank record for user: {task.user_id}, score: {total_upload_score}")
+                f"[task: {task_id}] Created new rank record for user: {user.username}, score: {total_upload_score}, competition_id: {task.competition_id}")
 
-        logger.info(f"[task: {task_id}] Rank update completed for upload_id: {upload_id}")
+        logger.info(
+            f"[task: {task_id}] Rank update completed for upload_id: {upload_id}, user: {user.username}, competition_id: {task.competition_id}")
         return True
 
 
+def _handle_exception(task_id, err_msg, task=None, sender_path=None, receiver_path=None):
+    """
+    处理异常，更新任务状态和错误日志
+    :param task: TaskModel对象
+    :param task_id: 任务ID
+    :param err_msg: 错误信息
+    """
+    task_error_log_content = f"发生意外错误，请稍后再试。若问题仍存在可将此信息反馈给管理员协助排查。\n[task_id: {task_id}]\nException occurred:\n{err_msg}\n"
+    logger.error(f"[task: {task_id}] {task_error_log_content}", exc_info=True)
+    if task:
+        task.update_task_log(task_error_log_content)
+        task.update(task_status=TaskStatus.ERROR)
+        logger.error(f"[task: {task_id}] Task status updated to ERROR due to exception")
+    # 删除编译生成的二进制文件，注意不在finally中删除，因为正常结束的任务不一定需要删除，其他任务可能会复用
+    if sender_path and receiver_path:
+        _remove_binary_files(task_id, sender_path, receiver_path)
+
+
+# 20分钟超时（毫秒），此时间应大于cmd子进程的超时时间
 @dramatiq.actor(time_limit=1200000, max_retries=0)
 def run_cc_training_task(task_id):
     app = get_app()
@@ -266,7 +288,7 @@ def run_cc_training_task(task_id):
                 return
 
             logger.info(f"[task: {task_id}] Start task")
-            assert task.task_status == TaskStatus.QUEUED.value, "Task status must be QUEUED to run"
+            assert task.task_status == TaskStatus.QUEUED, "Task status must be QUEUED to run"
             user = UserModel.query.filter_by(user_id=task.user_id).first()
 
             # 课程的项目目录，公共目录
@@ -298,26 +320,40 @@ def run_cc_training_task(task_id):
 
             _graph(task, result_path)
 
-            task.update(task_status=TaskStatus.FINISHED.value, task_score=total_score)
+            task.update(task_status=TaskStatus.FINISHED, task_score=total_score)
             # 更新完状态后再更新榜单，如果榜单更新失败，任务状态会回退至ERROR
             all_tasks_completed = _update_rank(task, user)
             if all_tasks_completed:
                 _remove_binary_files(task_id, sender_path, receiver_path)
             logger.info(f"[task: {task_id}] Task completed successfully, score: {total_score}")
+        except TimeLimitExceeded as e:
+            # 处理 Dramatiq 的超时异常，此异常不在Exception中，需单独处理
+            logger.error(f"[task: {task_id}] Task timed out due to Dramatiq TimeLimit middleware")
+            err_msg = f"{type(e).__name__}\n{str(e)}\nTask timed out after 20 minutes, this problem shouldn't happen, please contact admin."
+
+            _task = None
+            _sender_path = None
+            _receiver_path = None
+            if 'task' in locals():
+                _task = task
+            if 'sender_path' in locals() and 'receiver_path' in locals():
+                _sender_path = sender_path
+                _receiver_path = receiver_path
+            _handle_exception(task_id, err_msg, _task, _sender_path, _receiver_path)
+
         except Exception as e:
             # 理论上除了编译失败外，不应出现其他异常，如果出现，需要修复代码相关逻辑
             err_msg = f"{type(e).__name__}\n{str(e)}"
-            task_error_log_content = f"发生意外错误，请将此信息反馈给管理员协助排查。\n[task_id: {task_id}]\nException occurred:\n{err_msg}\n"
-            logger.error(f"[task: {task_id}] {task_error_log_content}", exc_info=True)
-            if 'task' in locals() and task:
-                # 这里日志长度和数据库设置的长度计算方式不同，这里限制为8000
-                if len(task_error_log_content) > 8000:
-                    task_error_log_content = task_error_log_content[:8000] + '...'
-                task.update(task_status=TaskStatus.ERROR.value, error_log=task_error_log_content)
-                logger.error(f"[task: {task_id}] Task status updated to ERROR due to exception")
-            # 删除编译生成的二进制文件，注意不在finally中删除，因为正常结束的任务不一定需要删除，其他任务可能会复用
+
+            _task = None
+            _sender_path = None
+            _receiver_path = None
+            if 'task' in locals():
+                _task = task
             if 'sender_path' in locals() and 'receiver_path' in locals():
-                _remove_binary_files(task_id, sender_path, receiver_path)
+                _sender_path = sender_path
+                _receiver_path = receiver_path
+            _handle_exception(task_id, err_msg, _task, _sender_path, _receiver_path)
         finally:
             try:
                 db.session.remove()
@@ -328,6 +364,8 @@ def run_cc_training_task(task_id):
                     os.remove(result_path)
                     logger.info(f"[task: {task_id}] Removed result file: {result_path}")
 
+            except TimeLimitExceeded as e:
+                logger.error(f"[task: {task_id}] Error when finally cleanup: Dramatiq TimeLimitExceeded", exc_info=True)
             except Exception as e:
                 logger.error(f"[task: {task_id}] Error when finally cleanup: {str(e)}", exc_info=True)
 
@@ -348,6 +386,19 @@ def _force_kill_process_group(process, task_id):
         logger.info(f"[task: {task_id}] Process group already terminated")
     except Exception as e:
         logger.error(f"[task: {task_id}] Failed to kill process group: {str(e)}")
+
+
+def _sanitize_sensitive(text):
+    # 路径脱敏（保留文件名）
+    text = re.sub(r'(/[^/\s]+)+/([^/\s]+)', r'[path_hidden]/\2', text)
+    # 需要脱敏参数的命令列表
+    # 日志示例：Died on std::runtime_error: `mm-link Verizon-LTE-140.down Verizon-LTE-140.up --uplink-queue=droptail --uplink-queue-args="packets=250" --once
+    # --uplink-log=Verizon-LTE-140.log -- bash -c sender $MAHIMAHI_BASE 50001 > null': process exited with failure status 1
+    sensitive_cmds = ['mm-link', 'mm-loss']
+    for cmd in sensitive_cmds:
+        # 匹配命令本身及其后所有参数，直到下一个单引号或字符串结尾
+        text = re.sub(rf'({cmd})[^\']*', r'\1 [command_hidden]', text)
+    return text
 
 
 def run_cmd(cmd, task_id, raise_exception=True):
@@ -376,8 +427,11 @@ def run_cmd(cmd, task_id, raise_exception=True):
 
         try:
             stdout, stderr = process.communicate(timeout=timeout)
+            # 打印日志时限制输出长度，避免用户代码内的输出过多内容影响系统日志
+            logger.info(f"[task: {task_id}] Command output: \nstdout:\n{stdout[:6000]}\nstderr:\n{stderr[:6000]}\n")
+            # 脱敏处理输出中的路径和敏感命令参数
             output = f"stdout:\n{stdout}\nstderr:\n{stderr}\n"
-            logger.info(f"[task: {task_id}] Command output: {output}")
+            output = _sanitize_sensitive(output)
 
             if process.returncode != 0:
                 logger.error(

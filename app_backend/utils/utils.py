@@ -7,6 +7,7 @@ from logging.config import dictConfig
 
 # noinspection PyUnresolvedReferences
 import concurrent_log_handler
+from flask_jwt_extended import current_user
 
 from app_backend import get_default_config
 
@@ -132,3 +133,22 @@ def generate_random_string(length: int, include_digits: bool = True, include_spe
 
     # 生成随机字符串
     return ''.join(random.choice(chars) for _ in range(length))
+
+
+def get_record_by_permission(model_cls, admin_filter_dict: dict, user_filter_dict: dict = None):
+    """
+    通用权限查询函数。管理员可查所有，普通用户只能查自己的。需保证model_cls有user_id字段。
+    model_cls: SQLAlchemy模型类
+    admin_filter_dict: 管理员查询条件字典
+    user_filter_dict: 普通用户查询条件字典（可选，默认为None时使用admin_filter_dict）
+    """
+    assert current_user is not None, "当前用户未登录，无法进行权限查询"
+    if current_user.is_admin():
+        logger.debug(f"Admin {current_user.username} querying {model_cls.__name__} with filter {admin_filter_dict}")
+        return model_cls.query.filter_by(**admin_filter_dict).first()
+    else:
+        # 普通用户只能查询自己的记录，传入用户的user_id
+        if user_filter_dict is None:
+            user_filter_dict = admin_filter_dict
+        logger.debug(f"User {current_user.username} querying {model_cls.__name__} with filter {user_filter_dict}")
+        return model_cls.query.filter_by(**user_filter_dict, user_id=current_user.user_id).first()

@@ -8,6 +8,9 @@ from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 
 from app_backend import get_default_config
+from app_backend.model.graph_model import GraphType
+from app_backend.model.task_model import TaskStatus, TASK_MODEL_ALGORITHM_MAX_LEN
+from app_backend.model.user_model import UserRole, USER_MODEL_USERNAME_MAX_LEN, USER_MODEL_REAL_NAME_MAX_LEN
 
 logger = logging.getLogger(__name__)
 config = get_default_config()
@@ -16,11 +19,11 @@ config = get_default_config()
 class FieldRules:
     """字段验证规则常量"""
     USERNAME_MIN_LEN = 4
-    USERNAME_MAX_LEN = 16
+    USERNAME_MAX_LEN = USER_MODEL_USERNAME_MAX_LEN
     PASSWORD_MIN_LEN = 6
     PASSWORD_MAX_LEN = 18
     REAL_NAME_MIN_LEN = 1
-    REAL_NAME_MAX_LEN = 50
+    REAL_NAME_MAX_LEN = USER_MODEL_REAL_NAME_MAX_LEN
     STUDENT_ID_LEN = 10
 
 
@@ -91,6 +94,14 @@ class CommonValidators:
             raise ValueError(f'{field_name}不能为空')
         return v.strip()
 
+    @staticmethod
+    def validate_sort_order(v: str) -> str:
+        """校验排序方向，仅支持 asc/desc"""
+        if v not in ('asc', 'desc'):
+            logger.warning(f"Invalid sort_order: {v}")
+            raise ValueError("sort_order 仅支持 'asc' 或 'desc'")
+        return v
+
 
 class UserLoginSchema(BaseModel):
     """用户登录请求参数验证"""
@@ -114,10 +125,6 @@ class UserLoginSchema(BaseModel):
         if v not in config.Course.CNAME_LIST:
             logger.warning(f"Invalid competition name: {v}")
             raise ValueError(f'比赛名称必须是以下之一: {", ".join(config.Course.CNAME_LIST)}')
-        _config = config.get_course_config(v)
-        if _config['allow_login'] is False:
-            logger.warning(f"Competition {v} login not allowed")
-            raise ValueError(f'{v}：此课程（比赛）暂未开放登录')
         return v
 
 
@@ -215,20 +222,11 @@ class SourceCodeSchema(BaseModel):
 class GraphSchema(BaseModel):
     """获取图表请求参数验证"""
     task_id: str = Field(..., description="任务ID")
-    graph_type: str = Field(..., description="图表类型")
+    graph_type: GraphType = Field(..., description="图表类型")
 
     @field_validator('task_id')
     def validate_task_id(cls, v):
         return CommonValidators.validate_not_empty(v, "task_id")
-
-    @field_validator('graph_type')
-    def validate_graph_type(cls, v):
-        logger.debug(f"Validating graph type: {v}")
-        allowed_types = ['throughput', 'delay']
-        if v not in allowed_types:
-            logger.warning(f"Invalid graph type: {v}")
-            raise ValueError(f'图表类型必须是以下之一: {", ".join(allowed_types)}')
-        return v
 
 
 class FileUploadSchema(BaseModel):
@@ -266,10 +264,15 @@ class FileUploadSchema(BaseModel):
             logger.warning(f"Invalid file extension: {filename}")
             raise ValueError("文件必须是C程序(.c)或C++程序(.cc, .cpp)")
 
-        # 验证文件名格式（只允许字母、数字、下划线、点号）
-        if not re.match(r'^[a-zA-Z0-9_.-]+$', filename):
+        # 验证文件名格式（只允许中文、字母、数字、下划线、点号和连字符）
+        if not re.match(r'^[\u4e00-\u9fa5a-zA-Z0-9_.-]+$', filename):
             logger.warning(f"Invalid filename format: {filename}")
-            raise ValueError("文件名只能包含字母、数字、下划线、点号和连字符")
+            raise ValueError("文件名只能包含中文、字母、数字、下划线、点号和连字符")
+
+        # 验证文件名长度
+        if len(filename) > TASK_MODEL_ALGORITHM_MAX_LEN:
+            logger.warning(f"Filename too long: {filename}")
+            raise ValueError(f"文件名长度不能超过{TASK_MODEL_ALGORITHM_MAX_LEN}个字符")
 
         # 验证文件大小（例如限制为2MB）
         max_size = 2 * 1024 * 1024  # 2MB
@@ -352,7 +355,7 @@ class FileUploadSchema(BaseModel):
 
             # 检查危险函数
             for func in dangerous_functions:
-                if re.search(rf'\b{func}\s*\(', code):
+                if re.search(rf'\b{re.escape(func)}\s*\(', code):
                     raise ValueError(f"文件包含危险函数调用: {func}")
 
         except UnicodeDecodeError:
@@ -360,7 +363,104 @@ class FileUploadSchema(BaseModel):
             raise ValueError("文件内容无法解码，可能不是有效的文本文件")
         except Exception as e:
             if "危险函数调用" in str(e):
-                logger.warning(f"Dangerous function call found in file: {str(e)}")
-                raise e  # 重新抛出危险函数错误
+                logger.warning(f"Dangerous function found in file: {str(e)}")
+                raise e  # 重新抛出
             logger.warning(f"File content check failed: {str(e)}")
             raise ValueError(f"文件内容检查失败: {str(e)}")
+
+
+# ================================
+# 管理员相关验证模式
+# ================================
+
+class AdminUserListSchema(BaseModel):
+    """管理员用户列表查询参数"""
+    page: int = Field(default=1, ge=1, description="页码")
+    size: int = Field(default=20, ge=1, le=100, description="每页大小")
+    keyword: Optional[str] = Field(default="", description="搜索关键词")
+    role: Optional[UserRole] = Field(default=None, description="角色筛选")
+    active: Optional[bool] = Field(default=None, description="活跃状态筛选")
+    deleted: Optional[bool] = Field(default=None, description="删除状态筛选")
+    cname: Optional[str] = Field(default=None, description="课程名称筛选，仅返回报名该课程的用户")
+    user_id: Optional[str] = Field(default=None, description="用户ID筛选")
+    sort_by: Optional[str] = Field(default=None, description="排序字段，可选 'created_at' 或 'updated_at'")
+    sort_order: Optional[str] = Field(default='desc', description="排序方式，可选 'asc' 或 'desc'")
+
+    @field_validator('cname')
+    def validate_cname(cls, v):
+        if v is not None:
+            logger.debug(f"Validating course name for filtering: {v}")
+            if v not in config.Course.CNAME_LIST:
+                logger.warning(f"Invalid course name for filtering: {v}")
+                raise ValueError(f'课程名称必须是以下之一: {", ".join(config.Course.CNAME_LIST)}')
+        return v
+
+    @field_validator('sort_by')
+    def validate_sort_by(cls, v):
+        if v is not None and v not in ('created_at', 'updated_at'):
+            raise ValueError("sort_by 仅支持 'created_at' 或 'updated_at'")
+        return v
+
+    @field_validator('sort_order')
+    def validate_sort_order(cls, v):
+        return CommonValidators.validate_sort_order(v)
+
+
+class AdminUserUpdateSchema(BaseModel):
+    """管理员用户更新参数"""
+    user_id: str = Field(..., description="用户ID")
+    role: Optional[UserRole] = Field(default=None, description="用户角色")
+    is_locked: Optional[bool] = Field(default=None, description="是否锁定")
+
+
+class AdminTaskListSchema(BaseModel):
+    """管理员任务列表查询参数"""
+    page: int = Field(default=1, ge=1, description="页码")
+    size: int = Field(default=20, ge=1, le=100, description="每页大小")
+    username: Optional[str] = Field(default=None, description="用户名筛选")
+    status: Optional[TaskStatus] = Field(default=None, description="状态筛选")
+    cname: Optional[str] = Field(default=None, description="比赛名称筛选")
+    trace_file: Optional[str] = Field(default=None, description="trace文件名筛选")
+    sort_by: Optional[str] = Field(default="created_time", description="排序字段: created_time, score")
+    sort_order: Optional[str] = Field(default="desc", description="排序方向: asc, desc")
+    task_id: Optional[str] = Field(default=None, description="任务ID筛选")
+    delay: Optional[str] = Field(default=None, description="时延区间筛选，如10-50，单位ms")
+    loss_rate: Optional[str] = Field(default=None, description="丢包率区间筛选，如0-0.1")
+    buffer_size: Optional[str] = Field(default=None, description="缓冲区大小区间筛选，如100-200")
+    task_score: Optional[str] = Field(default=None, description="得分区间筛选，如60-90")
+    created_time_start: Optional[str] = Field(default=None, description="任务创建时间起始(ISO格式)")
+    created_time_end: Optional[str] = Field(default=None, description="任务创建时间结束(ISO格式)")
+
+    @field_validator('sort_by')
+    def validate_sort_by(cls, v):
+        if v and v not in ['created_time', 'score']:
+            raise ValueError('排序字段必须是: created_time, score')
+        return v
+
+    @field_validator('sort_order')
+    def validate_sort_order(cls, v):
+        if v:
+            return CommonValidators.validate_sort_order(v)
+        return v
+
+
+class AdminPasswordResetSchema(BaseModel):
+    """管理员重置用户密码参数"""
+    user_id: str = Field(..., description="用户ID")
+    new_password: str = Field(default="123456", min_length=FieldRules.PASSWORD_MIN_LEN,
+                              max_length=FieldRules.PASSWORD_MAX_LEN,
+                              description="新密码，默认为123456")
+
+    @field_validator('new_password')
+    def validate_new_password(cls, v):
+        return CommonValidators.validate_password(v)
+
+
+class AdminUserDeleteSchema(BaseModel):
+    """管理员删除用户参数"""
+    user_id: str = Field(..., description="用户ID")
+
+
+class AdminUserRestoreSchema(BaseModel):
+    """管理员恢复用户参数"""
+    user_id: str = Field(..., description="用户ID")
