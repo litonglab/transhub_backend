@@ -109,10 +109,9 @@ def _run_contest(task, course_project_dir, sender_path, receiver_path, result_pa
     loss_rate = task.loss_rate
     buffer_size = task.buffer_size
     delay = task.delay
-    uplink_dir = _config['uplink_dir']
-    downlink_dir = _config['downlink_dir']
-    uplink_file = uplink_dir + "/" + task.trace_name + ".up"
-    downlink_file = downlink_dir + "/" + task.trace_name + ".down"
+    trace_conf = config.get_course_trace_config(task.cname, task.trace_name)
+    uplink_file = os.path.join(_config['trace_path'], trace_conf['uplink_file'])
+    downlink_file = os.path.join(_config['trace_path'], trace_conf['downlink_file'])
     _, output = run_cmd(
         f"cd {course_project_dir} && {program_script} {running_port} {uplink_file} {downlink_file} {result_path} {sender_path} {receiver_path} {loss_rate} {buffer_size} {delay}",
         task_id)

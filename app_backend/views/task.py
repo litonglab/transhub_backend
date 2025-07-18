@@ -75,13 +75,11 @@ def upload_project_file():
     now_str = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
     upload_dir_name = f"{now_str}_{generate_random_string(6)}"
 
-    temp_dir = user.save_file_to_user_dir(file, cname, upload_dir_name)
+    upload_dir = user.save_file_to_user_dir(file, cname, upload_dir_name)
     upload_id = str(uuid.uuid1())
     # 构建task,按trace和env构建多个task
     task_ids = []
 
-    # 获取课程的 trace 文件列表
-    trace_files = config.get_course_trace_files(cname)
     enqueue_results = []  # 收集所有入队结果
     failed_tasks = []  # 记录失败的任务
     competition_id = (CompetitionModel.query.filter_by(cname=cname, user_id=user.user_id)
@@ -90,43 +88,41 @@ def upload_project_file():
     logger.info(
         f"Starting task creation for upload {upload_id}, user {user.username}, cname {cname}, competition_id {competition_id}")
 
-    for trace_name in trace_files:
-        trace_conf = config.get_course_trace_config(cname, trace_name)
-        network_conf = trace_conf['network']
-        for network in network_conf:
-            loss = network['loss_rate']
-            buffer_size = network['buffer_size']
-            delay = network['delay']
-            task = TaskModel(user_id=user.user_id, task_status=TaskStatus.QUEUED,
-                             task_score=0, created_time=now_str, cname=cname, competition_id=competition_id,
-                             task_dir=os.path.join(temp_dir, f"{trace_name}_{loss}_{buffer_size}_{delay}"),
-                             algorithm=algorithm, trace_name=trace_name, upload_id=upload_id,
-                             loss_rate=loss, buffer_size=buffer_size, delay=delay, error_log='')
+    _config = config.get_course_config(cname)
+    for trace_name, trace_conf in _config['trace'].items():
+        loss = trace_conf['loss_rate']
+        buffer_size = trace_conf['buffer_size']
+        delay = trace_conf['delay']
+        task = TaskModel(user_id=user.user_id, task_status=TaskStatus.QUEUED,
+                         task_score=0, created_time=now_str, cname=cname, competition_id=competition_id,
+                         task_dir=os.path.join(upload_dir, f"{trace_name}_{loss}_{buffer_size}_{delay}"),
+                         algorithm=algorithm, trace_name=trace_name, upload_id=upload_id,
+                         loss_rate=loss, buffer_size=buffer_size, delay=delay, error_log='')
 
-            # 保存任务到数据库
-            task.save()
-            task_ids.append(task.task_id)
-            logger.debug(
-                f"[task: {task.task_id}] Created task for trace {trace_name}, loss {loss}, buffer {buffer_size}")
+        # 保存任务到数据库
+        task.save()
+        task_ids.append(task.task_id)
+        logger.debug(
+            f"[task: {task.task_id}] Created task for trace {trace_name}, loss {loss}, buffer {buffer_size}")
 
-            # 发送任务到队列并检查结果
-            enqueue_result = enqueue_cc_task(task.task_id)
-            enqueue_results.append(enqueue_result)
+        # 发送任务到队列并检查结果
+        enqueue_result = enqueue_cc_task(task.task_id)
+        enqueue_results.append(enqueue_result)
 
-            if not enqueue_result['success']:
-                # 如果入队失败，更新任务状态为错误
-                task.update(task_status=TaskStatus.NOT_QUEUED)
-                failed_tasks.append({
-                    'task_id': task.task_id,
-                    'trace_name': trace_name,
-                    'loss_rate': loss,
-                    'buffer_size': buffer_size,
-                    'error': enqueue_result['message']
-                })
-                logger.error(f"[task: {task.task_id}] Failed to enqueue: {enqueue_result['message']}")
-            else:
-                logger.info(
-                    f"[task: {task.task_id}] Successfully enqueued with message ID: {enqueue_result['message_id']}")
+        if not enqueue_result['success']:
+            # 如果入队失败，更新任务状态为错误
+            task.update(task_status=TaskStatus.NOT_QUEUED)
+            failed_tasks.append({
+                'task_id': task.task_id,
+                'trace_name': trace_name,
+                'loss_rate': loss,
+                'buffer_size': buffer_size,
+                'error': enqueue_result['message']
+            })
+            logger.error(f"[task: {task.task_id}] Failed to enqueue: {enqueue_result['message']}")
+        else:
+            logger.info(
+                f"[task: {task.task_id}] Successfully enqueued with message ID: {enqueue_result['message_id']}")
 
     # 统计入队结果
     successful_enqueues = sum(1 for result in enqueue_results if result['success'])

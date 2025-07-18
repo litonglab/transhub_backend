@@ -21,49 +21,22 @@ class ExampleConfig(BaseConfig):
                 "allow_login": True,  # 是否允许登录，禁止后用户将无法登录此课程，管理员不受限制
                 "start_time": "2025-01-01 00:00:00",  # 课程开始时间，只有在此时间内才能提交，登录不受限制，管理员不受限制
                 "end_time": "2025-01-01 21:00:00",  # 课程结束时间，超过此时间将无法提交，管理员不受限制
-                "trace": {  # trace配置，default必须配置，如果没有为某个trace单独配置，则使用default配置
-                    "default": {
-                        # 是否屏蔽该trace的信息，屏蔽后用户不可查看性能图、日志及环境信息，比赛结束后会自动开放查看，管理员不受限制
-                        "block": False,
-                        "network": [  # 网络环境信息配置，可配置多个不同的环境
-                            {
-                                "loss_rate": 0.0,  # 丢包率
-                                "buffer_size": 20,  # 缓冲区大小
-                                "delay": 20  # 延迟，单位为毫秒
-                            },
-                            {
-                                "loss_rate": 0.0,  # 丢包率
-                                "buffer_size": 250,  # 缓冲区大小
-                                "delay": 20  # 延迟，单位为毫秒
-                            }
-                        ]
-                    },
-                    "Verizon-LTE-example": {  # trace名称：Verizon-LTE-example
-                        # 是否屏蔽该trace的信息，屏蔽后用户不可查看性能图、日志及环境信息，比赛结束后会自动开放查看，管理员不受限制
-                        "block": False,
-                        "network": [  # 网络环境信息配置，可配置多个不同的环境
-                            {
-                                "loss_rate": 0.0,  # 丢包率
-                                "buffer_size": 20,  # 缓冲区大小
-                                "delay": 20  # 延迟，单位为毫秒
-                            },
-                            {
-                                "loss_rate": 0.0,  # 丢包率
-                                "buffer_size": 250,  # 缓冲区大小
-                                "delay": 20  # 延迟，单位为毫秒
-                            }
-                        ]
-                    }
+                "trace": {  # trace配置
+                    # key为trace名称，必须唯一。需配置Trace网络环境，以及上下行文件名称。上下行文件放在课程目录的trace文件夹内。
+                    # block表示是否屏蔽该trace的信息，屏蔽后用户不可查看性能图、日志及环境信息，比赛结束后会自动开放查看，管理员不受限制
+                    "trace_a": {"block": False, "loss_rate": 0.0, "buffer_size": 20, "delay": 20,
+                                "downlink_file": "Verizon-LTE-short.down", "uplink_file": "Verizon-LTE-short.up"},
+                    "Verizon-LTE-example": {"block": False, "loss_rate": 0.0, "buffer_size": 250, "delay": 20,
+                                            "downlink_file": "Verizon-LTE-short.down",
+                                            "uplink_file": "Verizon-LTE-short.up"}
                 },
                 # 以下字段由系统生成，无需填写
                 # ===system generated start.===
                 "path": "",  # 系统生成
                 "zhinan_path": "",  # 系统生成
                 "image_path": "",  # 系统生成，指南文档的图片路径
-                "downlink_dir": "",  # 系统生成
-                "uplink_dir": "",  # 系统生成
+                "trace_path": "",  # 系统生成，trace文件的路径
                 "student_list": [],  # 系统生成
-                "trace_files": [],  # 系统生成，从 uplink_dir 和 downlink_dir 目录中自动读取的 trace 文件列表
                 # "cca_guide_path": "",  # 系统生成，此字段暂未使用
                 # "user_guide_path": "",  # 系统生成，此字段暂未使用
                 # ===system generated end.===
@@ -75,49 +48,22 @@ class ExampleConfig(BaseConfig):
                 "allow_login": True,  # 是否允许登录，禁止后用户将无法登录此课程，管理员不受限制
                 "start_time": "2025-01-01 00:00:00",  # 课程开始时间，只有在此时间内才能提交，登录不受限制，管理员不受限制
                 "end_time": "2025-01-01 21:00:00",  # 课程结束时间，超过此时间将无法提交，管理员不受限制
-                "trace": {  # trace配置，default必须配置，如果没有为某个trace单独配置，则使用default配置
-                    "default": {
-                        # 是否屏蔽该trace的信息，屏蔽后用户不可查看性能图、日志及环境信息，比赛结束后会自动开放查看，管理员不受限制
-                        "block": False,
-                        "network": [  # 网络环境信息配置，可配置多个不同的环境
-                            {
-                                "loss_rate": 0.0,  # 丢包率
-                                "buffer_size": 20,  # 缓冲区大小
-                                "delay": 20  # 延迟，单位为毫秒
-                            },
-                            {
-                                "loss_rate": 0.0,  # 丢包率
-                                "buffer_size": 250,  # 缓冲区大小
-                                "delay": 20  # 延迟，单位为毫秒
-                            }
-                        ]
-                    },
-                    "Verizon-LTE-example": {  # trace名称：Verizon-LTE-example
-                        # 是否屏蔽该trace的信息，屏蔽后用户不可查看性能图、日志及环境信息，比赛结束后会自动开放查看，管理员不受限制
-                        "block": False,
-                        "network": [  # 网络环境信息配置，可配置多个不同的环境
-                            {
-                                "loss_rate": 0.0,  # 丢包率
-                                "buffer_size": 20,  # 缓冲区大小
-                                "delay": 20  # 延迟，单位为毫秒
-                            },
-                            {
-                                "loss_rate": 0.0,  # 丢包率
-                                "buffer_size": 250,  # 缓冲区大小
-                                "delay": 20  # 延迟，单位为毫秒
-                            }
-                        ]
-                    }
+                "trace": {  # trace配置
+                    # key为trace名称，必须唯一。需配置Trace网络环境，以及上下行文件名称。上下行文件放在课程目录的trace文件夹内。
+                    # block表示是否屏蔽该trace的信息，屏蔽后用户不可查看性能图、日志及环境信息，比赛结束后会自动开放查看，管理员不受限制
+                    "trace_a": {"block": False, "loss_rate": 0.0, "buffer_size": 20, "delay": 20,
+                                "downlink_file": "Verizon-LTE-short.down", "uplink_file": "Verizon-LTE-short.up"},
+                    "Verizon-LTE-example": {"block": False, "loss_rate": 0.0, "buffer_size": 250, "delay": 20,
+                                            "downlink_file": "Verizon-LTE-short.down",
+                                            "uplink_file": "Verizon-LTE-short.up"}
                 },
                 # 以下字段由系统生成，无需填写
                 # ===system generated start.===
                 "path": "",  # 系统生成
                 "zhinan_path": "",  # 系统生成
                 "image_path": "",  # 系统生成，指南文档的图片路径
-                "downlink_dir": "",  # 系统生成
-                "uplink_dir": "",  # 系统生成
+                "trace_path": "",  # 系统生成，trace文件的路径
                 "student_list": [],  # 系统生成
-                "trace_files": [],  # 系统生成，从 uplink_dir 和 downlink_dir 目录中自动读取的 trace 文件列表
                 # "cca_guide_path": "",  # 系统生成，此字段暂未使用
                 # "user_guide_path": "",  # 系统生成，此字段暂未使用
                 # ===system generated end.===
