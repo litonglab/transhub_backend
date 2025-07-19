@@ -179,7 +179,7 @@ class TaskModel(db.Model):
             'algorithm': self.algorithm,
             'updated_at': self.updated_at,
             'created_at': self.created_at,
-            'log': self.error_log if self.log_permission() else None,
+            'log': self.log_permission(),  # 返回用户是否具有权限，用于前端显示日志按钮
         }
         return res
 

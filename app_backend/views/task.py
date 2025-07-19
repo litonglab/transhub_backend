@@ -13,7 +13,7 @@ from app_backend.model.task_model import TaskModel, TaskStatus
 from app_backend.security.bypass_decorators import admin_bypass
 from app_backend.utils.utils import generate_random_string
 from app_backend.validators.decorators import validate_request, get_validated_data
-from app_backend.validators.schemas import FileUploadSchema
+from app_backend.validators.schemas import FileUploadSchema, TaskLogSchema
 from app_backend.vo.http_response import HttpResponse
 
 task_bp = Blueprint('task', __name__)
@@ -147,3 +147,22 @@ def upload_project_file():
             'failed_tasks': failed_tasks
         }
     )
+
+
+# 获取任务日志接口
+@task_bp.route("/task_get_log", methods=["GET"])
+@jwt_required()
+@validate_request(TaskLogSchema)
+def get_task_log():
+    data = get_validated_data(TaskLogSchema)
+    task_id = data.task_id
+    task = TaskModel.query.filter_by(task_id=task_id).first()
+    if not task:
+        logger.warning(f"Task log request: Task {task_id} not found")
+        return HttpResponse.not_found("任务不存在")
+    # 权限校验
+    if not task.log_permission():
+        logger.warning(f"Task log request: User {current_user.username} has no permission for task {task_id}")
+        return HttpResponse.forbidden("无权限访问该任务日志")
+    logger.info(f"User {current_user.username} fetched log for task {task_id}")
+    return HttpResponse.ok(log=task.error_log)

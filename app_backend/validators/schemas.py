@@ -200,6 +200,9 @@ class HistoryDetailSchema(BaseModel):
     def validate_upload_id(cls, v):
         return CommonValidators.validate_not_empty(v, "upload_id")
 
+class TaskLogSchema(BaseModel):
+    """获取任务日志参数校验"""
+    task_id: str = Field(..., description="任务ID")
 
 class SummaryRanksSchema(BaseModel):
     """获取排行榜请求参数验证"""
