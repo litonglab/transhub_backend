@@ -444,7 +444,8 @@ class AdminTaskListSchema(BaseModel):
     status: Optional[TaskStatus] = Field(default=None, description="状态筛选")
     cname: Optional[str] = Field(default=None, description="比赛名称筛选")
     trace_file: Optional[str] = Field(default=None, description="trace文件名筛选")
-    sort_by: Optional[str] = Field(default="created_time", description="排序字段: created_time, score, updated_at")
+    sort_by: Optional[str] = Field(default="created_time",
+                                   description="排序字段: created_time, score, updated_at, delay_score, loss_score, throughput_score")
     sort_order: Optional[str] = Field(default="desc", description="排序方向: asc, desc")
     task_id: Optional[str] = Field(default=None, description="任务ID筛选")
     delay: Optional[str] = Field(default=None, description="时延区间筛选，如10-50，单位ms")
@@ -456,8 +457,8 @@ class AdminTaskListSchema(BaseModel):
 
     @field_validator('sort_by')
     def validate_sort_by(cls, v):
-        if v and v not in ['created_time', 'score', 'updated_at']:
-            raise ValueError('排序字段必须是: created_time, score, updated_at')
+        if v and v not in ['created_time', 'score', 'updated_at', 'delay_score', 'loss_score', 'throughput_score']:
+            raise ValueError('排序字段必须是: created_time, score, updated_at, delay_score, loss_score, throughput_score')
         return v
 
     @field_validator('sort_order')

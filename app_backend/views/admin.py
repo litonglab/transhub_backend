@@ -103,18 +103,17 @@ def get_users():
             # 非活跃用户：已删除或已锁定
             query = query.filter((UserModel.is_deleted == True) | (UserModel.is_locked == True))
 
-    sort_by = getattr(data, 'sort_by', None)
-    sort_order = getattr(data, 'sort_order', 'desc')
-    if sort_by == 'updated_at':
-        if sort_order == 'asc':
-            query = query.order_by(UserModel.updated_at.asc())
-        else:
-            query = query.order_by(UserModel.updated_at.desc())
-    else:  # 默认按创建时间排序
-        if sort_order == 'asc':
-            query = query.order_by(UserModel.created_at.asc())
-        else:
-            query = query.order_by(UserModel.created_at.desc())
+    # 排序
+    sort_map = {
+        'updated_at': UserModel.updated_at,
+        'created_at': UserModel.created_at
+    }
+    sort_field = sort_map.get(data.sort_by, UserModel.created_at)
+
+    if data.sort_order == 'asc':
+        query = query.order_by(sort_field.asc())
+    else:
+        query = query.order_by(sort_field.desc())
 
     # 分页计算
     total = query.count()
@@ -388,24 +387,20 @@ def get_tasks():
         return HttpResponse.fail(f"无效的筛选条件格式：{str(e)}")
 
     # 排序
-    if data.sort_by == 'score':
-        # 按分数排序
-        if data.sort_order == 'asc':
-            query = query.order_by(TaskModel.task_score.asc())
-        else:
-            query = query.order_by(TaskModel.task_score.desc())
-    elif data.sort_by == 'updated_at':
-        # 按更新时间排序
-        if data.sort_order == 'asc':
-            query = query.order_by(TaskModel.updated_at.asc())
-        else:
-            query = query.order_by(TaskModel.updated_at.desc())
+    sort_map = {
+        'score': TaskModel.task_score,
+        'delay_score': TaskModel.delay_score,
+        'loss_score': TaskModel.loss_score,
+        'throughput_score': TaskModel.throughput_score,
+        'updated_at': TaskModel.updated_at,
+        'created_time': TaskModel.created_time
+    }
+    sort_field = sort_map.get(data.sort_by, TaskModel.created_time)
+
+    if data.sort_order == 'asc':
+        query = query.order_by(sort_field.asc())
     else:
-        # 默认按创建时间排序
-        if data.sort_order == 'asc':
-            query = query.order_by(TaskModel.created_time.asc())
-        else:
-            query = query.order_by(TaskModel.created_time.desc())
+        query = query.order_by(sort_field.desc())
 
     # 高效分页计数
     # 1. 移除排序和选择的实体，只保留过滤条件和JOIN

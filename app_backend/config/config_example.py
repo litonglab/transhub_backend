@@ -24,7 +24,7 @@ class ExampleConfig(BaseConfig):
                 "trace": {  # trace配置
                     # key为trace名称，必须唯一。需配置Trace网络环境，以及上下行文件名称。上下行文件放在课程目录的trace文件夹内。
                     # block表示是否屏蔽该trace的信息，屏蔽后用户不可查看性能图、日志及环境信息，比赛结束后会自动开放查看，管理员不受限制
-                    # score_weights表示各项分数占比，计入总分时会根据此权重计算
+                    # score_weights表示各项分数占比，计入总分时会根据此权重计算。时延配置是单向时延，前端显示的是往返时延（RTT），即2倍的单向时延。
                     "trace_a": {"block": False, "loss_rate": 0.0, "buffer_size": 20, "delay": 20,
                                 "downlink_file": "Verizon-LTE-short.down", "uplink_file": "Verizon-LTE-short.up",
                                 "score_weights": {"loss": 0.3, "delay": 0.35, "throughput": 0.35}},
