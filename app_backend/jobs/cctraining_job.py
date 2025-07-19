@@ -559,7 +559,9 @@ def evaluate_score(task: TaskModel, log_file: str):
     tunnel_results = tunnel_graph.run()
     throughput = tunnel_results['throughput']
     queueing_delay = tunnel_results['delay']
-    loss_rate = tunnel_results['loss']
+    loss_rate = tunnel_results['loss'] - task.loss_rate
+    if loss_rate < 0:
+        logger.error(f"[task: {task.task_id}] Loss rate({loss_rate}) is negative, is this expected?")
     capacity = tunnel_results['capacity']
     # 1. 吞吐量效率评分 (0-100分)
     # 基于理论吞吐量的利用率
