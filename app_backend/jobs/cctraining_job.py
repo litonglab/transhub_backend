@@ -110,6 +110,7 @@ def _run_contest(task, course_project_dir, sender_path, receiver_path, result_pa
     buffer_size = task.buffer_size
     delay = task.delay
     trace_conf = config.get_course_trace_config(task.cname, task.trace_name)
+    assert trace_conf is not None, f"Trace configuration for {task.cname} and {task.trace_name} not found"
     uplink_file = os.path.join(_config['trace_path'], trace_conf['uplink_file'])
     downlink_file = os.path.join(_config['trace_path'], trace_conf['downlink_file'])
     _, output = run_cmd(
