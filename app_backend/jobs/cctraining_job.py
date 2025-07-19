@@ -1,11 +1,10 @@
 import logging
-import math
 import os
 import re
 import shutil
 import signal
 import subprocess
-import math
+
 import dramatiq
 from dramatiq.brokers.redis import RedisBroker
 from dramatiq.middleware.time_limit import TimeLimitExceeded
@@ -562,13 +561,10 @@ def evaluate_score(task: TaskModel, log_file: str):
     queueing_delay = tunnel_results['delay']
     loss_rate = tunnel_results['loss']
     capacity = tunnel_results['capacity']
-    throughput_score = 0
-    loss_score = 0
-    latency_score = 0
     # 1. 吞吐量效率评分 (0-100分)
     # 基于理论吞吐量的利用率
     efficiency = 0
-    if (capacity > 0):
+    if capacity > 0:
         efficiency = throughput / capacity
     if efficiency >= 1.0:  # 100%以上利用率满分
         throughput_score = 100
@@ -576,7 +572,7 @@ def evaluate_score(task: TaskModel, log_file: str):
         throughput_score = 100 * efficiency
     else:
         throughput_score = 0
-    
+
     # 2. 丢包控制评分 (0-100分)
     if loss_rate <= 0.000001:
         loss_score = 100
@@ -584,11 +580,11 @@ def evaluate_score(task: TaskModel, log_file: str):
         loss_score = 0
     else:
         loss_score = 100 * (1.0 - loss_rate)
-    
+
     # 3. 延迟控制评分 (0-100分)
     # 基于RTT膨胀程度
     rtt_inflation = 2.0
-    if (task.delay > 0):
+    if task.delay > 0:
         rtt_inflation = queueing_delay / task.delay
     if rtt_inflation <= 0.01:
         latency_score = 100
@@ -598,7 +594,9 @@ def evaluate_score(task: TaskModel, log_file: str):
         latency_score = 100 * 10.0 / rtt_inflation
 
     # 计算总分
-    score = 0.35 * throughput_score + 0.3 * loss_score + 0.35 * latency_score
+    trace_conf = config.get_course_trace_config(task.cname, task.trace_name)
+    score = trace_conf['score_weights']['throughput'] * throughput_score + trace_conf['score_weights'][
+        'loss'] * loss_score + trace_conf['score_weights']['delay'] * latency_score
     logger.info(
         f"[task: {task.task_id}] Calculated score: {score} (throughput: {throughput}, delay: {queueing_delay}({task.delay}), loss_rate: {loss_rate})")
     # 更新任务的分数
