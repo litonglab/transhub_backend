@@ -7,6 +7,7 @@ from flask_jwt_extended import current_user
 from sqlalchemy import func, text
 from sqlalchemy.dialects.mysql import MEDIUMTEXT
 from sqlalchemy.dialects.mysql import VARCHAR
+from sqlalchemy.orm import deferred
 
 from app_backend import db, get_default_config
 from app_backend.security.bypass_decorators import admin_bypass
@@ -89,7 +90,17 @@ class TaskModel(db.Model):
     competition_id = db.Column(db.Integer, db.ForeignKey('competition.id'), nullable=False)
     task_dir = db.Column(VARCHAR(256, charset='utf8mb4'), nullable=False)  # 任务的文件夹, 用于存放用户上传的文件
     algorithm = db.Column(VARCHAR(TASK_MODEL_ALGORITHM_MAX_LEN, charset='utf8mb4'), nullable=False)  # 算法名称
-    error_log = db.Column(MEDIUMTEXT(charset='utf8mb4'), nullable=False)  # 错误日志，显示编译或运行日志
+    # ⚠️⚠️⚠️❗️❗️❗️注意此处可能导致性能问题
+    # error_log 最大16MB，使用deferred延迟加载
+    # 请注意涉及task查询时的性能问题，例如以下代码使用count()会导致error_log被加载
+    # count = TaskModel.query.filter(
+    #     TaskModel.cname == cname,
+    #     TaskModel.task_status == status
+    # ).count() 如需计数，请使用TaskModel.count()方法
+    # 以下代码不会导致error_log被加载，除非显式调用error_log属性
+    # TaskModel.query.filter_by(user_id=user.user_id, cname=cname)
+    # 如果不确定，请通过日志打印query语句检查是否不必要地加载了error_log
+    error_log = deferred(db.Column(MEDIUMTEXT(charset='utf8mb4'), nullable=False))  # 错误日志，默认不加载
     created_at = db.Column(db.DateTime, server_default=func.now(), nullable=False)
     updated_at = db.Column(db.DateTime, server_default=func.now(),
                            onupdate=func.now(), nullable=False)
@@ -107,6 +118,18 @@ class TaskModel(db.Model):
             logger.error(f"[task: {self.task_id}] Error saving task: {str(e)}", exc_info=True)
             db.session.rollback()
             raise
+
+    @classmethod
+    def count(cls, **kwargs):
+        """
+        高效地统计符合条件的任务数量，避免加载整个对象。
+        :param kwargs: 过滤条件，例如 cname='some_course', task_status=TaskStatus.RUNNING
+        :return: 任务数量 (int)
+        """
+        query = db.session.query(func.count(cls.task_id))
+        if kwargs:
+            query = query.filter_by(**kwargs)
+        return query.scalar()
 
     def update_task_log(self, log_content):
         """
