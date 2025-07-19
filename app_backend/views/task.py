@@ -12,7 +12,9 @@ from app_backend.model.competition_model import CompetitionModel
 from app_backend.model.task_model import TaskModel, TaskStatus
 from app_backend.security.bypass_decorators import admin_bypass
 from app_backend.utils.utils import generate_random_string
+from app_backend.utils.utils import get_record_by_permission
 from app_backend.validators.decorators import validate_request, get_validated_data
+from app_backend.validators.schemas import EnqueueTaskSchema
 from app_backend.validators.schemas import FileUploadSchema, TaskLogSchema
 from app_backend.vo.http_response import HttpResponse
 
@@ -64,6 +66,7 @@ def upload_project_file():
 
     # 获取验证后的数据
     data = get_validated_data(FileUploadSchema)
+    trace_list = data.trace_list
     file = data.file
 
     # 文件已经通过 Pydantic 验证，直接获取文件信息
@@ -93,7 +96,7 @@ def upload_project_file():
         loss = trace_conf['loss_rate']
         buffer_size = trace_conf['buffer_size']
         delay = trace_conf['delay']
-        task = TaskModel(user_id=user.user_id, task_status=TaskStatus.QUEUED,
+        task = TaskModel(user_id=user.user_id, task_status=TaskStatus.NOT_QUEUED,
                          task_score=0, created_time=now_str, cname=cname, competition_id=competition_id,
                          task_dir=os.path.join(upload_dir, f"{trace_name}_{loss}_{buffer_size}_{delay}"),
                          algorithm=algorithm, trace_name=trace_name, upload_id=upload_id,
@@ -106,12 +109,12 @@ def upload_project_file():
             f"[task: {task.task_id}] Created task for trace {trace_name}, loss {loss}, buffer {buffer_size}")
 
         # 发送任务到队列并检查结果
+        if trace_name not in trace_list:
+            continue  # 如果trace不在用户选择的列表中，跳过此trace
         enqueue_result = enqueue_cc_task(task.task_id)
         enqueue_results.append(enqueue_result)
 
         if not enqueue_result['success']:
-            # 如果入队失败，更新任务状态为错误
-            task.update(task_status=TaskStatus.NOT_QUEUED)
             failed_tasks.append({
                 'task_id': task.task_id,
                 'trace_name': trace_name,
@@ -121,6 +124,7 @@ def upload_project_file():
             })
             logger.error(f"[task: {task.task_id}] Failed to enqueue: {enqueue_result['message']}")
         else:
+            task.update(task_status=TaskStatus.QUEUED)
             logger.info(
                 f"[task: {task.task_id}] Successfully enqueued with message ID: {enqueue_result['message_id']}")
 
@@ -166,3 +170,40 @@ def get_task_log():
         return HttpResponse.forbidden("无权限访问该任务日志")
     logger.info(f"User {current_user.username} fetched log for task {task_id}")
     return HttpResponse.ok(log=task.error_log)
+
+
+# 获取当前课程的Trace列表接口
+@task_bp.route("/task_get_trace_list", methods=["GET"])
+@jwt_required()
+def get_trace_list():
+    cname = get_jwt().get('cname')
+    _config = config.get_course_config(cname)
+    trace_config = _config.get('trace', {})
+    trace_list = list(trace_config.keys())
+    logger.debug(f"User {current_user.username} fetched trace list for course {cname}: {trace_list}")
+    return HttpResponse.ok(trace_list=trace_list)
+
+
+@task_bp.route("/task_enqueue", methods=["POST"])
+@jwt_required()
+@validate_request(EnqueueTaskSchema)
+def enqueue_task():
+    data = get_validated_data(EnqueueTaskSchema)
+    task_id = data.task_id
+    # 确保只能操作自己的任务
+    task = get_record_by_permission(TaskModel, {"task_id": task_id})
+    if not task:
+        logger.warning(f"Enqueue task: Task {task_id} not found or no permission")
+        return HttpResponse.not_found("任务不存在或无权限")
+    if task.task_status != TaskStatus.NOT_QUEUED:
+        logger.info(f"Enqueue task: Task {task_id} status is {task.task_status}, not NOT_QUEUED")
+        return HttpResponse.fail("该任务已入队或已运行，无需重复入队")
+    # 入队
+    enqueue_result = enqueue_cc_task(task.task_id)
+    if enqueue_result['success']:
+        task.update(task_status=TaskStatus.QUEUED)
+        logger.info(f"Task {task_id} successfully enqueued")
+        return HttpResponse.ok()
+    else:
+        logger.error(f"Task {task_id} failed to enqueue: {enqueue_result['message']}")
+        return HttpResponse.fail(f"任务入队失败: {enqueue_result['message']}")

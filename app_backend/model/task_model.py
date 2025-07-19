@@ -34,11 +34,11 @@ class TaskStatus(Enum):
         priority_map = {
             TaskStatus.COMPILED_FAILED: 0,
             TaskStatus.ERROR: 1,
-            TaskStatus.NOT_QUEUED: 2,
-            TaskStatus.COMPILED: 3,
-            TaskStatus.COMPILING: 4,
-            TaskStatus.RUNNING: 5,
-            TaskStatus.QUEUED: 6,
+            TaskStatus.COMPILED: 2,
+            TaskStatus.COMPILING: 3,
+            TaskStatus.RUNNING: 4,
+            TaskStatus.QUEUED: 5,
+            TaskStatus.NOT_QUEUED: 6,
             TaskStatus.FINISHED: 7
         }
         return priority_map[self]
@@ -54,7 +54,7 @@ class TaskStatus(Enum):
             # cls.RETRYING: [cls.RUNNING, cls.ERROR],
             cls.FINISHED: [cls.ERROR],
             cls.ERROR: [],
-            cls.NOT_QUEUED: [],
+            cls.NOT_QUEUED: [cls.QUEUED],
             cls.COMPILED_FAILED: [cls.ERROR],
         }
 
@@ -213,18 +213,15 @@ def to_history_dict(tasks: list):
             # 如果新状态优先级更高，则更新状态
             if task_status.priority < current_status.priority:
                 upload_id_dict[task.upload_id]['status'] = task_status.value
-                # 如果是error或not_queued或compiled_failed状态，score设为0
-                if task_status in [TaskStatus.ERROR, TaskStatus.NOT_QUEUED, TaskStatus.COMPILED_FAILED]:
+                # 如果是error或compiled_failed状态，score设为0
+                if task_status in [TaskStatus.ERROR, TaskStatus.COMPILED_FAILED]:
                     upload_id_dict[task.upload_id]['score'] = 0
                     upload_id_dict[task.upload_id]['updated_at'] = task.updated_at
                 # 如果是finished状态，累加score
                 elif task_status == TaskStatus.FINISHED:
                     upload_id_dict[task.upload_id]['score'] += task.task_score
                     upload_id_dict[task.upload_id]['updated_at'] = task.updated_at
-            # 如果当前状态优先级更高，保持当前状态
-            elif task_status.priority > current_status.priority:
-                continue
-            # 如果优先级相同，且是finished状态，累加score
+            # 如果是finished状态，累加score
             elif task_status == TaskStatus.FINISHED:
                 upload_id_dict[task.upload_id]['score'] += task.task_score
                 upload_id_dict[task.upload_id]['updated_at'] = task.updated_at
