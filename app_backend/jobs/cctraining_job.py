@@ -598,8 +598,9 @@ def evaluate_score(task: TaskModel, log_file: str):
     score = trace_conf['score_weights']['throughput'] * throughput_score + trace_conf['score_weights'][
         'loss'] * loss_score + trace_conf['score_weights']['delay'] * latency_score
     logger.info(
-        f"[task: {task.task_id}] Calculated score: {score} (throughput: {throughput}, delay: {queueing_delay}({task.delay}), loss_rate: {loss_rate})")
+        f"[task: {task.task_id}] Calculated score: {score} (throughput_score: {throughput_score}, delay_score: {latency_score}, loss_score: {loss_score})" +
+        f"(throughput: {throughput}, delay: {queueing_delay}(set: {task.delay}), loss_rate: {loss_rate}(set: {task.loss_rate})")
     # 更新任务的分数
-    task.update(score=score)
+    task.update(score=score, loss_score=loss_score, delay_score=latency_score, throughput_score=throughput_score)
 
     return score
