@@ -82,6 +82,9 @@ class TaskModel(db.Model):
     task_status = db.Column(db.Enum(TaskStatus), nullable=False)
     created_time = db.Column(db.DateTime, nullable=False)  # actually, it's upload time.
     task_score = db.Column(db.Float, server_default=text("0"), nullable=False)  # 任务分数，默认0
+    loss_score = db.Column(db.Float, server_default=text("0"), nullable=False)  # 丢包原始分数，默认0
+    delay_score = db.Column(db.Float, server_default=text("0"), nullable=False)  # 时延原始分数，默认0
+    throughput_score = db.Column(db.Float, server_default=text("0"), nullable=False)  # 吞吐原始分数，默认0
     cname = db.Column(VARCHAR(50, charset='utf8mb4'), nullable=False)  # 后续修改相关查询逻辑后可删除
     competition_id = db.Column(db.Integer, db.ForeignKey('competition.id'), nullable=False)
     task_dir = db.Column(VARCHAR(256, charset='utf8mb4'), nullable=False)  # 任务的文件夹, 用于存放用户上传的文件
@@ -175,6 +178,9 @@ class TaskModel(db.Model):
             'task_status': self.task_status.value,
             'created_time': self.created_time,
             'task_score': self.task_score,
+            'loss_score': self.loss_score,
+            'delay_score': self.delay_score,
+            'throughput_score': self.throughput_score,
             'cname': self.cname,
             'algorithm': self.algorithm,
             'updated_at': self.updated_at,
