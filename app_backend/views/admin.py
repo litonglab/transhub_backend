@@ -394,6 +394,12 @@ def get_tasks():
             query = query.order_by(TaskModel.task_score.asc())
         else:
             query = query.order_by(TaskModel.task_score.desc())
+    elif data.sort_by == 'updated_at':
+        # 按更新时间排序
+        if data.sort_order == 'asc':
+            query = query.order_by(TaskModel.updated_at.asc())
+        else:
+            query = query.order_by(TaskModel.updated_at.desc())
     else:
         # 默认按创建时间排序
         if data.sort_order == 'asc':
