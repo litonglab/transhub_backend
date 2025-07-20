@@ -6,7 +6,7 @@ from datetime import datetime
 from flask import Blueprint
 from flask_jwt_extended import jwt_required, get_jwt, current_user
 
-from app_backend import get_default_config
+from app_backend import get_default_config, cache
 from app_backend.jobs.cctraining_job import enqueue_cc_task
 from app_backend.model.competition_model import CompetitionModel
 from app_backend.model.task_model import TaskModel, TaskStatus
@@ -172,14 +172,27 @@ def get_task_log():
     return HttpResponse.ok(log=task.error_log)
 
 
+@cache.memoize(timeout=60)
+def _trace_list_cache(cname):
+    """获取当前课程的Trace列表缓存"""
+    _config = config.get_course_config(cname)
+    trace_config = _config.get('trace', {})
+    trace_list = []
+    for trace_name, trace_conf in trace_config.items():
+        is_blocked = trace_conf.get('block', False)
+        trace_list.append({
+            'trace_name': trace_name,
+            'is_blocked': is_blocked
+        })
+    return trace_list
+
+
 # 获取当前课程的Trace列表接口
 @task_bp.route("/task_get_trace_list", methods=["GET"])
 @jwt_required()
 def get_trace_list():
     cname = get_jwt().get('cname')
-    _config = config.get_course_config(cname)
-    trace_config = _config.get('trace', {})
-    trace_list = list(trace_config.keys())
+    trace_list = _trace_list_cache(cname)
     logger.debug(f"User {current_user.username} fetched trace list for course {cname}: {trace_list}")
     return HttpResponse.ok(trace_list=trace_list)
 

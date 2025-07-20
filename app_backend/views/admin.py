@@ -289,7 +289,7 @@ def restore_user():
 
 
 # 通用的管理员用户操作检查
-def _admin_user_common_checks(user_id, forbid_admin_msg=None, forbid_self_msg=None, forbid_role_msg=None):
+def _admin_user_common_checks(user_id, forbid_admin_msg=None, forbid_self_msg=None):
     """
     通用的管理员用户操作检查，返回 (target_user, error_response)
     """
