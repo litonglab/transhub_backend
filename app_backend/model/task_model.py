@@ -113,7 +113,8 @@ class TaskModel(db.Model):
     # ).count() 如需计数，请使用TaskModel.count()方法
     # 以下代码不会导致error_log被加载，除非显式调用error_log属性
     # TaskModel.query.filter_by(user_id=user.user_id, cname=cname)
-    # 如果不确定，请通过日志打印query语句检查是否不必要地加载了error_log
+    # 如果不确定，请将日志级别设置为debug（debug下默认打印query语句）或
+    # 通过日志手动打印query语句检查是否不必要地加载了error_log
     error_log = deferred(db.Column(MEDIUMTEXT(charset='utf8mb4'), nullable=False))  # 错误日志，默认不加载
     created_at = db.Column(db.DateTime, server_default=func.now(), nullable=False)
     updated_at = db.Column(db.DateTime, server_default=func.now(),

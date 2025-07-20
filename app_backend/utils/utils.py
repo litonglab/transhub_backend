@@ -37,7 +37,7 @@ def get_available_port(redis_client):
                     logger.warning(f"Port {port} maybe in use, trying next port, error msg: {str(e)}")
                     port += 1
         else:
-            logger.warning(f"Failed to acquire Redis lock for port {port}, trying next port")
+            logger.debug(f"Failed to acquire Redis lock for port {port}, trying next port")
             port += 1
     logger.error("No available ports found in range 50000-65535")
     raise Exception("No available port")
