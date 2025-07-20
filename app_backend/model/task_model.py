@@ -1,4 +1,5 @@
 import logging
+import re
 import uuid
 from datetime import datetime
 from enum import Enum
@@ -71,6 +72,19 @@ TASK_MODEL_ALGORITHM_MAX_LEN = 50
 TASK_MODEL_ERROR_LOG_MAX_LEN = 16777215  # 16MB, MySQL MEDIUMTEXT max length
 
 
+def _sanitize_sensitive(_text):
+    # 路径脱敏（保留文件名）
+    _text = re.sub(r'(/[^/\s]+)+/([^/\s]+)', r'[path_hidden]/\2', _text)
+    # 需要脱敏参数的命令列表
+    # 日志示例：Died on std::runtime_error: `mm-link Verizon-LTE-140.down Verizon-LTE-140.up --uplink-queue=droptail --uplink-queue-args="packets=250" --once
+    # --uplink-log=Verizon-LTE-140.log -- bash -c sender $MAHIMAHI_BASE 50001 > null': process exited with failure status 1
+    sensitive_cmds = ['mm-link', 'mm-loss']
+    for cmd in sensitive_cmds:
+        # 匹配命令本身及其后所有参数，直到下一个单引号或字符串结尾
+        _text = re.sub(rf'({cmd})[^\']*', r'\1 [command_hidden]', _text)
+    return _text
+
+
 class TaskModel(db.Model):
     __tablename__ = 'task'
     task_id = db.Column(VARCHAR(36, charset='utf8mb4'), primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -136,6 +150,7 @@ class TaskModel(db.Model):
             更新任务日志，更新task对象的日志，到下一次调用TaskModel update时才写入数据库
             :param log_content: 日志内容
             """
+        log_content = _sanitize_sensitive(log_content)
         self.error_log += f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {log_content}\n"
         # 按 utf-8 编码后的字节长度判断
         max_bytes = TASK_MODEL_ERROR_LOG_MAX_LEN

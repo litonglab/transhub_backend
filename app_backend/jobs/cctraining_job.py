@@ -1,6 +1,5 @@
 import logging
 import os
-import re
 import shutil
 import signal
 import subprocess
@@ -83,7 +82,7 @@ def _compile_cc_file(task, course_project_dir, task_parent_dir, sender_path, rec
                 # 如果编译失败，在父级目录创建一个文件，文件名为compile_failed，后续同cc_file的其他trace任务不用再重复编译
                 with open(compile_failed_file, 'w') as f:
                     pass
-                task.update_task_log(f"Compilation failed, make output:\n\n{_sanitize_sensitive(output)}")
+                task.update_task_log(f"Compilation failed, make output:\n\n{output}")
                 task.update(task_status=TaskStatus.COMPILED_FAILED)
                 return False
 
@@ -144,11 +143,11 @@ def _get_score(task, result_path):
     :return: None or float, 返回评分，如果失败则返回None
     """
     task_id = task.task_id
-    extract_program = "mm-throughput-graph"
-    logger.debug(f"[task: {task_id}] is getting score from {result_path} using {extract_program}")
-    run_cmd(
-        f'{extract_program} 500 {result_path} 2> {task.task_dir}/{task.trace_name}.score > /dev/null',
-        task_id)
+    # extract_program = "mm-throughput-graph"
+    # logger.debug(f"[task: {task_id}] is getting score from {result_path} using {extract_program}")
+    # run_cmd(
+    #     f'{extract_program} 500 {result_path} 2> {task.task_dir}/{task.trace_name}.score > /dev/null',
+    #     task_id)
     total_score = evaluate_score(task, result_path)
     total_score = round(total_score, 4)
     logger.debug(f"[task: {task_id}] Score extracted successfully: {total_score}")
@@ -390,19 +389,6 @@ def _force_kill_process_group(process, task_id):
         logger.error(f"[task: {task_id}] Failed to kill process group: {str(e)}")
 
 
-def _sanitize_sensitive(text):
-    # 路径脱敏（保留文件名）
-    text = re.sub(r'(/[^/\s]+)+/([^/\s]+)', r'[path_hidden]/\2', text)
-    # 需要脱敏参数的命令列表
-    # 日志示例：Died on std::runtime_error: `mm-link Verizon-LTE-140.down Verizon-LTE-140.up --uplink-queue=droptail --uplink-queue-args="packets=250" --once
-    # --uplink-log=Verizon-LTE-140.log -- bash -c sender $MAHIMAHI_BASE 50001 > null': process exited with failure status 1
-    sensitive_cmds = ['mm-link', 'mm-loss']
-    for cmd in sensitive_cmds:
-        # 匹配命令本身及其后所有参数，直到下一个单引号或字符串结尾
-        text = re.sub(rf'({cmd})[^\']*', r'\1 [command_hidden]', text)
-    return text
-
-
 def run_cmd(cmd, task_id, raise_exception=True):
     logger.info(f"[task: {task_id}] Running command: {cmd}")
     timeout = 600  # 设置超时时间为10分钟（600秒）
@@ -433,7 +419,6 @@ def run_cmd(cmd, task_id, raise_exception=True):
             logger.info(f"[task: {task_id}] Command output: \nstdout:\n{stdout[:6000]}\nstderr:\n{stderr[:6000]}\n")
             # 脱敏处理输出中的路径和敏感命令参数
             output = f"stdout:\n{stdout}\nstderr:\n{stderr}\n"
-            output = _sanitize_sensitive(output)
 
             if process.returncode != 0:
                 logger.error(
