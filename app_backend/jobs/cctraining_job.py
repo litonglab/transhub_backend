@@ -171,9 +171,16 @@ def _graph(task, result_path):
     #     delay_graph=task.task_dir + "/" + task.trace_name + ".delay.png",
     #     ms_per_bin=500)
     # tunnel_graph.run()
-    logger.info(f"[task: {task_id}] is generating graphs")
-    run_cmd(f'mm-throughput-graph 500 {result_path} > {throughput_graph_svg}', task_id)
-    run_cmd(f'mm-delay-graph {result_path} > {delay_graph_svg}', task_id)
+    # 因为画图cpu占用较高，任务并发执行时很容易同时开始执行画图操作，导致跑满cpu
+    # 改为同一课程在同一时间只能有一个任务在执行画图操作
+    lock_name = f"transhub_graph_lock_{task.cname}"
+    graph_lock = Lock(redis_client, lock_name, timeout=300)
+    logger.info(
+        f'[task: {task_id}] try to generate graphs, attempting to acquire user lock: {lock_name}')
+    with graph_lock:
+        logger.info(f"[task: {task_id}] is generating graphs")
+        run_cmd(f'mm-throughput-graph 500 {result_path} > {throughput_graph_svg}', task_id)
+        run_cmd(f'mm-delay-graph {result_path} > {delay_graph_svg}', task_id)
     # 由于delay svg图太大，将svg转换为png以压缩
     # 实测高并发时，转换时长需要几十分钟，暂时删除此逻辑
     # logger.info(f"[task: {task_id}] Converting delay graph SVG to PNG")
