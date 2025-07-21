@@ -12,6 +12,8 @@ from redis.lock import Lock
 from app_backend import db, redis_client, get_default_config
 from app_backend import get_app
 from app_backend.analysis.tunnel_parse import TunnelParse
+from app_backend.jobs.dramatiq_queue import DramatiqQueue
+from app_backend.jobs.graph_job import run_graph_task
 from app_backend.model.graph_model import GraphModel, GraphType
 from app_backend.model.rank_model import RankModel
 from app_backend.model.task_model import TaskModel, TaskStatus
@@ -27,7 +29,7 @@ dramatiq.set_broker(redis_broker)
 
 
 # 20分钟超时（毫秒），此时间应大于cmd子进程的超时时间
-@dramatiq.actor(time_limit=1200000, max_retries=0)
+@dramatiq.actor(time_limit=1200000, max_retries=0, queue_name=DramatiqQueue.CC_TRAINING.value)
 def run_cc_training_task(task_id):
     app = get_app()
     with (app.app_context()):
@@ -69,7 +71,16 @@ def run_cc_training_task(task_id):
 
             total_score = _get_score(task, result_path)
 
-            _graph(task, result_path)
+            # _graph(task, result_path)
+            # 将图生成任务放入队列，异步执行
+            message = run_graph_task.send(task_id, result_path)
+            if not message:
+                logger.error(f"[task: {task_id}] Failed to enqueue graph task")
+                task.update_task_log("流量图绘制任务无法生成，如有需要请联系管理员。")
+            else:
+                logger.info(f"[task: {task_id}] Graph task enqueued successfully with message ID: {message.message_id}")
+                task.update_task_log(
+                    "流量图绘制任务已生成，请稍后再查询性能图，高峰时期可能最长需要等待一小时，等待期间，可从任务日志中查询最新进度。")
 
             task.update(task_status=TaskStatus.FINISHED, task_score=total_score)
             # 更新完状态后再更新榜单，如果榜单更新失败，任务状态会回退至ERROR
@@ -111,9 +122,10 @@ def run_cc_training_task(task_id):
                 if 'running_port' in locals():
                     release_port(running_port, redis_client)
                 # remove log file if exists
-                if 'result_path' in locals() and os.path.exists(result_path):
-                    os.remove(result_path)
-                    logger.info(f"[task: {task_id}] Removed result file: {result_path}")
+                # TODO remove this.
+                # if 'result_path' in locals() and os.path.exists(result_path):
+                #     os.remove(result_path)
+                #     logger.info(f"[task: {task_id}] Removed result file: {result_path}")
 
             except TimeLimitExceeded as e:
                 logger.error(f"[task: {task_id}] Error when finally cleanup: Dramatiq TimeLimitExceeded", exc_info=True)
