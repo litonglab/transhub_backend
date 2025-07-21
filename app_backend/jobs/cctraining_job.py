@@ -26,6 +26,101 @@ redis_broker = RedisBroker(url=config.Cache.FLASK_REDIS_URL)
 dramatiq.set_broker(redis_broker)
 
 
+# 20分钟超时（毫秒），此时间应大于cmd子进程的超时时间
+@dramatiq.actor(time_limit=1200000, max_retries=0)
+def run_cc_training_task(task_id):
+    app = get_app()
+    with (app.app_context()):
+        try:
+            db.session.expire_all()  # 刷新会话
+            task = TaskModel.query.filter_by(task_id=task_id).first()
+            if not task:
+                logger.error(f"[task: {task_id}] Task not found")
+                return
+
+            logger.info(f"[task: {task_id}] Start task")
+            assert task.task_status == TaskStatus.QUEUED, "Task status must be QUEUED to run"
+            user = UserModel.query.filter_by(user_id=task.user_id).first()
+
+            # 课程的项目目录，公共目录
+            _config = config.get_course_config(task.cname)
+            course_project_dir = os.path.join(_config['path'], 'project', 'datagrump')
+            # 本次任务的父级（对应一次提交）目录
+            task_parent_dir = os.path.dirname(task.task_dir)
+            sender_path = os.path.join(task_parent_dir, 'sender')
+            receiver_path = os.path.join(task_parent_dir, 'receiver')
+
+            # 因为编译需要单独处理任务状态，所以没有直接抛出异常，抛出异常会导致任务状态变为ERROR
+            if not _compile_cc_file(task, course_project_dir, task_parent_dir, sender_path,
+                                    receiver_path):
+                logger.error(f"[task: {task_id}] compile cc file failed, task will not run")
+                return
+
+            # 编译好后再创建task（trace）目录
+            if not os.path.exists(task.task_dir):
+                os.mkdir(task.task_dir)
+                logger.info(f"[task: {task_id}] Created task dir: {task.task_dir}")
+
+            result_path = os.path.join(task.task_dir, task.trace_name + ".log")
+
+            running_port = get_available_port(redis_client)
+            logger.info(f"[task: {task_id}] select port {running_port} for running")
+            _run_contest(task, course_project_dir, sender_path, receiver_path, result_path, running_port)
+
+            total_score = _get_score(task, result_path)
+
+            _graph(task, result_path)
+
+            task.update(task_status=TaskStatus.FINISHED, task_score=total_score)
+            # 更新完状态后再更新榜单，如果榜单更新失败，任务状态会回退至ERROR
+            all_tasks_completed = _update_rank(task, user)
+            if all_tasks_completed:
+                _remove_binary_files(task_id, sender_path, receiver_path)
+            logger.info(f"[task: {task_id}] Task completed successfully, score: {total_score}")
+        except TimeLimitExceeded as e:
+            # 处理 Dramatiq 的超时异常，此异常不在Exception中，需单独处理
+            logger.error(f"[task: {task_id}] Task timed out due to Dramatiq TimeLimit middleware")
+            err_msg = f"{type(e).__name__}\n{str(e)}\nTask timed out after 20 minutes, this problem shouldn't happen, please contact admin."
+
+            _task = None
+            _sender_path = None
+            _receiver_path = None
+            if 'task' in locals():
+                _task = task
+            if 'sender_path' in locals() and 'receiver_path' in locals():
+                _sender_path = sender_path
+                _receiver_path = receiver_path
+            _handle_exception(task_id, err_msg, _task, _sender_path, _receiver_path)
+
+        except Exception as e:
+            # 理论上除了编译失败外，不应出现其他异常，如果出现，需要修复代码相关逻辑
+            err_msg = f"{type(e).__name__}\n{str(e)}"
+
+            _task = None
+            _sender_path = None
+            _receiver_path = None
+            if 'task' in locals():
+                _task = task
+            if 'sender_path' in locals() and 'receiver_path' in locals():
+                _sender_path = sender_path
+                _receiver_path = receiver_path
+            _handle_exception(task_id, err_msg, _task, _sender_path, _receiver_path)
+        finally:
+            try:
+                db.session.remove()
+                if 'running_port' in locals():
+                    release_port(running_port, redis_client)
+                # remove log file if exists
+                if 'result_path' in locals() and os.path.exists(result_path):
+                    os.remove(result_path)
+                    logger.info(f"[task: {task_id}] Removed result file: {result_path}")
+
+            except TimeLimitExceeded as e:
+                logger.error(f"[task: {task_id}] Error when finally cleanup: Dramatiq TimeLimitExceeded", exc_info=True)
+            except Exception as e:
+                logger.error(f"[task: {task_id}] Error when finally cleanup: {str(e)}", exc_info=True)
+
+
 def _compile_cc_file(task, course_project_dir, task_parent_dir, sender_path, receiver_path):
     """
     编译CC文件，在公共目录下编译，编译前对目录上锁。
@@ -281,101 +376,6 @@ def _handle_exception(task_id, err_msg, task=None, sender_path=None, receiver_pa
     # 删除编译生成的二进制文件，注意不在finally中删除，因为正常结束的任务不一定需要删除，其他任务可能会复用
     if sender_path and receiver_path:
         _remove_binary_files(task_id, sender_path, receiver_path)
-
-
-# 20分钟超时（毫秒），此时间应大于cmd子进程的超时时间
-@dramatiq.actor(time_limit=1200000, max_retries=0)
-def run_cc_training_task(task_id):
-    app = get_app()
-    with (app.app_context()):
-        try:
-            db.session.expire_all()  # 刷新会话
-            task = TaskModel.query.filter_by(task_id=task_id).first()
-            if not task:
-                logger.error(f"[task: {task_id}] Task not found")
-                return
-
-            logger.info(f"[task: {task_id}] Start task")
-            assert task.task_status == TaskStatus.QUEUED, "Task status must be QUEUED to run"
-            user = UserModel.query.filter_by(user_id=task.user_id).first()
-
-            # 课程的项目目录，公共目录
-            _config = config.get_course_config(task.cname)
-            course_project_dir = os.path.join(_config['path'], 'project', 'datagrump')
-            # 本次任务的父级（对应一次提交）目录
-            task_parent_dir = os.path.dirname(task.task_dir)
-            sender_path = os.path.join(task_parent_dir, 'sender')
-            receiver_path = os.path.join(task_parent_dir, 'receiver')
-
-            # 因为编译需要单独处理任务状态，所以没有直接抛出异常，抛出异常会导致任务状态变为ERROR
-            if not _compile_cc_file(task, course_project_dir, task_parent_dir, sender_path,
-                                    receiver_path):
-                logger.error(f"[task: {task_id}] compile cc file failed, task will not run")
-                return
-
-            # 编译好后再创建task（trace）目录
-            if not os.path.exists(task.task_dir):
-                os.mkdir(task.task_dir)
-                logger.info(f"[task: {task_id}] Created task dir: {task.task_dir}")
-
-            result_path = os.path.join(task.task_dir, task.trace_name + ".log")
-
-            running_port = get_available_port(redis_client)
-            logger.info(f"[task: {task_id}] select port {running_port} for running")
-            _run_contest(task, course_project_dir, sender_path, receiver_path, result_path, running_port)
-
-            total_score = _get_score(task, result_path)
-
-            _graph(task, result_path)
-
-            task.update(task_status=TaskStatus.FINISHED, task_score=total_score)
-            # 更新完状态后再更新榜单，如果榜单更新失败，任务状态会回退至ERROR
-            all_tasks_completed = _update_rank(task, user)
-            if all_tasks_completed:
-                _remove_binary_files(task_id, sender_path, receiver_path)
-            logger.info(f"[task: {task_id}] Task completed successfully, score: {total_score}")
-        except TimeLimitExceeded as e:
-            # 处理 Dramatiq 的超时异常，此异常不在Exception中，需单独处理
-            logger.error(f"[task: {task_id}] Task timed out due to Dramatiq TimeLimit middleware")
-            err_msg = f"{type(e).__name__}\n{str(e)}\nTask timed out after 20 minutes, this problem shouldn't happen, please contact admin."
-
-            _task = None
-            _sender_path = None
-            _receiver_path = None
-            if 'task' in locals():
-                _task = task
-            if 'sender_path' in locals() and 'receiver_path' in locals():
-                _sender_path = sender_path
-                _receiver_path = receiver_path
-            _handle_exception(task_id, err_msg, _task, _sender_path, _receiver_path)
-
-        except Exception as e:
-            # 理论上除了编译失败外，不应出现其他异常，如果出现，需要修复代码相关逻辑
-            err_msg = f"{type(e).__name__}\n{str(e)}"
-
-            _task = None
-            _sender_path = None
-            _receiver_path = None
-            if 'task' in locals():
-                _task = task
-            if 'sender_path' in locals() and 'receiver_path' in locals():
-                _sender_path = sender_path
-                _receiver_path = receiver_path
-            _handle_exception(task_id, err_msg, _task, _sender_path, _receiver_path)
-        finally:
-            try:
-                db.session.remove()
-                if 'running_port' in locals():
-                    release_port(running_port, redis_client)
-                # remove log file if exists
-                if 'result_path' in locals() and os.path.exists(result_path):
-                    os.remove(result_path)
-                    logger.info(f"[task: {task_id}] Removed result file: {result_path}")
-
-            except TimeLimitExceeded as e:
-                logger.error(f"[task: {task_id}] Error when finally cleanup: Dramatiq TimeLimitExceeded", exc_info=True)
-            except Exception as e:
-                logger.error(f"[task: {task_id}] Error when finally cleanup: {str(e)}", exc_info=True)
 
 
 def _force_kill_process_group(process, task_id):
