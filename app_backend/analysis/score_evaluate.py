@@ -41,7 +41,7 @@ def evaluate_score(task: TaskModel, log_file):
     # 3. 延迟控制评分 (0-100分)
     # 基于RTT膨胀程度
     # queueing_delay是排队时延，delay是单向延迟
-    #
+    # 换算成往返时延（RTT）
     rtt_inflation = 2.0
     rtt_conf = task.delay * 2
     real_rtt = queueing_delay + rtt_conf
