@@ -56,6 +56,6 @@ def evaluate_score(task: TaskModel, log_file):
         f"[task: {task.task_id}] Calculated score: {score} (throughput_score: {throughput_score}, delay_score: {latency_score}, loss_score: {loss_score})" +
         f"(throughput: {throughput}, delay: {queueing_delay}(set: {task.delay}), loss_rate: {loss_rate}(set: {task.loss_rate})")
     # 更新任务的分数
-    task.update(score=score, loss_score=loss_score, delay_score=latency_score, throughput_score=throughput_score)
+    task.update(task_score=score, loss_score=loss_score, delay_score=latency_score, throughput_score=throughput_score)
 
     return score
