@@ -55,9 +55,74 @@ Transhub 运行环境，以下是安装指南（在第二节对 Transhub 代码�
 
 # Transhub 评分标准
 
-比赛开始后公布。
+## 指标定义与数据来源
 
-系统测试期间，Trace和评分标准可能会随时更新，显示分数不作为算法评价依据。
+| 指标名称          | 变量名                    | 描述                             |
+|-------------------|---------------------------|---------------------------------|
+| 吞吐量 | `throughput`             | 平均吞吐量                 |
+| 链路带宽 | `capacity`               | 平均链路带宽                     | 
+| 带宽利用率 | `capacity_utilization` | 吞吐量与链路带宽的比值 |
+| 排队延迟 | `queueing_delay`         | 所有数据包排队延迟的95分位点             |
+| 基础往返延迟| `round-trip_time`             | 没有排队延迟时的链路往返延迟                 |
+| 延迟膨胀率 | `delay_inflation` | 排队延迟与基础往返延迟的比值 |
+| 总丢包数 | `total_lost`              | 丢失的数据包总量                         |
+| 总发包数 | `total_sent`              | 发送的数据包总量                         |
+| 丢包率 | `loss_rate`              | 总丢包数与总发包数的比值                         |
+
+
+## 评分维度与权重
+
+| 评分维度名称      | 变量名         | 权重 | 评分范围 |
+|--------------|------|------|----------|
+| **带宽利用得分**  | `throughput_score` | 35%  | 0-100    |
+| **延迟控制得分**  |    `delay_score` | 35%  | 0-100    |
+| **丢包控制得分**  |   `loss_score`  | 30%  | 0-100    |
+| **总得分**       |   `total_score` | 100% | 0-100    |
+
+
+## 详细评分规则
+
+### 1. 带宽利用得分 (35%)
+$$
+\text{capacity_utilization} = \frac{\text{throughput}}{\text{capacity}}
+$$
+
+$$
+\text{throughput_score} = 100 \times \text{capacity_utilization}
+$$
+
+
+### 2. 延迟控制得分 (35%)
+$$
+\text{delay_inflation} = \frac{\text{queueing_delay}}{\text{round-trip_time}}
+$$
+
+$$
+\text{delay_score} = 
+\begin{cases} 
+100 & \text{if } \text{delay_inflation} \leq 0.01 \\\\ 
+50 + 50 \times \dfrac{20 - \text{delay_inflation}}{19.99} & \text{if } 0.01 < \text{delay_inflation} \leq 20 \\\\ 
+\dfrac{1000}{\text{delay_inflation}} & \text{if } \text{delay_inflation} > 20 
+\end{cases}
+$$
+
+
+### 3. 丢包控制得分 (30%)
+
+$$
+\text{loss_rate} = \frac{\text{total_lost}}{\text{total_sent}}
+$$
+
+$$
+\text{loss_score} = 100 \times (1 - \text{loss_rate})
+$$
+
+
+### 4. 总得分
+$$
+\text{total_score} = 0.35 \times \text{throughput_score} + 0.35 \times \text{delay_score} + 0.30 \times \text{loss_score}
+$$
+
 
 # Transhub 安装指南 2025 版
 
