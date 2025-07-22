@@ -3,6 +3,7 @@ import os
 import shutil
 import signal
 import subprocess
+from time import sleep
 
 import dramatiq
 from dramatiq.brokers.redis import RedisBroker
@@ -34,6 +35,8 @@ def run_cc_training_task(task_id):
     with (app.app_context()):
         try:
             db.session.expire_all()  # 刷新会话
+            # sleep to ensure task status is updated to QUEUED before running
+            sleep(2)
             task = TaskModel.query.filter_by(task_id=task_id).first()
             if not task:
                 logger.error(f"[task: {task_id}] Task not found")
