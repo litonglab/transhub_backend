@@ -13,7 +13,7 @@ from redis.lock import Lock
 
 from app_backend import db, redis_client, get_default_config
 from app_backend import get_app
-from app_backend.analysis.tunnel_parse import TunnelParse
+from app_backend.analysis.score_evaluate import evaluate_score
 from app_backend.model.rank_model import RankModel
 from app_backend.model.task_model import TaskModel, TaskStatus
 from app_backend.model.user_model import UserModel
@@ -68,7 +68,7 @@ def run_cc_training_task(task_id):
             logger.info(f"[task: {task_id}] select port {running_port} for running")
             _run_contest(task, course_project_dir, sender_path, receiver_path, result_path, running_port)
 
-            total_score = _get_score(task, result_path)
+            evaluate_score(task, result_path)
 
             # _graph(task, result_path)
             # 将图生成任务放入队列，异步执行
@@ -81,12 +81,12 @@ def run_cc_training_task(task_id):
                 task.update_task_log(
                     "流量图绘制任务已生成，请稍后再查询性能图，高峰时期可能需要等待较长时间，等待期间，可从任务日志中查询最新进度。")
 
-            task.update(task_status=TaskStatus.FINISHED, task_score=total_score)
+            task.update(task_status=TaskStatus.FINISHED)
             # 更新完状态后再更新榜单，如果榜单更新失败，任务状态会回退至ERROR
             all_tasks_completed = _update_rank(task, user)
             if all_tasks_completed:
                 _remove_binary_files(task_id, sender_path, receiver_path)
-            logger.info(f"[task: {task_id}] Task completed successfully, score: {total_score}")
+            logger.info(f"[task: {task_id}] Task completed successfully")
         except TimeLimitExceeded as e:
             # 处理 Dramatiq 的超时异常，此异常不在Exception中，需单独处理
             logger.error(f"[task: {task_id}] Task timed out due to Dramatiq TimeLimit middleware")
@@ -236,23 +236,6 @@ def _remove_binary_files(task_id, sender_path, receiver_path):
     if os.path.exists(receiver_path):
         os.remove(receiver_path)
         logger.info(f"[task: {task_id}] Removed receiver binary file: {receiver_path}")
-
-
-def _get_score(task, result_path):
-    """
-    获取评分
-    :return: None or float, 返回评分，如果失败则返回None
-    """
-    task_id = task.task_id
-    # extract_program = "mm-throughput-graph"
-    # logger.debug(f"[task: {task_id}] is getting score from {result_path} using {extract_program}")
-    # run_cmd(
-    #     f'{extract_program} 500 {result_path} 2> {task.task_dir}/{task.trace_name}.score > /dev/null',
-    #     task_id)
-    total_score = evaluate_score(task, result_path)
-    total_score = round(total_score, 4)
-    logger.debug(f"[task: {task_id}] Score extracted successfully: {total_score}")
-    return total_score
 
 
 def _update_rank(task, user):
@@ -509,56 +492,3 @@ def enqueue_multiple_tasks(task_ids):
         'results': results,
         'failed_tasks': failed_tasks
     }
-
-
-def evaluate_score(task: TaskModel, log_file: str):
-    # 评分
-    tunnel_graph = TunnelParse(tunnel_log=log_file, ms_per_bin=500)
-    tunnel_results = tunnel_graph.run()
-    throughput = tunnel_results['throughput']
-    queueing_delay = tunnel_results['delay']
-    loss_rate = tunnel_results['loss'] - task.loss_rate
-    if loss_rate < 0:
-        logger.error(f"[task: {task.task_id}] Loss rate({loss_rate}) is negative, is this expected?")
-    capacity = tunnel_results['capacity']
-    # 1. 吞吐量效率评分 (0-100分)
-    # 基于理论吞吐量的利用率
-    efficiency = 0
-    if capacity > 0:
-        efficiency = throughput / capacity
-    if efficiency >= 1.0:  # 100%以上利用率满分
-        throughput_score = 100
-    elif efficiency >= 0:
-        throughput_score = 100 * efficiency
-    else:
-        throughput_score = 0
-
-    # 2. 丢包控制评分 (0-100分)
-    if loss_rate <= 0.000001:
-        loss_score = 100
-    elif loss_rate >= 1:
-        loss_score = 0
-    else:
-        loss_score = 100 * (1.0 - loss_rate)
-
-    # 3. 延迟控制评分 (0-100分)
-    # 基于RTT膨胀程度
-    rtt_inflation = 2.0
-    if task.delay > 0:
-        rtt_inflation = (queueing_delay + task.delay) / task.delay
-    if rtt_inflation <= 10:
-        latency_score = 30 + 70 * (10 - rtt_inflation) / 10
-    else:
-        latency_score = 100 * 3 / rtt_inflation
-
-    # 计算总分
-    trace_conf = config.get_course_trace_config(task.cname, task.trace_name)
-    score = trace_conf['score_weights']['throughput'] * throughput_score + trace_conf['score_weights'][
-        'loss'] * loss_score + trace_conf['score_weights']['delay'] * latency_score
-    logger.info(
-        f"[task: {task.task_id}] Calculated score: {score} (throughput_score: {throughput_score}, delay_score: {latency_score}, loss_score: {loss_score})" +
-        f"(throughput: {throughput}, delay: {queueing_delay}(set: {task.delay}), loss_rate: {loss_rate}(set: {task.loss_rate})")
-    # 更新任务的分数
-    task.update(score=score, loss_score=loss_score, delay_score=latency_score, throughput_score=throughput_score)
-
-    return score
