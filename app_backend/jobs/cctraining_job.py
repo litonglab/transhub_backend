@@ -14,7 +14,6 @@ from app_backend import get_app
 from app_backend.analysis.tunnel_parse import TunnelParse
 from app_backend.jobs.dramatiq_queue import DramatiqQueue
 from app_backend.jobs.graph_job import run_graph_task
-from app_backend.model.graph_model import GraphModel, GraphType
 from app_backend.model.rank_model import RankModel
 from app_backend.model.task_model import TaskModel, TaskStatus
 from app_backend.model.user_model import UserModel
@@ -80,7 +79,7 @@ def run_cc_training_task(task_id):
             else:
                 logger.info(f"[task: {task_id}] Graph task enqueued successfully with message ID: {message.message_id}")
                 task.update_task_log(
-                    "流量图绘制任务已生成，请稍后再查询性能图，高峰时期可能最长需要等待一小时，等待期间，可从任务日志中查询最新进度。")
+                    "流量图绘制任务已生成，请稍后再查询性能图，高峰时期可能需要等待较长时间，等待期间，可从任务日志中查询最新进度。")
 
             task.update(task_status=TaskStatus.FINISHED, task_score=total_score)
             # 更新完状态后再更新榜单，如果榜单更新失败，任务状态会回退至ERROR
@@ -121,11 +120,6 @@ def run_cc_training_task(task_id):
                 db.session.remove()
                 if 'running_port' in locals():
                     release_port(running_port, redis_client)
-                # remove log file if exists
-                # TODO remove this.
-                # if 'result_path' in locals() and os.path.exists(result_path):
-                #     os.remove(result_path)
-                #     logger.info(f"[task: {task_id}] Removed result file: {result_path}")
 
             except TimeLimitExceeded as e:
                 logger.error(f"[task: {task_id}] Error when finally cleanup: Dramatiq TimeLimitExceeded", exc_info=True)
@@ -259,47 +253,6 @@ def _get_score(task, result_path):
     total_score = round(total_score, 4)
     logger.debug(f"[task: {task_id}] Score extracted successfully: {total_score}")
     return total_score
-
-
-def _graph(task, result_path):
-    """
-    画图
-    :return: None
-    """
-    task_id = task.task_id
-
-    throughput_graph_svg = os.path.join(task.task_dir, f"{task.trace_name}.throughput.svg")
-    delay_graph_svg = os.path.join(task.task_dir, f"{task.trace_name}.delay.svg")
-    # delay_graph_png = os.path.join(task.task_dir, f"{task.trace_name}.delay.png")
-    # 另一个画图逻辑
-    # tunnel_graph = TunnelGraph(
-    #     tunnel_log=result_path,
-    #     throughput_graph=task.task_dir + "/" + task.trace_name + ".throughput.png",
-    #     delay_graph=task.task_dir + "/" + task.trace_name + ".delay.png",
-    #     ms_per_bin=500)
-    # tunnel_graph.run()
-    # 因为画图cpu占用较高，任务并发执行时很容易同时开始执行画图操作，导致跑满cpu
-    # 改为同一课程在同一时间只能有一个任务在执行画图操作
-    lock_name = f"transhub_graph_lock_{task.cname}"
-    graph_lock = Lock(redis_client, lock_name, timeout=300)
-    logger.info(
-        f'[task: {task_id}] try to generate graphs, attempting to acquire user lock: {lock_name}')
-    with graph_lock:
-        logger.info(f"[task: {task_id}] is generating graphs")
-        run_cmd(f'mm-throughput-graph 500 {result_path} > {throughput_graph_svg}', task_id)
-        run_cmd(f'mm-delay-graph {result_path} > {delay_graph_svg}', task_id)
-    # 由于delay svg图太大，将svg转换为png以压缩
-    # 实测高并发时，转换时长需要几十分钟，暂时删除此逻辑
-    # logger.info(f"[task: {task_id}] Converting delay graph SVG to PNG")
-    # cairosvg.svg2png(url=delay_graph_svg, write_to=delay_graph_png)
-    # os.remove(delay_graph_svg)
-    # logger.info(f"[task: {task_id}] Converted delay graph SVG to PNG, svg removed.")
-    logger.info(f"[task: {task_id}] Graphs generated successfully: {throughput_graph_svg}, {delay_graph_svg}")
-    GraphModel(task_id=task_id, graph_type=GraphType.THROUGHPUT,
-               graph_path=throughput_graph_svg).insert()
-    GraphModel(task_id=task_id, graph_type=GraphType.DELAY,
-               graph_path=delay_graph_svg).insert()
-    logger.info(f"[task: {task_id}] is generating graphs successfully")
 
 
 def _update_rank(task, user):

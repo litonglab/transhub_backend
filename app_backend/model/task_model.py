@@ -206,6 +206,8 @@ class TaskModel(db.Model):
 
     def to_detail_dict(self):
         trace_available = config.is_trace_available(self.cname, self.trace_name)
+        trace_conf = config.get_course_trace_config(self.cname, self.trace_name)
+        block_conf = trace_conf.get('block', False) if trace_conf else False
         res = {
             # 'user_id': self.user_id,
             'task_id': self.task_id,
@@ -213,7 +215,7 @@ class TaskModel(db.Model):
             'loss_rate': self.loss_rate if trace_available else "*",
             'buffer_size': self.buffer_size if trace_available else "*",
             'delay': self.delay if trace_available else "*",
-            'trace_name': self.trace_name,
+            'trace_name': f"{self.trace_name} *" if block_conf else self.trace_name,
             'task_status': self.task_status.value,
             'created_time': self.created_time,
             'task_score': self.task_score,

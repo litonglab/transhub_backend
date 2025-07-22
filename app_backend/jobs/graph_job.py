@@ -1,5 +1,3 @@
-import logging
-import os
 import time
 
 import cairosvg
@@ -7,10 +5,11 @@ import dramatiq
 from dramatiq.brokers.redis import RedisBroker
 from dramatiq.middleware import TimeLimitExceeded
 
-from app_backend import setup_logger, get_default_config, get_app, db
+from app_backend import setup_logger, get_app
 from app_backend.jobs.dramatiq_queue import DramatiqQueue
 from app_backend.model.graph_model import GraphModel, GraphType
 from app_backend.model.task_model import TaskModel, TaskStatus, TASK_MODEL_ALGORITHM_MAX_LEN
+from app_backend.model.user_model import *
 
 setup_logger()
 logger = logging.getLogger(__name__)
@@ -18,6 +17,9 @@ config = get_default_config()
 redis_broker = RedisBroker(url=config.Cache.FLASK_REDIS_URL)
 dramatiq.set_broker(redis_broker)
 
+
+# 实测高并发时，画图操作cpu占用高导致cpu99%，解耦画图和转png任务作为单独的任务队列启动进程处理
+# 转png用于压缩delay图，减少存储空间占用，此操作可能耗时较长，作为后台任务处理，不应对其完成时间有预期
 
 # 10分钟超时（毫秒），此时间应大于cmd子进程的超时时间
 @dramatiq.actor(time_limit=600000, max_retries=0, queue_name=DramatiqQueue.GRAPH.value)
@@ -51,11 +53,6 @@ def run_graph_task(task_id, result_path):
         finally:
             try:
                 db.session.remove()
-                # do not remove result_path here, we can use it for graph generation later
-                # if 'result_path' in locals() and os.path.exists(result_path):
-                #     os.remove(result_path)
-                #     logger.info(f"[task: {task_id}] Removed result file: {result_path}")
-
             except TimeLimitExceeded as e:
                 logger.error(f"[task: {task_id}] Graph task error when finally cleanup: Dramatiq TimeLimitExceeded",
                              exc_info=True)
@@ -63,8 +60,8 @@ def run_graph_task(task_id, result_path):
                 logger.error(f"[task: {task_id}] Graph task error when finally cleanup: {str(e)}", exc_info=True)
 
 
-# 10分钟超时（毫秒），此时间应大于cmd子进程的超时时间
-@dramatiq.actor(time_limit=600000, max_retries=0, queue_name=DramatiqQueue.SVG2PNG.value)
+# 30分钟超时（毫秒），此时间应大于cmd子进程的超时时间
+@dramatiq.actor(time_limit=1800000, max_retries=0, queue_name=DramatiqQueue.SVG2PNG.value)
 def run_svg2png_task(task_id, graph_id):
     app = get_app()
     with (app.app_context()):
@@ -121,18 +118,11 @@ def _graph(task, result_path):
     #     delay_graph=task.task_dir + "/" + task.trace_name + ".delay.png",
     #     ms_per_bin=500)
     # tunnel_graph.run()
-    # 因为画图cpu占用较高，任务并发执行时很容易同时开始执行画图操作，导致跑满cpu
-    # 改为同一课程在同一时间只能有一个任务在执行画图操作
     logger.info(f"[task: {task_id}] is generating graphs")
     graph_start_time = time.time()
+
     run_cmd(f'mm-throughput-graph 500 {result_path} > {throughput_graph_svg}', task_id)
     run_cmd(f'mm-delay-graph {result_path} > {delay_graph_svg}', task_id)
-    # 由于delay svg图太大，将svg转换为png以压缩
-    # 实测高并发时，转换时长需要几十分钟，暂时删除此逻辑
-    # logger.info(f"[task: {task_id}] Converting delay graph SVG to PNG")
-    # cairosvg.svg2png(url=delay_graph_svg, write_to=delay_graph_png)
-    # os.remove(delay_graph_svg)
-    # logger.info(f"[task: {task_id}] Converted delay graph SVG to PNG, svg removed.")
     graph_end_time = time.time()
     logger.info(
         f"[task: {task_id}] Graphs generated successfully after {graph_end_time - graph_start_time:.2f} seconds: "
@@ -143,13 +133,13 @@ def _graph(task, result_path):
     delay_graph = GraphModel(task_id=task_id, graph_type=GraphType.DELAY,
                              graph_path=delay_graph_svg)
     delay_graph.insert()
-    # TODO: remove this later
-    logger.error("sleep for debug, 20s")
-    time.sleep(20)  # for debug, remove later
+    os.remove(result_path)
+    logger.info(f"[task: {task_id}] Removed result file: {result_path}")
     task.update_task_log(f"性能图生成成功，耗时 {graph_end_time - graph_start_time:.2f} 秒。")
     task.update()  # 写入日志
 
-    logger.info(f"[task: {task_id}] Graph task completed successfully, inserted graphs into database.")
+    logger.info(
+        f"[task: {task_id}] Graph task completed successfully, inserted graphs into database")
     # 将delay图转换为PNG任务发送到队列
     message = run_svg2png_task.send(task_id=task_id, graph_id=delay_graph.graph_id)
     if not message:
@@ -160,8 +150,7 @@ def _graph(task, result_path):
 
 def _svg2png(task, graph_id):
     """
-    画图
-    :return: None
+    将svg转换为png以压缩存储空间
     """
     task_id = task.task_id
 
@@ -170,10 +159,10 @@ def _svg2png(task, graph_id):
         logger.error(f"[task: {task_id}] Graph not found for graph_id: {graph_id}")
         return
     svg_path = graph.graph_path
-    task.update_task_log("开始压缩性能图，请稍候...")
     # 确保后缀为svg
     assert svg_path.endswith('.svg'), f"Graph file {svg_path} must end with .svg"
     graph_type = graph.graph_type
+    task.update_task_log(f"开始压缩{graph_type.value}性能图，请稍候...")
     graph_png_name = f"{task.trace_name}.{graph_type.value}.png"
     graph_png_path = os.path.join(task.task_dir, graph_png_name)
     # 由于delay svg图太大，将svg转换为png以压缩
@@ -185,11 +174,8 @@ def _svg2png(task, graph_id):
     convert_end_time = time.time()
     logger.info(
         f"[task: {task_id}] Converted delay graph SVG to PNG, svg removed, took {convert_end_time - convert_start_time:.2f} seconds.")
-    # TODO: remove this later
-    logger.error("sleep for debug, 20s")
-    time.sleep(20)  # for debug, remove later
     task.update_task_log(
-        f"性能图（type: {graph_type.value}）压缩成功，耗时 {convert_end_time - convert_start_time:.2f} 秒。")
+        f"{graph_type.value}性能图压缩成功，耗时 {convert_end_time - convert_start_time:.2f} 秒。")
     task.update()  # 写入日志
 
     logger.info(
@@ -211,4 +197,3 @@ def _handle_exception(task_id, err_msg, task=None):
         if len(algorithm) > TASK_MODEL_ALGORITHM_MAX_LEN:
             algorithm = algorithm[:TASK_MODEL_ALGORITHM_MAX_LEN]
         task.update(algorithm=algorithm)
-        # task.update(task_status=TaskStatus.ERROR)

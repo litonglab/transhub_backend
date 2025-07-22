@@ -571,7 +571,7 @@ def get_system_info():
                     'start_time': start_time.strftime('%Y-%m-%d %H:%M:%S'),
                     'uptime_seconds': int(uptime.total_seconds()),
                     'uptime_formatted': str(uptime).split('.')[0],  # 去掉微秒
-                    'cmdline': ' '.join(proc.info['cmdline'][:3])  # 只显示前3个命令参数
+                    'cmdline': ' '.join(proc.info['cmdline'])
                 })
         except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
             logger.error(
