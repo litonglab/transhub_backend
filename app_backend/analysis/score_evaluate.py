@@ -11,7 +11,7 @@ config = get_default_config()
 def evaluate_score(task: TaskModel, log_file):
     # 评分
     tunnel_graph = TunnelParse(tunnel_log=log_file, ms_per_bin=500)
-    tunnel_results = tunnel_graph.run()
+    tunnel_results = tunnel_graph.parse()
     throughput = tunnel_results['throughput']
     queueing_delay = tunnel_results['delay']
     loss_rate = tunnel_results['loss'] - task.loss_rate
@@ -57,5 +57,5 @@ def evaluate_score(task: TaskModel, log_file):
         f"(throughput: {throughput}, delay: {queueing_delay}(set: {task.delay}), loss_rate: {loss_rate}(set: {task.loss_rate})")
     # 更新任务的分数
     task.update(score=score, loss_score=loss_score, delay_score=latency_score, throughput_score=throughput_score)
-    
+
     return score
