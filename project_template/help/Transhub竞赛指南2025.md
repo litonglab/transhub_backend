@@ -84,25 +84,25 @@ Transhub 运行环境，以下是安装指南（在第二节对 Transhub 代码�
 
 ### 1. 带宽利用得分 (35%)
 $$
-\text{capacity_utilization} = \frac{\text{throughput}}{\text{capacity}}
+\text{capacity\_utilization} = \frac{\text{throughput}}{\text{capacity}}
 $$
 
 $$
-\text{throughput_score} = 100 \times \text{capacity_utilization}
+\text{throughput\_score} = 100 \times \text{capacity\_utilization}
 $$
 
 
 ### 2. 延迟控制得分 (35%)
 $$
-\text{delay_inflation} = \frac{\text{queueing_delay}}{\text{round-trip_time}}
+\text{delay\_inflation} = \frac{\text{queueing\_delay}}{\text{round-trip\_time}}
 $$
 
 $$
-\text{delay_score} = 
+\text{delay\_score} = 
 \begin{cases} 
-100 & \text{if } \text{delay_inflation} \leq 0.01 \\\\ 
-50 + 50 \times \dfrac{20 - \text{delay_inflation}}{19.99} & \text{if } 0.01 < \text{delay_inflation} \leq 20 \\\\ 
-\dfrac{1000}{\text{delay_inflation}} & \text{if } \text{delay_inflation} > 20 
+100 & \text{if } \text{delay\_inflation} \leq 0.01 \\\\ 
+50 + 50 \times \dfrac{20 - \text{delay\_inflation}}{19.99} & \text{if } 0.01 < \text{delay\_inflation} \leq 20 \\\\ 
+\dfrac{1000}{\text{delay\_inflation}} & \text{if } \text{delay\_inflation} > 20 
 \end{cases}
 $$
 
@@ -110,17 +110,17 @@ $$
 ### 3. 丢包控制得分 (30%)
 
 $$
-\text{loss_rate} = \frac{\text{total_lost}}{\text{total_sent}}
+\text{loss\_rate} = \frac{\text{total\_lost}}{\text{total\_sent}}
 $$
 
 $$
-\text{loss_score} = 100 \times (1 - \text{loss_rate})
+\text{loss\_score} = 100 \times (1 - \text{loss\_rate})
 $$
 
 
 ### 4. 总得分
 $$
-\text{total_score} = 0.35 \times \text{throughput_score} + 0.35 \times \text{delay_score} + 0.30 \times \text{loss_score}
+\text{total\_score} = 0.35 \times \text{throughput\_score} + 0.35 \times \text{delay\_score} + 0.30 \times \text{loss\_score}
 $$
 
 
