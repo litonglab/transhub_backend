@@ -71,6 +71,13 @@ def run_cc_training_task(task_id):
             evaluate_score(task, result_path)
 
             # _graph(task, result_path)
+
+            task.update(task_status=TaskStatus.FINISHED)
+            # 更新完状态后再更新榜单，如果榜单更新失败，任务状态会回退至ERROR
+            all_tasks_completed = _update_rank(task, user)
+            if all_tasks_completed:
+                _remove_binary_files(task_id, sender_path, receiver_path)
+
             # 将图生成任务放入队列，异步执行
             message = run_graph_task.send(task_id, result_path)
             if not message:
@@ -80,12 +87,6 @@ def run_cc_training_task(task_id):
                 logger.info(f"[task: {task_id}] Graph task enqueued successfully with message ID: {message.message_id}")
                 task.update_task_log(
                     "流量图绘制任务已生成，请稍后再查询性能图，高峰时期可能需要等待较长时间，等待期间，可从任务日志中查询最新进度。")
-
-            task.update(task_status=TaskStatus.FINISHED)
-            # 更新完状态后再更新榜单，如果榜单更新失败，任务状态会回退至ERROR
-            all_tasks_completed = _update_rank(task, user)
-            if all_tasks_completed:
-                _remove_binary_files(task_id, sender_path, receiver_path)
             logger.info(f"[task: {task_id}] Task completed successfully")
         except TimeLimitExceeded as e:
             # 处理 Dramatiq 的超时异常，此异常不在Exception中，需单独处理
