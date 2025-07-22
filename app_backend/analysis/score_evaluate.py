@@ -40,9 +40,13 @@ def evaluate_score(task: TaskModel, log_file):
 
     # 3. 延迟控制评分 (0-100分)
     # 基于RTT膨胀程度
+    # queueing_delay是排队时延，delay是单向延迟
+    #
     rtt_inflation = 2.0
+    rtt_conf = task.delay * 2
+    real_rtt = queueing_delay + rtt_conf
     if task.delay > 0:
-        rtt_inflation = (queueing_delay + task.delay) / task.delay
+        rtt_inflation = real_rtt / rtt_conf
     if rtt_inflation <= 10:
         latency_score = 30 + 70 * (10 - rtt_inflation) / 10
     else:
@@ -54,7 +58,9 @@ def evaluate_score(task: TaskModel, log_file):
         'loss'] * loss_score + trace_conf['score_weights']['delay'] * latency_score
     logger.info(
         f"[task: {task.task_id}] Calculated score: {score} (throughput_score: {throughput_score}, delay_score: {latency_score}, loss_score: {loss_score})" +
-        f"(throughput: {throughput}, delay: {queueing_delay}(set: {task.delay}), loss_rate: {loss_rate}(set: {task.loss_rate})")
+        f"by efficiency: {efficiency}(throughput({throughput})/capacity({capacity})), "
+        f"rtt_inflation: {rtt_inflation}(real_rtt({real_rtt})/rtt_conf({rtt_conf})), "
+        f"loss_rate: {loss_rate}(loss_conf({task.loss_rate}))")
     # 更新任务的分数
     task.update(task_score=score, loss_score=loss_score, delay_score=latency_score, throughput_score=throughput_score)
 
