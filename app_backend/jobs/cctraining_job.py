@@ -5,8 +5,6 @@ import signal
 import subprocess
 
 import dramatiq
-from app_backend.jobs.dramatiq_queue import DramatiqQueue
-from app_backend.jobs.graph_job import run_graph_task
 from dramatiq.brokers.redis import RedisBroker
 from dramatiq.middleware.time_limit import TimeLimitExceeded
 from redis.lock import Lock
@@ -70,7 +68,7 @@ def run_cc_training_task(task_id):
             logger.info(f"[task: {task_id}] select port {running_port} for running")
             _run_contest(task, course_project_dir, sender_path, receiver_path, result_path, running_port)
 
-            total_score = _get_score(task, result_path)
+            evaluate_score(task, result_path)
 
             # _graph(task, result_path)
             # 将图生成任务放入队列，异步执行
@@ -83,12 +81,12 @@ def run_cc_training_task(task_id):
                 task.update_task_log(
                     "流量图绘制任务已生成，请稍后再查询性能图，高峰时期可能需要等待较长时间，等待期间，可从任务日志中查询最新进度。")
 
-            task.update(task_status=TaskStatus.FINISHED, task_score=total_score)
+            task.update(task_status=TaskStatus.FINISHED)
             # 更新完状态后再更新榜单，如果榜单更新失败，任务状态会回退至ERROR
             all_tasks_completed = _update_rank(task, user)
             if all_tasks_completed:
                 _remove_binary_files(task_id, sender_path, receiver_path)
-            logger.info(f"[task: {task_id}] Task completed successfully, score: {total_score}")
+            logger.info(f"[task: {task_id}] Task completed successfully")
         except TimeLimitExceeded as e:
             # 处理 Dramatiq 的超时异常，此异常不在Exception中，需单独处理
             logger.error(f"[task: {task_id}] Task timed out due to Dramatiq TimeLimit middleware")
