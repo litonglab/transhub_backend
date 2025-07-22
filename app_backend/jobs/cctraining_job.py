@@ -1,11 +1,12 @@
 import logging
 import os
-import re
 import shutil
 import signal
 import subprocess
 
 import dramatiq
+from app_backend.jobs.dramatiq_queue import DramatiqQueue
+from app_backend.jobs.graph_job import run_graph_task
 from dramatiq.brokers.redis import RedisBroker
 from dramatiq.middleware.time_limit import TimeLimitExceeded
 from redis.lock import Lock
@@ -13,7 +14,6 @@ from redis.lock import Lock
 from app_backend import db, redis_client, get_default_config
 from app_backend import get_app
 from app_backend.analysis.tunnel_parse import TunnelParse
-from app_backend.model.graph_model import GraphModel, GraphType
 from app_backend.model.rank_model import RankModel
 from app_backend.model.task_model import TaskModel, TaskStatus
 from app_backend.model.user_model import UserModel
@@ -25,6 +25,106 @@ logger = logging.getLogger(__name__)
 config = get_default_config()
 redis_broker = RedisBroker(url=config.Cache.FLASK_REDIS_URL)
 dramatiq.set_broker(redis_broker)
+
+
+# 20分钟超时（毫秒），此时间应大于cmd子进程的超时时间
+@dramatiq.actor(time_limit=1200000, max_retries=0, queue_name=DramatiqQueue.CC_TRAINING.value)
+def run_cc_training_task(task_id):
+    app = get_app()
+    with (app.app_context()):
+        try:
+            db.session.expire_all()  # 刷新会话
+            task = TaskModel.query.filter_by(task_id=task_id).first()
+            if not task:
+                logger.error(f"[task: {task_id}] Task not found")
+                return
+
+            logger.info(f"[task: {task_id}] Start task")
+            assert task.task_status == TaskStatus.QUEUED, "Task status must be QUEUED to run"
+            user = UserModel.query.filter_by(user_id=task.user_id).first()
+
+            # 课程的项目目录，公共目录
+            _config = config.get_course_config(task.cname)
+            course_project_dir = os.path.join(_config['path'], 'project', 'datagrump')
+            # 本次任务的父级（对应一次提交）目录
+            task_parent_dir = os.path.dirname(task.task_dir)
+            sender_path = os.path.join(task_parent_dir, 'sender')
+            receiver_path = os.path.join(task_parent_dir, 'receiver')
+
+            # 因为编译需要单独处理任务状态，所以没有直接抛出异常，抛出异常会导致任务状态变为ERROR
+            if not _compile_cc_file(task, course_project_dir, task_parent_dir, sender_path,
+                                    receiver_path):
+                logger.error(f"[task: {task_id}] compile cc file failed, task will not run")
+                return
+
+            # 编译好后再创建task（trace）目录
+            if not os.path.exists(task.task_dir):
+                os.mkdir(task.task_dir)
+                logger.info(f"[task: {task_id}] Created task dir: {task.task_dir}")
+
+            result_path = os.path.join(task.task_dir, task.trace_name + ".log")
+
+            running_port = get_available_port(redis_client)
+            logger.info(f"[task: {task_id}] select port {running_port} for running")
+            _run_contest(task, course_project_dir, sender_path, receiver_path, result_path, running_port)
+
+            total_score = _get_score(task, result_path)
+
+            # _graph(task, result_path)
+            # 将图生成任务放入队列，异步执行
+            message = run_graph_task.send(task_id, result_path)
+            if not message:
+                logger.error(f"[task: {task_id}] Failed to enqueue graph task")
+                task.update_task_log("流量图绘制任务无法生成，如有需要请联系管理员。")
+            else:
+                logger.info(f"[task: {task_id}] Graph task enqueued successfully with message ID: {message.message_id}")
+                task.update_task_log(
+                    "流量图绘制任务已生成，请稍后再查询性能图，高峰时期可能需要等待较长时间，等待期间，可从任务日志中查询最新进度。")
+
+            task.update(task_status=TaskStatus.FINISHED, task_score=total_score)
+            # 更新完状态后再更新榜单，如果榜单更新失败，任务状态会回退至ERROR
+            all_tasks_completed = _update_rank(task, user)
+            if all_tasks_completed:
+                _remove_binary_files(task_id, sender_path, receiver_path)
+            logger.info(f"[task: {task_id}] Task completed successfully, score: {total_score}")
+        except TimeLimitExceeded as e:
+            # 处理 Dramatiq 的超时异常，此异常不在Exception中，需单独处理
+            logger.error(f"[task: {task_id}] Task timed out due to Dramatiq TimeLimit middleware")
+            err_msg = f"{type(e).__name__}\n{str(e)}\nTask timed out after 20 minutes, this problem shouldn't happen, please contact admin."
+
+            _task = None
+            _sender_path = None
+            _receiver_path = None
+            if 'task' in locals():
+                _task = task
+            if 'sender_path' in locals() and 'receiver_path' in locals():
+                _sender_path = sender_path
+                _receiver_path = receiver_path
+            _handle_exception(task_id, err_msg, _task, _sender_path, _receiver_path)
+
+        except Exception as e:
+            # 理论上除了编译失败外，不应出现其他异常，如果出现，需要修复代码相关逻辑
+            err_msg = f"{type(e).__name__}\n{str(e)}"
+
+            _task = None
+            _sender_path = None
+            _receiver_path = None
+            if 'task' in locals():
+                _task = task
+            if 'sender_path' in locals() and 'receiver_path' in locals():
+                _sender_path = sender_path
+                _receiver_path = receiver_path
+            _handle_exception(task_id, err_msg, _task, _sender_path, _receiver_path)
+        finally:
+            try:
+                db.session.remove()
+                if 'running_port' in locals():
+                    release_port(running_port, redis_client)
+
+            except TimeLimitExceeded as e:
+                logger.error(f"[task: {task_id}] Error when finally cleanup: Dramatiq TimeLimitExceeded", exc_info=True)
+            except Exception as e:
+                logger.error(f"[task: {task_id}] Error when finally cleanup: {str(e)}", exc_info=True)
 
 
 def _compile_cc_file(task, course_project_dir, task_parent_dir, sender_path, receiver_path):
@@ -83,7 +183,7 @@ def _compile_cc_file(task, course_project_dir, task_parent_dir, sender_path, rec
                 # 如果编译失败，在父级目录创建一个文件，文件名为compile_failed，后续同cc_file的其他trace任务不用再重复编译
                 with open(compile_failed_file, 'w') as f:
                     pass
-                task.update_task_log(f"Compilation failed, make output:\n\n{_sanitize_sensitive(output)}")
+                task.update_task_log(f"Compilation failed, make output:\n\n{output}")
                 task.update(task_status=TaskStatus.COMPILED_FAILED)
                 return False
 
@@ -111,6 +211,7 @@ def _run_contest(task, course_project_dir, sender_path, receiver_path, result_pa
     buffer_size = task.buffer_size
     delay = task.delay
     trace_conf = config.get_course_trace_config(task.cname, task.trace_name)
+    assert trace_conf is not None, f"Trace configuration for {task.cname} and {task.trace_name} not found"
     uplink_file = os.path.join(_config['trace_path'], trace_conf['uplink_file'])
     downlink_file = os.path.join(_config['trace_path'], trace_conf['downlink_file'])
     _, output = run_cmd(
@@ -143,49 +244,15 @@ def _get_score(task, result_path):
     :return: None or float, 返回评分，如果失败则返回None
     """
     task_id = task.task_id
-    extract_program = "mm-throughput-graph"
-    logger.debug(f"[task: {task_id}] is getting score from {result_path} using {extract_program}")
-    run_cmd(
-        f'{extract_program} 500 {result_path} 2> {task.task_dir}/{task.trace_name}.score > /dev/null',
-        task_id)
+    # extract_program = "mm-throughput-graph"
+    # logger.debug(f"[task: {task_id}] is getting score from {result_path} using {extract_program}")
+    # run_cmd(
+    #     f'{extract_program} 500 {result_path} 2> {task.task_dir}/{task.trace_name}.score > /dev/null',
+    #     task_id)
     total_score = evaluate_score(task, result_path)
     total_score = round(total_score, 4)
     logger.debug(f"[task: {task_id}] Score extracted successfully: {total_score}")
     return total_score
-
-
-def _graph(task, result_path):
-    """
-    画图
-    :return: None
-    """
-    task_id = task.task_id
-
-    throughput_graph_svg = os.path.join(task.task_dir, f"{task.trace_name}.throughput.svg")
-    delay_graph_svg = os.path.join(task.task_dir, f"{task.trace_name}.delay.svg")
-    # delay_graph_png = os.path.join(task.task_dir, f"{task.trace_name}.delay.png")
-    # 另一个画图逻辑
-    # tunnel_graph = TunnelGraph(
-    #     tunnel_log=result_path,
-    #     throughput_graph=task.task_dir + "/" + task.trace_name + ".throughput.png",
-    #     delay_graph=task.task_dir + "/" + task.trace_name + ".delay.png",
-    #     ms_per_bin=500)
-    # tunnel_graph.run()
-    logger.info(f"[task: {task_id}] is generating graphs")
-    run_cmd(f'mm-throughput-graph 500 {result_path} > {throughput_graph_svg}', task_id)
-    run_cmd(f'mm-delay-graph {result_path} > {delay_graph_svg}', task_id)
-    # 由于delay svg图太大，将svg转换为png以压缩
-    # 实测高并发时，转换时长需要几十分钟，暂时删除此逻辑
-    # logger.info(f"[task: {task_id}] Converting delay graph SVG to PNG")
-    # cairosvg.svg2png(url=delay_graph_svg, write_to=delay_graph_png)
-    # os.remove(delay_graph_svg)
-    # logger.info(f"[task: {task_id}] Converted delay graph SVG to PNG, svg removed.")
-    logger.info(f"[task: {task_id}] Graphs generated successfully: {throughput_graph_svg}, {delay_graph_svg}")
-    GraphModel(task_id=task_id, graph_type=GraphType.THROUGHPUT,
-               graph_path=throughput_graph_svg).insert()
-    GraphModel(task_id=task_id, graph_type=GraphType.DELAY,
-               graph_path=delay_graph_svg).insert()
-    logger.info(f"[task: {task_id}] is generating graphs successfully")
 
 
 def _update_rank(task, user):
@@ -276,101 +343,6 @@ def _handle_exception(task_id, err_msg, task=None, sender_path=None, receiver_pa
         _remove_binary_files(task_id, sender_path, receiver_path)
 
 
-# 20分钟超时（毫秒），此时间应大于cmd子进程的超时时间
-@dramatiq.actor(time_limit=1200000, max_retries=0)
-def run_cc_training_task(task_id):
-    app = get_app()
-    with (app.app_context()):
-        try:
-            db.session.expire_all()  # 刷新会话
-            task = TaskModel.query.filter_by(task_id=task_id).first()
-            if not task:
-                logger.error(f"[task: {task_id}] Task not found")
-                return
-
-            logger.info(f"[task: {task_id}] Start task")
-            assert task.task_status == TaskStatus.QUEUED, "Task status must be QUEUED to run"
-            user = UserModel.query.filter_by(user_id=task.user_id).first()
-
-            # 课程的项目目录，公共目录
-            _config = config.get_course_config(task.cname)
-            course_project_dir = os.path.join(_config['path'], 'project', 'datagrump')
-            # 本次任务的父级（对应一次提交）目录
-            task_parent_dir = os.path.dirname(task.task_dir)
-            sender_path = os.path.join(task_parent_dir, 'sender')
-            receiver_path = os.path.join(task_parent_dir, 'receiver')
-
-            # 因为编译需要单独处理任务状态，所以没有直接抛出异常，抛出异常会导致任务状态变为ERROR
-            if not _compile_cc_file(task, course_project_dir, task_parent_dir, sender_path,
-                                    receiver_path):
-                logger.error(f"[task: {task_id}] compile cc file failed, task will not run")
-                return
-
-            # 编译好后再创建task（trace）目录
-            if not os.path.exists(task.task_dir):
-                os.mkdir(task.task_dir)
-                logger.info(f"[task: {task_id}] Created task dir: {task.task_dir}")
-
-            result_path = os.path.join(task.task_dir, task.trace_name + ".log")
-
-            running_port = get_available_port(redis_client)
-            logger.info(f"[task: {task_id}] select port {running_port} for running")
-            _run_contest(task, course_project_dir, sender_path, receiver_path, result_path, running_port)
-
-            total_score = _get_score(task, result_path)
-
-            _graph(task, result_path)
-
-            task.update(task_status=TaskStatus.FINISHED, task_score=total_score)
-            # 更新完状态后再更新榜单，如果榜单更新失败，任务状态会回退至ERROR
-            all_tasks_completed = _update_rank(task, user)
-            if all_tasks_completed:
-                _remove_binary_files(task_id, sender_path, receiver_path)
-            logger.info(f"[task: {task_id}] Task completed successfully, score: {total_score}")
-        except TimeLimitExceeded as e:
-            # 处理 Dramatiq 的超时异常，此异常不在Exception中，需单独处理
-            logger.error(f"[task: {task_id}] Task timed out due to Dramatiq TimeLimit middleware")
-            err_msg = f"{type(e).__name__}\n{str(e)}\nTask timed out after 20 minutes, this problem shouldn't happen, please contact admin."
-
-            _task = None
-            _sender_path = None
-            _receiver_path = None
-            if 'task' in locals():
-                _task = task
-            if 'sender_path' in locals() and 'receiver_path' in locals():
-                _sender_path = sender_path
-                _receiver_path = receiver_path
-            _handle_exception(task_id, err_msg, _task, _sender_path, _receiver_path)
-
-        except Exception as e:
-            # 理论上除了编译失败外，不应出现其他异常，如果出现，需要修复代码相关逻辑
-            err_msg = f"{type(e).__name__}\n{str(e)}"
-
-            _task = None
-            _sender_path = None
-            _receiver_path = None
-            if 'task' in locals():
-                _task = task
-            if 'sender_path' in locals() and 'receiver_path' in locals():
-                _sender_path = sender_path
-                _receiver_path = receiver_path
-            _handle_exception(task_id, err_msg, _task, _sender_path, _receiver_path)
-        finally:
-            try:
-                db.session.remove()
-                if 'running_port' in locals():
-                    release_port(running_port, redis_client)
-                # remove log file if exists
-                if 'result_path' in locals() and os.path.exists(result_path):
-                    os.remove(result_path)
-                    logger.info(f"[task: {task_id}] Removed result file: {result_path}")
-
-            except TimeLimitExceeded as e:
-                logger.error(f"[task: {task_id}] Error when finally cleanup: Dramatiq TimeLimitExceeded", exc_info=True)
-            except Exception as e:
-                logger.error(f"[task: {task_id}] Error when finally cleanup: {str(e)}", exc_info=True)
-
-
 def _force_kill_process_group(process, task_id):
     """
     使用 SIGKILL 强制终止进程组
@@ -387,19 +359,6 @@ def _force_kill_process_group(process, task_id):
         logger.info(f"[task: {task_id}] Process group already terminated")
     except Exception as e:
         logger.error(f"[task: {task_id}] Failed to kill process group: {str(e)}")
-
-
-def _sanitize_sensitive(text):
-    # 路径脱敏（保留文件名）
-    text = re.sub(r'(/[^/\s]+)+/([^/\s]+)', r'[path_hidden]/\2', text)
-    # 需要脱敏参数的命令列表
-    # 日志示例：Died on std::runtime_error: `mm-link Verizon-LTE-140.down Verizon-LTE-140.up --uplink-queue=droptail --uplink-queue-args="packets=250" --once
-    # --uplink-log=Verizon-LTE-140.log -- bash -c sender $MAHIMAHI_BASE 50001 > null': process exited with failure status 1
-    sensitive_cmds = ['mm-link', 'mm-loss']
-    for cmd in sensitive_cmds:
-        # 匹配命令本身及其后所有参数，直到下一个单引号或字符串结尾
-        text = re.sub(rf'({cmd})[^\']*', r'\1 [command_hidden]', text)
-    return text
 
 
 def run_cmd(cmd, task_id, raise_exception=True):
@@ -432,7 +391,6 @@ def run_cmd(cmd, task_id, raise_exception=True):
             logger.info(f"[task: {task_id}] Command output: \nstdout:\n{stdout[:6000]}\nstderr:\n{stderr[:6000]}\n")
             # 脱敏处理输出中的路径和敏感命令参数
             output = f"stdout:\n{stdout}\nstderr:\n{stderr}\n"
-            output = _sanitize_sensitive(output)
 
             if process.returncode != 0:
                 logger.error(
@@ -587,13 +545,11 @@ def evaluate_score(task: TaskModel, log_file: str):
     # 基于RTT膨胀程度
     rtt_inflation = 2.0
     if task.delay > 0:
-        rtt_inflation = queueing_delay / task.delay
-    if rtt_inflation <= 0.01:
-        latency_score = 100
-    elif rtt_inflation <= 20.0:
-        latency_score = 50 + 50 * (20.0 - rtt_inflation) / 19.99
+        rtt_inflation = (queueing_delay + task.delay) / task.delay
+    if rtt_inflation <= 10:
+        latency_score = 30 + 70 * (10 - rtt_inflation) / 10
     else:
-        latency_score = 100 * 10.0 / rtt_inflation
+        latency_score = 100 * 3 / rtt_inflation
 
     # 计算总分
     trace_conf = config.get_course_trace_config(task.cname, task.trace_name)
