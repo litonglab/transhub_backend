@@ -45,7 +45,8 @@ display_config() {
     echo "  APP_ENV  = $APP_ENV"
     echo "  LOG_DIR  = $LOG_DIR"
     echo "  GUNICORN = $GUNICORN_ADDRESS(WORKERS:$GUNICORN_WORKERS, THREADS:$GUNICORN_THREADS)"
-    echo "  DRAMATIQ = (CC_TRAINING: P-$DRAMATIQ_PROCESSES T-$DRAMATIQ_THREADS, GRAPH: P-1 T-$DRAMATIQ_THREADS_GRAPH, SVG2PNG: P-1 T-1)"
+    echo "  DRAMATIQ = (CC_TRAINING: P-$DRAMATIQ_PROCESSES T-$DRAMATIQ_THREADS, GRAPH: P-1 T-$DRAMATIQ_THREADS_GRAPH)"
+    # echo "  DRAMATIQ = (CC_TRAINING: P-$DRAMATIQ_PROCESSES T-$DRAMATIQ_THREADS, GRAPH: P-1 T-$DRAMATIQ_THREADS_GRAPH, SVG2PNG: P-1 T-1)"
 }
 
 check_process_status() {
@@ -68,12 +69,14 @@ check_process_status() {
         local flask_status=$(echo "$status_output" | grep "flask_app" | awk '{print $2}')
         local dramatiq_cc_status=$(echo "$status_output" | grep "dramatiq_worker-cc_training" | awk '{print $2}')
         local dramatiq_graph_status=$(echo "$status_output" | grep "dramatiq_worker-graph" | awk '{print $2}')
-        local dramatiq_svg2png_status=$(echo "$status_output" | grep "dramatiq_worker-svg2png" | awk '{print $2}')
+        # local dramatiq_svg2png_status=$(echo "$status_output" | grep "dramatiq_worker-svg2png" | awk '{print $2}')
         
-        echo "  [$((attempt+1))/$max_attempts] Flask: $flask_status, Dramatiq(cc): $dramatiq_cc_status, Dramatiq(graph): $dramatiq_graph_status, Dramatiq(svg2png): $dramatiq_svg2png_status"
+        echo "  [$((attempt+1))/$max_attempts] Flask: $flask_status, Dramatiq(cc): $dramatiq_cc_status, Dramatiq(graph): $dramatiq_graph_status"
+        # echo "  [$((attempt+1))/$max_attempts] Flask: $flask_status, Dramatiq(cc): $dramatiq_cc_status, Dramatiq(graph): $dramatiq_graph_status, Dramatiq(svg2png): $dramatiq_svg2png_status"
         
         # 如果所有进程都在运行，则成功
-        if [[ "$flask_status" == "RUNNING" && "$dramatiq_cc_status" == "RUNNING" && "$dramatiq_graph_status" == "RUNNING" && "$dramatiq_svg2png_status" == "RUNNING" ]]; then
+        if [[ "$flask_status" == "RUNNING" && "$dramatiq_cc_status" == "RUNNING" && "$dramatiq_graph_status" == "RUNNING" ]]; then
+        # if [[ "$flask_status" == "RUNNING" && "$dramatiq_cc_status" == "RUNNING" && "$dramatiq_graph_status" == "RUNNING" && "$dramatiq_svg2png_status" == "RUNNING" ]]; then
             echo "✅ 所有进程启动成功！"
             echo "📊 当前状态:"
             supervisorctl -c "$CONFIG" status
@@ -81,7 +84,8 @@ check_process_status() {
         fi
         
         # 检查是否有进程启动失败
-        if [[ "$flask_status" == "FATAL" || "$dramatiq_cc_status" == "FATAL" || "$dramatiq_graph_status" == "FATAL" || "$dramatiq_svg2png_status" == "FATAL" ]]; then
+        if [[ "$flask_status" == "FATAL" || "$dramatiq_cc_status" == "FATAL" || "$dramatiq_graph_status" == "FATAL" ]]; then
+        # if [[ "$flask_status" == "FATAL" || "$dramatiq_cc_status" == "FATAL" || "$dramatiq_graph_status" == "FATAL" || "$dramatiq_svg2png_status" == "FATAL" ]]; then
             echo "❌ 发现进程启动失败！"
             echo "📊 详细状态:"
             supervisorctl -c "$CONFIG" status
@@ -90,7 +94,8 @@ check_process_status() {
         fi
         
         # 如果还在启动中，继续等待
-        if [[ "$flask_status" == "STARTING" || "$dramatiq_cc_status" == "STARTING" || "$dramatiq_graph_status" == "STARTING" || "$dramatiq_svg2png_status" == "STARTING" ]]; then
+        if [[ "$flask_status" == "STARTING" || "$dramatiq_cc_status" == "STARTING" || "$dramatiq_graph_status" == "STARTING" ]]; then
+        # if [[ "$flask_status" == "STARTING" || "$dramatiq_cc_status" == "STARTING" || "$dramatiq_graph_status" == "STARTING" || "$dramatiq_svg2png_status" == "STARTING" ]]; then
             sleep $check_interval
             attempt=$((attempt + 1))
             continue
@@ -123,8 +128,8 @@ show_startup_errors() {
     echo "   tail -f $LOG_DIR/dramatiq-cc_training.out.log"
     echo "   tail -f $LOG_DIR/dramatiq-graph.err.log"
     echo "   tail -f $LOG_DIR/dramatiq-graph.out.log"
-    echo "   tail -f $LOG_DIR/dramatiq-svg2png.err.log"
-    echo "   tail -f $LOG_DIR/dramatiq-svg2png.out.log"
+    # echo "   tail -f $LOG_DIR/dramatiq-svg2png.err.log"
+    # echo "   tail -f $LOG_DIR/dramatiq-svg2png.out.log"
     echo ""
     echo "4. 检查端口占用情况:"
     echo "   lsof -i :$(echo $GUNICORN_ADDRESS | cut -d':' -f2)"
@@ -137,7 +142,7 @@ show_startup_errors() {
     echo "   gunicorn run:app -w $GUNICORN_WORKERS --threads $GUNICORN_THREADS -b $GUNICORN_ADDRESS"
     echo "   dramatiq app_backend.jobs.cctraining_job --processes $DRAMATIQ_PROCESSES --threads $DRAMATIQ_THREADS --queues cc_training"
     echo "   dramatiq app_backend.jobs.graph_job --processes 1 --threads $DRAMATIQ_THREADS_GRAPH --queues graph"
-    echo "   dramatiq app_backend.jobs.graph_job --processes 1 --threads 1 --queues svg2png"
+    # echo "   dramatiq app_backend.jobs.graph_job --processes 1 --threads 1 --queues svg2png"
 }
 
 case "$1" in
@@ -182,7 +187,8 @@ case "$1" in
         
         # 先停止 dramatiq worker
         echo "⏳ 正在停止所有 dramatiq worker..."
-        if ! supervisorctl -c "$CONFIG" stop dramatiq_worker-cc_training dramatiq_worker-graph dramatiq_worker-svg2png; then
+        if ! supervisorctl -c "$CONFIG" stop dramatiq_worker-cc_training dramatiq_worker-graph; then
+        # if ! supervisorctl -c "$CONFIG" stop dramatiq_worker-cc_training dramatiq_worker-graph dramatiq_worker-svg2png; then
             echo "❌ 停止 dramatiq worker 失败"
             exit 1
         fi
@@ -272,11 +278,11 @@ case "$1" in
         echo "7) Dramatiq(cc_training)输出日志"
         echo "8) Dramatiq(graph)错误日志"
         echo "9) Dramatiq(graph)输出日志"
-        echo "10) Dramatiq(svg2png)错误日志"
-        echo "11) Dramatiq(svg2png)输出日志"
-        echo "12) 查看所有最新错误日志"
+        # echo "10) Dramatiq(svg2png)错误日志"
+        # echo "11) Dramatiq(svg2png)输出日志"
+        echo "10) 查看所有最新错误日志"
 
-        read -p "请选择 (1-12): " choice
+        read -p "请选择 (1-10): " choice
 
         case $choice in
             1) tail -f "$LOG_DIR/supervisord.log" ;;
@@ -288,9 +294,9 @@ case "$1" in
             7) tail -f "$LOG_DIR/dramatiq-cc_training.out.log" ;;
             8) tail -f "$LOG_DIR/dramatiq-graph.err.log" ;;
             9) tail -f "$LOG_DIR/dramatiq-graph.out.log" ;;
-            10) tail -f "$LOG_DIR/dramatiq-svg2png.err.log" ;;
-            11) tail -f "$LOG_DIR/dramatiq-svg2png.out.log" ;;
-            12) 
+            # 10) tail -f "$LOG_DIR/dramatiq-svg2png.err.log" ;;
+            # 11) tail -f "$LOG_DIR/dramatiq-svg2png.out.log" ;;
+            10) 
                 echo "显示所有错误日志的最后20行:"
                 echo "=== Supervisor主日志 ==="
                 tail -20 "$LOG_DIR/supervisord.log" 2>/dev/null || echo "日志文件不存在"
@@ -303,9 +309,9 @@ case "$1" in
                 echo ""
                 echo "=== Dramatiq(graph)错误日志 ==="
                 tail -20 "$LOG_DIR/dramatiq-graph.err.log" 2>/dev/null || echo "日志文件不存在"
-                echo ""
-                echo "=== Dramatiq(svg2png)错误日志 ==="
-                tail -20 "$LOG_DIR/dramatiq-svg2png.err.log" 2>/dev/null || echo "日志文件不存在"
+                # echo ""
+                # echo "=== Dramatiq(svg2png)错误日志 ==="
+                # tail -20 "$LOG_DIR/dramatiq-svg2png.err.log" 2>/dev/null || echo "日志文件不存在"
                 ;;
             *) echo "❌ 无效选择" ;;
         esac
