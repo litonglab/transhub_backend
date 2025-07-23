@@ -90,6 +90,7 @@ def run_cc_training_task(task_id):
                 logger.info(f"[task: {task_id}] Graph task enqueued successfully with message ID: {message.message_id}")
                 task.update_task_log(
                     "流量图绘制任务已生成，请稍后再查询性能图，高峰时期可能需要等待较长时间，等待期间，可从任务日志中查询最新进度。")
+            task.update()  # 写入日志
             logger.info(f"[task: {task_id}] Task completed successfully")
         except TimeLimitExceeded as e:
             # 处理 Dramatiq 的超时异常，此异常不在Exception中，需单独处理
