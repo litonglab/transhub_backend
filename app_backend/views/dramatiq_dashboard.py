@@ -6,6 +6,7 @@ from flask import Blueprint, request, Response
 from flask_jwt_extended import jwt_required, current_user
 
 from app_backend import get_default_config
+from app_backend.jobs.dramatiq_queue import DramatiqQueue
 from app_backend.security.admin_decorators import admin_required
 from app_backend.vo.http_response import HttpResponse
 
@@ -27,7 +28,9 @@ def _get_dashboard_middleware():
         try:
             # 创建 redis broker
             _redis_broker = RedisBroker(url=config.Cache.FLASK_REDIS_URL)
-            _redis_broker.declare_queue("default")
+            # 添加任务队列
+            for queue_name in DramatiqQueue:
+                _redis_broker.declare_queue(queue_name.value)
 
             # 创建 dramatiq dashboard 中间件
             _dashboard_middleware = dramatiq_dashboard.make_wsgi_middleware(

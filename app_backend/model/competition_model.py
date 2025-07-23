@@ -26,3 +26,15 @@ class CompetitionModel(db.Model):
                          exc_info=True)
             db.session.rollback()
             raise
+        
+    @classmethod
+    def count(cls, **kwargs):
+        """
+        高效地统计符合条件的报名数量。
+        :param kwargs: 过滤条件，例如 cname='some_course'
+        :return: 数量 (int)
+        """
+        query = db.session.query(func.count(cls.id))
+        if kwargs:
+            query = query.filter_by(**kwargs)
+        return query.scalar()

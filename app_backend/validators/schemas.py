@@ -1,6 +1,7 @@
 """
 Pydantic schemas for API request validation.
 """
+import json
 import logging
 import re
 from typing import Optional
@@ -201,6 +202,16 @@ class HistoryDetailSchema(BaseModel):
         return CommonValidators.validate_not_empty(v, "upload_id")
 
 
+class TaskLogSchema(BaseModel):
+    """获取任务日志参数校验"""
+    task_id: str = Field(..., description="任务ID")
+
+
+class EnqueueTaskSchema(BaseModel):
+    """重新入队任务参数校验"""
+    task_id: str = Field(..., description="任务ID")
+
+
 class SummaryRanksSchema(BaseModel):
     """获取排行榜请求参数验证"""
     cname: str = Field(..., description="比赛名称")
@@ -232,10 +243,22 @@ class GraphSchema(BaseModel):
 class FileUploadSchema(BaseModel):
     """文件上传请求参数验证"""
     file: Optional[object] = Field(None, description="上传的文件")
+    trace_list: str = Field(..., description="Trace列表(JSON字符串)")
 
     class Config:
         # 允许任意类型，因为我们需要处理FileStorage对象
         arbitrary_types_allowed = True
+
+    @field_validator('trace_list')
+    def validate_trace_list(cls, v):
+        try:
+            trace_list = json.loads(v) if isinstance(v, str) else v
+            if not isinstance(trace_list, list):
+                raise ValueError('trace_list必须为JSON数组字符串')
+            return trace_list
+        except json.JSONDecodeError:
+            logger.warning(f"Invalid trace_list JSON: {v}")
+            raise ValueError('trace_list必须是有效的JSON数组字符串')
 
     @field_validator('file')
     def validate_file(cls, file):
@@ -421,7 +444,8 @@ class AdminTaskListSchema(BaseModel):
     status: Optional[TaskStatus] = Field(default=None, description="状态筛选")
     cname: Optional[str] = Field(default=None, description="比赛名称筛选")
     trace_file: Optional[str] = Field(default=None, description="trace文件名筛选")
-    sort_by: Optional[str] = Field(default="created_time", description="排序字段: created_time, score")
+    sort_by: Optional[str] = Field(default="created_time",
+                                   description="排序字段: created_time, score, updated_at, delay_score, loss_score, throughput_score")
     sort_order: Optional[str] = Field(default="desc", description="排序方向: asc, desc")
     task_id: Optional[str] = Field(default=None, description="任务ID筛选")
     delay: Optional[str] = Field(default=None, description="时延区间筛选，如10-50，单位ms")
@@ -433,8 +457,8 @@ class AdminTaskListSchema(BaseModel):
 
     @field_validator('sort_by')
     def validate_sort_by(cls, v):
-        if v and v not in ['created_time', 'score']:
-            raise ValueError('排序字段必须是: created_time, score')
+        if v and v not in ['created_time', 'score', 'updated_at', 'delay_score', 'loss_score', 'throughput_score']:
+            raise ValueError('排序字段必须是: created_time, score, updated_at, delay_score, loss_score, throughput_score')
         return v
 
     @field_validator('sort_order')

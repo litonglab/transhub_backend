@@ -60,7 +60,7 @@ fi
 # Construct the command
 # 说明：mm-link的参数是 mm-link uplink_file downlink_file，这里因为sender发送是上行
 # 所以两个参数的顺序颠倒，符合Trace的设计，Trace的下行实际对应sender的发送方向（上行）
-command="mm-delay $delay mm-loss uplink $loss_rate mm-link $downlink_file $uplink_file --uplink-queue=droptail --uplink-queue-args=\\\"packets=$buffer_size\\\" --once --uplink-log=$result_path -- bash -c '$sender_path \$MAHIMAHI_BASE $running_port 2>&1'"
+command="mm-delay $delay mm-loss uplink $loss_rate mm-link $downlink_file $uplink_file --uplink-queue=droptail --uplink-queue-args=\\\"bytes=$buffer_size\\\" --once --uplink-log=$result_path -- bash -c '$sender_path \$MAHIMAHI_BASE $running_port 2>&1'"
 
 # Run the command in background
 echo [$(date "+%Y-%m-%d %H:%M:%S")] "Starting sender..."

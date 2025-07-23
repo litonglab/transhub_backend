@@ -150,7 +150,7 @@ class BaseConfig:
         """获取指定课程某个trace的配置"""
         course = self.get_course_config(cname)
         trace_dict = course["trace"]
-        return trace_dict[trace_name]
+        return trace_dict.get(trace_name, None)
 
     @admin_bypass
     def is_trace_available(self, cname: str, trace_name: str) -> bool:
@@ -165,4 +165,7 @@ class BaseConfig:
             return True
 
         trace_conf = self.get_course_trace_config(cname, trace_name)
+        # 如果trace配置不存在，默认可查询记录
+        if trace_conf is None:
+            return True
         return not trace_conf['block']

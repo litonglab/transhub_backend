@@ -19,7 +19,9 @@ def return_history_records():
     cname = get_jwt().get('cname')
     logger.debug(f"History records request for user {user.username} in competition {cname}")
 
-    history_records = TaskModel.query.filter_by(user_id=user.user_id, cname=cname).all()
+    query = TaskModel.query.filter_by(user_id=user.user_id, cname=cname)
+    logger.debug(f"History records query: {query}")
+    history_records = query.all()
     records = to_history_dict(history_records)
     logger.info(f"Found {len(records)} history records for user {user.username}")
     return HttpResponse.ok(history=records)

@@ -46,9 +46,13 @@ def get_graph():
     # 性能图所有用户都可查询，无需验证user_id
     logger.debug(f"Graph request for task {task_id}, type {graph_type} by user {user.username}")
     graph = GraphModel.query.filter_by(task_id=task_id, graph_type=graph_type).first()
-    if not graph or not os.path.exists(graph.graph_path):
+    if not graph:
+        logger.warning(f"Graph not found for task_id {task_id}, type {graph_type}")
+        return HttpResponse.not_found("图片不存在，可能仍在后台生成中，请稍后再试")
+
+    if not os.path.exists(graph.graph_path):
         logger.warning(
-            f"Graph not found or file missing: task_id={task_id}, type={graph_type}, path={graph.graph_path if graph else 'None'}")
+            f"file missing: task_id={task_id}, type={graph_type}, path={graph.graph_path}")
         return HttpResponse.not_found("图片不存在或已被删除")
     logger.info(f"Sending graph file: {graph.graph_path}")
     return HttpResponse.send_attachment_file(graph.graph_path)

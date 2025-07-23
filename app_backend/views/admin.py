@@ -7,6 +7,7 @@ from datetime import date, datetime, timedelta
 import psutil
 from flask import Blueprint, Response, stream_with_context, current_app
 from flask_jwt_extended import jwt_required, current_user, get_jwt
+from sqlalchemy import func
 
 from app_backend import cache
 from app_backend import db
@@ -102,18 +103,17 @@ def get_users():
             # 非活跃用户：已删除或已锁定
             query = query.filter((UserModel.is_deleted == True) | (UserModel.is_locked == True))
 
-    sort_by = getattr(data, 'sort_by', None)
-    sort_order = getattr(data, 'sort_order', 'desc')
-    if sort_by == 'updated_at':
-        if sort_order == 'asc':
-            query = query.order_by(UserModel.updated_at.asc())
-        else:
-            query = query.order_by(UserModel.updated_at.desc())
-    else:  # 默认按创建时间排序
-        if sort_order == 'asc':
-            query = query.order_by(UserModel.created_at.asc())
-        else:
-            query = query.order_by(UserModel.created_at.desc())
+    # 排序
+    sort_map = {
+        'updated_at': UserModel.updated_at,
+        'created_at': UserModel.created_at
+    }
+    sort_field = sort_map.get(data.sort_by, UserModel.created_at)
+
+    if data.sort_order == 'asc':
+        query = query.order_by(sort_field.asc())
+    else:
+        query = query.order_by(sort_field.desc())
 
     # 分页计算
     total = query.count()
@@ -289,7 +289,7 @@ def restore_user():
 
 
 # 通用的管理员用户操作检查
-def _admin_user_common_checks(user_id, forbid_admin_msg=None, forbid_self_msg=None, forbid_role_msg=None):
+def _admin_user_common_checks(user_id, forbid_admin_msg=None, forbid_self_msg=None):
     """
     通用的管理员用户操作检查，返回 (target_user, error_response)
     """
@@ -387,21 +387,28 @@ def get_tasks():
         return HttpResponse.fail(f"无效的筛选条件格式：{str(e)}")
 
     # 排序
-    if data.sort_by == 'score':
-        # 按分数排序
-        if data.sort_order == 'asc':
-            query = query.order_by(TaskModel.task_score.asc())
-        else:
-            query = query.order_by(TaskModel.task_score.desc())
-    else:
-        # 默认按创建时间排序
-        if data.sort_order == 'asc':
-            query = query.order_by(TaskModel.created_time.asc())
-        else:
-            query = query.order_by(TaskModel.created_time.desc())
+    sort_map = {
+        'score': TaskModel.task_score,
+        'delay_score': TaskModel.delay_score,
+        'loss_score': TaskModel.loss_score,
+        'throughput_score': TaskModel.throughput_score,
+        'updated_at': TaskModel.updated_at,
+        'created_time': TaskModel.created_time
+    }
+    sort_field = sort_map.get(data.sort_by, TaskModel.created_time)
 
-    # 分页
-    total = query.count()
+    if data.sort_order == 'asc':
+        query = query.order_by(sort_field.asc())
+    else:
+        query = query.order_by(sort_field.desc())
+
+    # 高效分页计数
+    # 1. 移除排序和选择的实体，只保留过滤条件和JOIN
+    count_query = query.order_by(None).with_entities(func.count(TaskModel.task_id))
+    # 2. 执行高效的 count
+    total = count_query.scalar()
+
+    # 获取分页结果
     results = query.offset((data.page - 1) * data.size).limit(data.size).all()
 
     # 构建任务列表
@@ -431,29 +438,29 @@ def get_tasks():
 def _get_general_stats():
     """获取通用统计信息的缓存函数（不依赖课程）"""
     user_stats = {
-        'total_users': UserModel.query.filter_by(is_deleted=False).count(),
-        'deleted_users': UserModel.query.filter_by(is_deleted=True).count()
+        'total_users': UserModel.count(is_deleted=False),
+        'deleted_users': UserModel.count(is_deleted=True)
     }
 
     # 任务状态统计（所有课程）
     all_course_task_stats = {
-        'total': TaskModel.query.count(),
+        'total': TaskModel.count(),
         # 计算今日提交数（通过统计今天创建的不同upload_id数量）
-        'today_submit': TaskModel.query.filter(
+        'today_submit': db.session.query(db.func.count(db.func.distinct(TaskModel.upload_id))).filter(
             db.func.date(TaskModel.created_time) == date.today()
-        ).with_entities(TaskModel.upload_id).distinct().count()
+        ).scalar()
     }
     for status in TaskStatus:
-        count = TaskModel.query.filter(TaskModel.task_status == status).count()
+        count = TaskModel.count(task_status=status)
         all_course_task_stats[status.value] = count
 
     # 添加过去10天每天的提交数量（所有课程）
     daily_submissions = []
     for i in range(10):
         target_date = date.today() - timedelta(days=i)
-        daily_count = TaskModel.query.filter(
+        daily_count = db.session.query(db.func.count(db.func.distinct(TaskModel.upload_id))).filter(
             db.func.date(TaskModel.created_time) == target_date
-        ).with_entities(TaskModel.upload_id).distinct().count()
+        ).scalar()
         daily_submissions.append({
             'date': target_date.strftime('%Y-%m-%d'),
             'count': daily_count
@@ -463,13 +470,13 @@ def _get_general_stats():
     # 比赛参与统计
     competition_stats = {}
     for course_name in config.Course.CNAME_LIST:
-        participant_count = CompetitionModel.query.filter(CompetitionModel.cname == course_name).count()
+        participant_count = CompetitionModel.count(cname=course_name)
         competition_stats[course_name] = participant_count
 
     # 角色统计（仅统计未删除用户）
     role_stats = {}
     for role in UserRole:
-        count = UserModel.query.filter(UserModel.role == role, UserModel.is_deleted == False).count()
+        count = UserModel.count(role=role, is_deleted=False)
         role_stats[role.value] = count
 
     logger.info("General stats fetched successfully")
@@ -490,29 +497,27 @@ def _get_course_specific_stats(cname):
 
     # 统计当前课程各状态的任务数量
     for status in TaskStatus:
-        count = TaskModel.query.filter(
-            TaskModel.cname == cname,
-            TaskModel.task_status == status
-        ).count()
+        count = TaskModel.count(cname=cname, task_status=status)
         current_course_task_stats[status.value] = count
 
     # 统计当前课程的总任务数
-    current_course_task_stats['total'] = TaskModel.query.filter(TaskModel.cname == cname).count()
+    current_course_task_stats['total'] = TaskModel.count(cname=cname)
 
     # 统计当前课程今日提交数
-    current_course_task_stats['today_submit'] = TaskModel.query.filter(
+    current_course_task_stats['today_submit'] = db.session.query(
+        db.func.count(db.func.distinct(TaskModel.upload_id))).filter(
         TaskModel.cname == cname,
         db.func.date(TaskModel.created_time) == date.today()
-    ).with_entities(TaskModel.upload_id).distinct().count()
+    ).scalar()
 
     # 添加过去10天每天的提交数量（当前课程）
     current_course_daily_submissions = []
     for i in range(10):
         target_date = date.today() - timedelta(days=i)
-        daily_count = TaskModel.query.filter(
+        daily_count = db.session.query(db.func.count(db.func.distinct(TaskModel.upload_id))).filter(
             TaskModel.cname == cname,
             db.func.date(TaskModel.created_time) == target_date
-        ).with_entities(TaskModel.upload_id).distinct().count()
+        ).scalar()
         current_course_daily_submissions.append({
             'date': target_date.strftime('%Y-%m-%d'),
             'count': daily_count
@@ -566,7 +571,7 @@ def get_system_info():
                     'start_time': start_time.strftime('%Y-%m-%d %H:%M:%S'),
                     'uptime_seconds': int(uptime.total_seconds()),
                     'uptime_formatted': str(uptime).split('.')[0],  # 去掉微秒
-                    'cmdline': ' '.join(proc.info['cmdline'][:3])  # 只显示前3个命令参数
+                    'cmdline': ' '.join(proc.info['cmdline'])
                 })
         except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
             logger.error(

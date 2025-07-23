@@ -7,7 +7,7 @@ from enum import Enum
 from sqlalchemy import func, text
 from sqlalchemy.dialects.mysql import VARCHAR
 
-from app_backend import db, get_default_config
+from app_backend import db, get_default_config, cache
 from app_backend.model.competition_model import CompetitionModel
 
 logger = logging.getLogger(__name__)
@@ -39,6 +39,27 @@ class UserModel(db.Model):
     created_at = db.Column(db.DateTime, server_default=func.now(), nullable=False)
     updated_at = db.Column(db.DateTime, server_default=func.now(),
                            onupdate=func.now(), nullable=False)
+
+    @staticmethod
+    @cache.memoize(timeout=30 * 60)  # 缓存半小时
+    def find_by_id_for_auth(user_id):
+        """
+        根据ID查找用户用于认证，此方法会被缓存。
+        此函数主要用于认证流程中快速获取用户信息，如果是获取用户信息或其他操作，请勿使用此方法。
+        """
+        return UserModel.query.get(user_id)
+
+    @classmethod
+    def count(cls, **kwargs):
+        """
+        高效地统计符合条件的用户数量。
+        :param kwargs: 过滤条件，例如 is_deleted=False
+        :return: 用户数量 (int)
+        """
+        query = db.session.query(func.count(cls.user_id))
+        if kwargs:
+            query = query.filter_by(**kwargs)
+        return query.scalar()
 
     def set_password(self, raw_password):
         self.password = hashlib.sha256(raw_password.encode('utf-8')).hexdigest()

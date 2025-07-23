@@ -1,4 +1,5 @@
 import logging
+import re
 import uuid
 from datetime import datetime
 from enum import Enum
@@ -7,6 +8,7 @@ from flask_jwt_extended import current_user
 from sqlalchemy import func, text
 from sqlalchemy.dialects.mysql import MEDIUMTEXT
 from sqlalchemy.dialects.mysql import VARCHAR
+from sqlalchemy.orm import deferred
 
 from app_backend import db, get_default_config
 from app_backend.security.bypass_decorators import admin_bypass
@@ -34,11 +36,11 @@ class TaskStatus(Enum):
         priority_map = {
             TaskStatus.COMPILED_FAILED: 0,
             TaskStatus.ERROR: 1,
-            TaskStatus.NOT_QUEUED: 2,
-            TaskStatus.COMPILED: 3,
-            TaskStatus.COMPILING: 4,
-            TaskStatus.RUNNING: 5,
-            TaskStatus.QUEUED: 6,
+            TaskStatus.COMPILED: 2,
+            TaskStatus.COMPILING: 3,
+            TaskStatus.RUNNING: 4,
+            TaskStatus.QUEUED: 5,
+            TaskStatus.NOT_QUEUED: 6,
             TaskStatus.FINISHED: 7
         }
         return priority_map[self]
@@ -54,7 +56,7 @@ class TaskStatus(Enum):
             # cls.RETRYING: [cls.RUNNING, cls.ERROR],
             cls.FINISHED: [cls.ERROR],
             cls.ERROR: [],
-            cls.NOT_QUEUED: [],
+            cls.NOT_QUEUED: [cls.QUEUED],
             cls.COMPILED_FAILED: [cls.ERROR],
         }
 
@@ -68,6 +70,19 @@ class TaskStatus(Enum):
 # Define the maximum length, also used in the validator schema
 TASK_MODEL_ALGORITHM_MAX_LEN = 50
 TASK_MODEL_ERROR_LOG_MAX_LEN = 16777215  # 16MB, MySQL MEDIUMTEXT max length
+
+
+def _sanitize_sensitive(_text):
+    # 路径脱敏（保留文件名）
+    _text = re.sub(r'(/[^/\s]+)+/([^/\s]+)', r'[path_hidden]/\2', _text)
+    # 需要脱敏参数的命令列表
+    # 日志示例：Died on std::runtime_error: `mm-link Verizon-LTE-140.down Verizon-LTE-140.up --uplink-queue=droptail --uplink-queue-args="packets=250" --once
+    # --uplink-log=Verizon-LTE-140.log -- bash -c sender $MAHIMAHI_BASE 50001 > null': process exited with failure status 1
+    sensitive_cmds = ['mm-link', 'mm-loss']
+    for cmd in sensitive_cmds:
+        # 匹配命令本身及其后所有参数，直到下一个单引号或字符串结尾
+        _text = re.sub(rf'({cmd})[^\']*', r'\1 [command_hidden]', _text)
+    return _text
 
 
 class TaskModel(db.Model):
@@ -89,7 +104,18 @@ class TaskModel(db.Model):
     competition_id = db.Column(db.Integer, db.ForeignKey('competition.id'), nullable=False)
     task_dir = db.Column(VARCHAR(256, charset='utf8mb4'), nullable=False)  # 任务的文件夹, 用于存放用户上传的文件
     algorithm = db.Column(VARCHAR(TASK_MODEL_ALGORITHM_MAX_LEN, charset='utf8mb4'), nullable=False)  # 算法名称
-    error_log = db.Column(MEDIUMTEXT(charset='utf8mb4'), nullable=False)  # 错误日志，显示编译或运行日志
+    # ⚠️⚠️⚠️❗️❗️❗️注意此处可能导致性能问题
+    # error_log 最大16MB，使用deferred延迟加载
+    # 请注意涉及task查询时的性能问题，例如以下代码使用count()会导致error_log被加载
+    # count = TaskModel.query.filter(
+    #     TaskModel.cname == cname,
+    #     TaskModel.task_status == status
+    # ).count() 如需计数，请使用TaskModel.count()方法
+    # 以下代码不会导致error_log被加载，除非显式调用error_log属性
+    # TaskModel.query.filter_by(user_id=user.user_id, cname=cname)
+    # 如果不确定，请将日志级别设置为debug（debug下默认打印query语句）或
+    # 通过日志手动打印query语句检查是否不必要地加载了error_log
+    error_log = deferred(db.Column(MEDIUMTEXT(charset='utf8mb4'), nullable=False))  # 错误日志，默认不加载
     created_at = db.Column(db.DateTime, server_default=func.now(), nullable=False)
     updated_at = db.Column(db.DateTime, server_default=func.now(),
                            onupdate=func.now(), nullable=False)
@@ -108,11 +134,24 @@ class TaskModel(db.Model):
             db.session.rollback()
             raise
 
+    @classmethod
+    def count(cls, **kwargs):
+        """
+        高效地统计符合条件的任务数量，避免加载整个对象。
+        :param kwargs: 过滤条件，例如 cname='some_course', task_status=TaskStatus.RUNNING
+        :return: 任务数量 (int)
+        """
+        query = db.session.query(func.count(cls.task_id))
+        if kwargs:
+            query = query.filter_by(**kwargs)
+        return query.scalar()
+
     def update_task_log(self, log_content):
         """
             更新任务日志，更新task对象的日志，到下一次调用TaskModel update时才写入数据库
             :param log_content: 日志内容
             """
+        log_content = _sanitize_sensitive(log_content)
         self.error_log += f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {log_content}\n"
         # 按 utf-8 编码后的字节长度判断
         max_bytes = TASK_MODEL_ERROR_LOG_MAX_LEN
@@ -167,6 +206,8 @@ class TaskModel(db.Model):
 
     def to_detail_dict(self):
         trace_available = config.is_trace_available(self.cname, self.trace_name)
+        trace_conf = config.get_course_trace_config(self.cname, self.trace_name)
+        block_conf = trace_conf.get('block', False) if trace_conf else False
         res = {
             # 'user_id': self.user_id,
             'task_id': self.task_id,
@@ -174,7 +215,7 @@ class TaskModel(db.Model):
             'loss_rate': self.loss_rate if trace_available else "*",
             'buffer_size': self.buffer_size if trace_available else "*",
             'delay': self.delay if trace_available else "*",
-            'trace_name': self.trace_name,
+            'trace_name': f"{self.trace_name} *" if block_conf else self.trace_name,
             'task_status': self.task_status.value,
             'created_time': self.created_time,
             'task_score': self.task_score,
@@ -185,7 +226,7 @@ class TaskModel(db.Model):
             'algorithm': self.algorithm,
             'updated_at': self.updated_at,
             'created_at': self.created_at,
-            'log': self.error_log if self.log_permission() else None,
+            'log': self.log_permission(),  # 返回用户是否具有权限，用于前端显示日志按钮
         }
         return res
 
@@ -213,18 +254,15 @@ def to_history_dict(tasks: list):
             # 如果新状态优先级更高，则更新状态
             if task_status.priority < current_status.priority:
                 upload_id_dict[task.upload_id]['status'] = task_status.value
-                # 如果是error或not_queued或compiled_failed状态，score设为0
-                if task_status in [TaskStatus.ERROR, TaskStatus.NOT_QUEUED, TaskStatus.COMPILED_FAILED]:
+                # 如果是error或compiled_failed状态，score设为0
+                if task_status in [TaskStatus.ERROR, TaskStatus.COMPILED_FAILED]:
                     upload_id_dict[task.upload_id]['score'] = 0
                     upload_id_dict[task.upload_id]['updated_at'] = task.updated_at
                 # 如果是finished状态，累加score
                 elif task_status == TaskStatus.FINISHED:
                     upload_id_dict[task.upload_id]['score'] += task.task_score
                     upload_id_dict[task.upload_id]['updated_at'] = task.updated_at
-            # 如果当前状态优先级更高，保持当前状态
-            elif task_status.priority > current_status.priority:
-                continue
-            # 如果优先级相同，且是finished状态，累加score
+            # 如果是finished状态，累加score
             elif task_status == TaskStatus.FINISHED:
                 upload_id_dict[task.upload_id]['score'] += task.task_score
                 upload_id_dict[task.upload_id]['updated_at'] = task.updated_at

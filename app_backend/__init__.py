@@ -102,6 +102,10 @@ def _configure_cors(app):
 
 def _configure_database(app):
     """Configure database connection."""
+    if config.Logging.LOG_LEVEL.lower() == 'debug':
+        logger.info(
+            "❗️❗️❗️❗️❗️Debug mode enabled, logging SQL queries. For production, consider disabling this for performance.")
+        app.config['SQLALCHEMY_ECHO'] = True
     db.init_app(app)
 
 

@@ -73,7 +73,7 @@ def init_auth(app):
                 raise NoAuthorizationError
 
             # 从数据库查询用户
-            user = UserModel.query.get(user_id)
+            user = UserModel.find_by_id_for_auth(user_id)
             if not user:
                 logger.warning(f"User not found in database for ID: {user_id}")
                 raise NoAuthorizationError

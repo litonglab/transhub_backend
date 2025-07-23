@@ -20,7 +20,7 @@ def get_available_port(redis_client):
     max_port = 65535
     while port <= max_port:
         lock_name = f"port_lock_{port}"
-        logger.info(f"Attempting to acquire Redis lock for port {port}")
+        logger.debug(f"Attempting to acquire Redis lock for port {port}")
         # 设置过期时间为600秒，单个task的运行时间一般不会超过600秒，如果超过，则应调大此值
         result = redis_client.set(lock_name, "locked", nx=True, ex=600)
 
@@ -37,7 +37,7 @@ def get_available_port(redis_client):
                     logger.warning(f"Port {port} maybe in use, trying next port, error msg: {str(e)}")
                     port += 1
         else:
-            logger.warning(f"Failed to acquire Redis lock for port {port}, trying next port")
+            logger.debug(f"Failed to acquire Redis lock for port {port}, trying next port")
             port += 1
     logger.error("No available ports found in range 50000-65535")
     raise Exception("No available port")

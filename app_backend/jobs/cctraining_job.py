@@ -5,8 +5,6 @@ import signal
 import subprocess
 
 import dramatiq
-from app_backend.jobs.dramatiq_queue import DramatiqQueue
-from app_backend.jobs.graph_job import run_graph_task
 from dramatiq.brokers.redis import RedisBroker
 from dramatiq.middleware.time_limit import TimeLimitExceeded
 from redis.lock import Lock
@@ -14,6 +12,8 @@ from redis.lock import Lock
 from app_backend import db, redis_client, get_default_config
 from app_backend import get_app
 from app_backend.analysis.score_evaluate import evaluate_score
+from app_backend.jobs.dramatiq_queue import DramatiqQueue
+from app_backend.jobs.graph_job import run_graph_task
 from app_backend.model.rank_model import RankModel
 from app_backend.model.task_model import TaskModel, TaskStatus
 from app_backend.model.user_model import UserModel
