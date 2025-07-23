@@ -3,7 +3,9 @@
 import itertools
 import math
 import sys
+
 import matplotlib
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
@@ -17,7 +19,7 @@ def flip(items, ncol):
     return list(itertools.chain(*[items[i::ncol] for i in range(ncol)]))
 
 
-class TunnelGraph(object):
+class TunnelParse(object):
     def __init__(self, tunnel_log, throughput_graph=None, delay_graph=None,
                  ms_per_bin=500):
         self.total_duration = None
@@ -503,7 +505,30 @@ class TunnelGraph(object):
 
         return ret
 
-    def run(self):
+    def parse(self):
+        self.parse_tunnel_log()
+
+        tunnel_results = {'throughput': self.total_avg_egress, 'delay': self.total_percentile_delay,
+                          'loss': self.total_loss_rate, 'duration': self.total_duration, 'capacity': self.avg_capacity,
+                          'stats': self.statistics_string()}
+
+        flow_data = {'all': {}}
+        flow_data['all']['tput'] = self.total_avg_egress
+        flow_data['all']['delay'] = self.total_percentile_delay
+        flow_data['all']['loss'] = self.total_loss_rate
+
+        for flow_id in self.flows:
+            if flow_id != 0:
+                flow_data[flow_id] = {}
+                flow_data[flow_id]['tput'] = self.avg_egress[flow_id]
+                flow_data[flow_id]['delay'] = self.percentile_delay[flow_id]
+                flow_data[flow_id]['loss'] = self.loss_rate[flow_id]
+
+        tunnel_results['flow_data'] = flow_data
+
+        return tunnel_results
+
+    def graph(self):
         self.parse_tunnel_log()
 
         if self.throughput_graph:
@@ -514,15 +539,11 @@ class TunnelGraph(object):
 
         plt.close('all')
 
-        tunnel_results = {}
-        tunnel_results['throughput'] = self.total_avg_egress
-        tunnel_results['delay'] = self.total_percentile_delay
-        tunnel_results['loss'] = self.total_loss_rate
-        tunnel_results['duration'] = self.total_duration
-        tunnel_results['stats'] = self.statistics_string()
+        tunnel_results = {'throughput': self.total_avg_egress, 'delay': self.total_percentile_delay,
+                          'loss': self.total_loss_rate, 'duration': self.total_duration,
+                          'stats': self.statistics_string()}
 
-        flow_data = {}
-        flow_data['all'] = {}
+        flow_data = {'all': {}}
         flow_data['all']['tput'] = self.total_avg_egress
         flow_data['all']['delay'] = self.total_percentile_delay
         flow_data['all']['loss'] = self.total_loss_rate
