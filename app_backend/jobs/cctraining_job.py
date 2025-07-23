@@ -85,11 +85,11 @@ def run_cc_training_task(task_id):
             message = run_graph_task.send(task_id, result_path)
             if not message:
                 logger.error(f"[task: {task_id}] Failed to enqueue graph task")
-                task.update_task_log("流量图绘制任务无法生成，如有需要请联系管理员。")
+                task.update_task_log("性能图绘制任务无法生成，如有需要请联系管理员。")
             else:
                 logger.info(f"[task: {task_id}] Graph task enqueued successfully with message ID: {message.message_id}")
                 task.update_task_log(
-                    "流量图绘制任务已生成，请稍后再查询性能图，高峰时期可能需要等待较长时间，等待期间，可从任务日志中查询最新进度。")
+                    "性能图绘制任务已生成，请稍后再查询，高峰时期可能需要等待较长时间，等待期间，可从任务日志中查询最新进度。")
             task.update()  # 写入日志
             logger.info(f"[task: {task_id}] Task completed successfully")
         except TimeLimitExceeded as e:
