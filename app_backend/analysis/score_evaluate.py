@@ -61,7 +61,7 @@ def evaluate_score(task: TaskModel, log_file):
         f"[task: {task.task_id}] Calculated score: {score} (throughput_score: {throughput_score}, delay_score: {latency_score}, loss_score: {loss_score})" +
         f"by efficiency: {efficiency}(throughput({throughput})/capacity({capacity})), "
         f"rtt_inflation: {rtt_inflation}(real_rtt({real_rtt})/rtt_conf({rtt_conf})), "
-        f"loss_rate: {loss_rate}(loss_conf({task.loss_rate}))")
+        f"loss_rate: {loss_rate}(tunnel_loss({tunnel_results['loss']})-loss_conf({task.loss_rate}))")
     # 更新任务的分数
     task.update(task_score=score, loss_score=loss_score, delay_score=latency_score, throughput_score=throughput_score)
 
