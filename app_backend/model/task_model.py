@@ -160,7 +160,7 @@ class TaskModel(db.Model):
             logger.warning(
                 f"[task: {self.task_id}] task log length {len(error_log_bytes)} bytes exceeds maximum length of {max_bytes} bytes, truncating.")
             truncated = error_log_bytes[:max_bytes - 1000].decode('utf-8', errors='ignore')
-            self.error_log = truncated + '...\nlog is too long and has been truncated.'
+            self.error_log = truncated + '...\nlog is too long and has been truncated.\n'
         logger.info(f"[task: {self.task_id}] Task log updated successfully")
 
     def update(self, **kwargs):

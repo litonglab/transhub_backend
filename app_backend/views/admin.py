@@ -523,7 +523,7 @@ def _get_course_specific_stats(cname):
             'count': daily_count
         })
     current_course_task_stats['daily_submissions'] = current_course_daily_submissions
-    logger.info(f"Course-specific stats for {cname} fetched successfully")
+    logger.debug(f"Course-specific stats for {cname} fetched successfully")
     return {
         'current_course_task_stats': current_course_task_stats
     }
@@ -577,7 +577,7 @@ def get_system_info():
             logger.error(
                 f"Error accessing process {proc.info['pid']} ({proc.info['name']}): {e}", exc_info=True)
             continue
-    logger.info(f"Found {len(related_processes)} related processes")
+    logger.debug(f"Found {len(related_processes)} related processes")
     return HttpResponse.ok(
         data={
             'system': {
