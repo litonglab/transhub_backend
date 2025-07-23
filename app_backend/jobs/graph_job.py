@@ -9,7 +9,7 @@ from app_backend import setup_logger, get_app
 from app_backend.analysis.tunnel_parse import TunnelParse
 from app_backend.jobs.dramatiq_queue import DramatiqQueue
 from app_backend.model.graph_model import GraphModel, GraphType
-from app_backend.model.task_model import TaskModel, TaskStatus, TASK_MODEL_ALGORITHM_MAX_LEN
+from app_backend.model.task_model import TaskModel, TaskStatus
 from app_backend.model.user_model import *
 
 setup_logger()
@@ -194,7 +194,4 @@ def _handle_exception(task_id, err_msg, task=None):
     logger.error(f"[task: {task_id}] Graph task error: {task_error_log_content}", exc_info=True)
     if task:
         task.update_task_log(task_error_log_content)
-        algorithm = f"{task.algorithm} (Graph Error)"
-        if len(algorithm) > TASK_MODEL_ALGORITHM_MAX_LEN:
-            algorithm = algorithm[:TASK_MODEL_ALGORITHM_MAX_LEN]
-        task.update(algorithm=algorithm)
+        task.update()
