@@ -48,7 +48,8 @@ def evaluate_score(task: TaskModel, log_file):
     if task.delay > 0:
         rtt_inflation = real_rtt / rtt_conf
     if rtt_inflation <= 10:
-        latency_score = 30 + 70 * (10 - rtt_inflation) / 10
+        # rtt_inflation at least 1, use (11 - rtt_inflation)
+        latency_score = 30 + 70 * (11 - rtt_inflation) / 10
     else:
         latency_score = 100 * 3 / rtt_inflation
 
