@@ -351,7 +351,7 @@ def _force_kill_process_group(process, task_id):
 
 def run_cmd(cmd, task_id, raise_exception=True):
     logger.info(f"[task: {task_id}] Running command: {cmd}")
-    timeout = 600  # 设置超时时间为10分钟（600秒）
+    timeout = 300  # 设置超时时间为5分钟（300秒）
     shell = True
     commands_str = ""
 
