@@ -96,29 +96,21 @@ def run_cc_training_task(task_id):
             logger.error(f"[task: {task_id}] Task timed out due to Dramatiq TimeLimit middleware")
             err_msg = f"{type(e).__name__}\n{str(e)}\nTask timed out after 20 minutes, this problem shouldn't happen, please contact admin."
 
-            _task = None
-            _sender_path = None
-            _receiver_path = None
-            if 'task' in locals():
-                _task = task
-            if 'sender_path' in locals() and 'receiver_path' in locals():
-                _sender_path = sender_path
-                _receiver_path = receiver_path
-            _handle_exception(task_id, err_msg, _task, _sender_path, _receiver_path)
+            _task = locals().get('task', None)
+            _sender_path = locals().get('sender_path', None)
+            _receiver_path = locals().get('receiver_path', None)
+            _result_path = locals().get('result_path', None)
+            _handle_exception(task_id, err_msg, _task, _sender_path, _receiver_path, _result_path)
 
         except Exception as e:
             # 理论上除了编译失败外，不应出现其他异常，如果出现，需要修复代码相关逻辑
             err_msg = f"{type(e).__name__}\n{str(e)}"
 
-            _task = None
-            _sender_path = None
-            _receiver_path = None
-            if 'task' in locals():
-                _task = task
-            if 'sender_path' in locals() and 'receiver_path' in locals():
-                _sender_path = sender_path
-                _receiver_path = receiver_path
-            _handle_exception(task_id, err_msg, _task, _sender_path, _receiver_path)
+            _task = locals().get('task', None)
+            _sender_path = locals().get('sender_path', None)
+            _receiver_path = locals().get('receiver_path', None)
+            _result_path = locals().get('result_path', None)
+            _handle_exception(task_id, err_msg, _task, _sender_path, _receiver_path, _result_path)
         finally:
             try:
                 db.session.remove()
@@ -312,7 +304,7 @@ def _update_rank(task, user):
         return True
 
 
-def _handle_exception(task_id, err_msg, task=None, sender_path=None, receiver_path=None):
+def _handle_exception(task_id, err_msg, task=None, sender_path=None, receiver_path=None, result_path=None):
     """
     处理异常，更新任务状态和错误日志
     :param task: TaskModel对象
@@ -328,6 +320,10 @@ def _handle_exception(task_id, err_msg, task=None, sender_path=None, receiver_pa
     # 删除编译生成的二进制文件，注意不在finally中删除，因为正常结束的任务不一定需要删除，其他任务可能会复用
     if sender_path and receiver_path:
         _remove_binary_files(task_id, sender_path, receiver_path)
+    # 删除结果日志文件
+    if result_path and os.path.exists(result_path):
+        os.remove(result_path)
+        logger.info(f"[task: {task_id}] Removed result file: {result_path} due to exception")
 
 
 def _force_kill_process_group(process, task_id):

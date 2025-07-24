@@ -108,6 +108,7 @@ def _graph(task, result_path):
     from app_backend.jobs.cctraining_job import run_cmd
     task_id = task.task_id
     task.update_task_log("开始生成性能图，请稍候...")
+    assert result_path is not None, "Result path must be provided for graph generation"
 
     throughput_graph_svg = os.path.join(task.task_dir, f"{task.trace_name}.throughput.svg")
     # delay_graph_svg = os.path.join(task.task_dir, f"{task.trace_name}.delay.svg")
