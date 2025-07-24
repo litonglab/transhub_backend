@@ -479,7 +479,7 @@ def _get_general_stats():
         count = UserModel.count(role=role, is_deleted=False)
         role_stats[role.value] = count
 
-    logger.info("General stats fetched successfully")
+    logger.debug("General stats fetched successfully")
 
     return {
         'user_stats': user_stats,
@@ -541,7 +541,7 @@ def get_stats():
     course_stats = _get_course_specific_stats(cname)
     # 合并两个统计结果
     stats_data = {**general_stats, **course_stats}
-    logger.info(f"Admin {current_user.username} fetched system stats for course {cname}")
+    logger.debug(f"Admin {current_user.username} fetched system stats for course {cname}")
     return HttpResponse.ok(data=stats_data)
 
 
