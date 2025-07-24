@@ -63,7 +63,7 @@ Transhub 运行环境，以下是安装指南（在第二节对 Transhub 代码�
 | 链路带宽     | `capacity`             | 平均链路带宽                 |
 | 带宽利用率   | `capacity_utilization` | 吞吐量与链路带宽的比值       |
 | 排队延迟     | `queueing_delay`       | 所有数据包排队延迟的95分位点 |
-| 基础单向延迟 | `on-way_delay`         | 没有排队延迟时的链路单向延迟 |
+| 基础单向延迟 | `one-way_delay`        | 没有排队延迟时的链路单向延迟 |
 | 延迟膨胀率   | `delay_inflation`      | 排队延迟与基础单向延迟的比值 |
 | 总丢包数     | `total_lost`           | 丢失的数据包总量             |
 | 总发包数     | `total_sent`           | 发送的数据包总量             |
