@@ -129,7 +129,7 @@ Linux 版本要求：Ubuntu GNU/Linux 14.04 以上
 
 **拥塞控制算法的运行示意图如下：**
 
-![transhub_framework](./images/transhub_framework)
+![transhub_framework](./images/transhub_framework.svg)
 
 本教程提供两种安装方式，两种方式**任选其一**：
 
