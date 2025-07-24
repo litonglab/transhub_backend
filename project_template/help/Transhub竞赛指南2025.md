@@ -57,17 +57,17 @@ Transhub 运行环境，以下是安装指南（在第二节对 Transhub 代码�
 
 ## 指标定义与数据来源
 
-| 指标名称   | 变量名                    | 描述              |
-|--------|------------------------|-----------------|
-| 吞吐量    | `throughput`           | 平均吞吐量           |
-| 链路带宽   | `capacity`             | 平均链路带宽          | 
-| 带宽利用率  | `capacity_utilization` | 吞吐量与链路带宽的比值     |
-| 排队延迟   | `queueing_delay`       | 所有数据包排队延迟的95分位点 |
-| 基础往返延迟 | `round-trip_time`      | 没有排队延迟时的链路往返延迟  |
-| 延迟膨胀率  | `delay_inflation`      | 排队延迟与基础往返延迟的比值  |
-| 总丢包数   | `total_lost`           | 丢失的数据包总量        |
-| 总发包数   | `total_sent`           | 发送的数据包总量        |
-| 丢包率    | `loss_rate`            | 总丢包数与总发包数的比值    |
+| 指标名称     | 变量名                 | 描述                         |
+| ------------ | ---------------------- | ---------------------------- |
+| 吞吐量       | `throughput`           | 平均吞吐量                   |
+| 链路带宽     | `capacity`             | 平均链路带宽                 |
+| 带宽利用率   | `capacity_utilization` | 吞吐量与链路带宽的比值       |
+| 排队延迟     | `queueing_delay`       | 所有数据包排队延迟的95分位点 |
+| 基础单向延迟 | `on-way_delay`         | 没有排队延迟时的链路单向延迟 |
+| 延迟膨胀率   | `delay_inflation`      | 排队延迟与基础单向延迟的比值 |
+| 总丢包数     | `total_lost`           | 丢失的数据包总量             |
+| 总发包数     | `total_sent`           | 发送的数据包总量             |
+| 丢包率       | `loss_rate`            | 总丢包数与总发包数的比值     |
 
 ## 评分维度与权重
 
@@ -93,15 +93,14 @@ $$
 ### 2. 延迟控制得分 (35%)
 
 $$
-\text{delay\_inflation} = \frac{\text{queueing\_delay}}{\text{round-trip\_time}}
+\text{delay\_inflation} = \frac{\text{queueing\_delay}}{\text{one-way\_delay}}
 $$
 
 $$
 \text{delay\_score} =
 \begin{cases}
-100 & \text{if } \text{delay\_inflation} \leq 0.01 \\\\
-50 + 50 \times \dfrac{20 - \text{delay\_inflation}}{19.99} & \text{if } 0.01 < \text{delay\_inflation} \leq 20 \\\\
-\dfrac{1000}{\text{delay\_inflation}} & \text{if } \text{delay\_inflation} > 20
+20 + 80 \times \dfrac{10 - \text{delay\_inflation}}{10} & \text{if } \text{delay\_inflation} \leq 10 \\\\
+\dfrac{200}{\text{delay\_inflation}} & \text{if } \text{delay\_inflation} > 10
 \end{cases}
 $$
 
