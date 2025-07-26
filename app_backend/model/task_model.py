@@ -56,7 +56,7 @@ class TaskStatus(Enum):
             # cls.RETRYING: [cls.RUNNING, cls.ERROR],
             cls.FINISHED: [cls.ERROR],
             cls.ERROR: [],
-            cls.NOT_QUEUED: [cls.QUEUED],
+            cls.NOT_QUEUED: [cls.QUEUED, cls.ERROR],
             cls.COMPILED_FAILED: [cls.ERROR],
         }
 
@@ -159,8 +159,8 @@ class TaskModel(db.Model):
         if len(error_log_bytes) > max_bytes:
             logger.warning(
                 f"[task: {self.task_id}] task log length {len(error_log_bytes)} bytes exceeds maximum length of {max_bytes} bytes, truncating.")
-            truncated = error_log_bytes[:max_bytes - 100].decode('utf-8', errors='ignore')
-            self.error_log = truncated + '...\nlog is too long and has been truncated.'
+            truncated = error_log_bytes[:max_bytes - 1000].decode('utf-8', errors='ignore')
+            self.error_log = truncated + '...\nlog is too long and has been truncated.\n'
         logger.info(f"[task: {self.task_id}] Task log updated successfully")
 
     def update(self, **kwargs):
@@ -254,17 +254,8 @@ def to_history_dict(tasks: list):
             # 如果新状态优先级更高，则更新状态
             if task_status.priority < current_status.priority:
                 upload_id_dict[task.upload_id]['status'] = task_status.value
-                # 如果是error或compiled_failed状态，score设为0
-                if task_status in [TaskStatus.ERROR, TaskStatus.COMPILED_FAILED]:
-                    upload_id_dict[task.upload_id]['score'] = 0
-                    upload_id_dict[task.upload_id]['updated_at'] = task.updated_at
-                # 如果是finished状态，累加score
-                elif task_status == TaskStatus.FINISHED:
-                    upload_id_dict[task.upload_id]['score'] += task.task_score
-                    upload_id_dict[task.upload_id]['updated_at'] = task.updated_at
-            # 如果是finished状态，累加score
-            elif task_status == TaskStatus.FINISHED:
-                upload_id_dict[task.upload_id]['score'] += task.task_score
+            if task.updated_at > upload_id_dict[task.upload_id]['updated_at']:
                 upload_id_dict[task.upload_id]['updated_at'] = task.updated_at
+            upload_id_dict[task.upload_id]['score'] += task.task_score
 
     return list(upload_id_dict.values())

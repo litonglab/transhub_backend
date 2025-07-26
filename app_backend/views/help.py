@@ -63,7 +63,7 @@ def get_tutorial_image(image_file_name):
         return HttpResponse.not_found("配置不存在")
 
     # 获取文件后缀并校验
-    allowed_image_exts = ('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp')
+    allowed_image_exts = ('.png', '.jpg', '.jpeg', '.svg', '.bmp', '.webp')
     _, ext = os.path.splitext(image_file_name)
     if ext.lower() not in allowed_image_exts:
         logger.error(f"Illegal image file extension: {image_file_name}")

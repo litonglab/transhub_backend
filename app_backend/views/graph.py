@@ -54,5 +54,5 @@ def get_graph():
         logger.warning(
             f"file missing: task_id={task_id}, type={graph_type}, path={graph.graph_path}")
         return HttpResponse.not_found("图片不存在或已被删除")
-    logger.info(f"Sending graph file: {graph.graph_path}")
+    logger.debug(f"Sending graph file: {graph.graph_path}")
     return HttpResponse.send_attachment_file(graph.graph_path)

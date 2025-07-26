@@ -6,9 +6,10 @@ from dramatiq.brokers.redis import RedisBroker
 from dramatiq.middleware import TimeLimitExceeded
 
 from app_backend import setup_logger, get_app
+from app_backend.analysis.tunnel_parse import TunnelParse
 from app_backend.jobs.dramatiq_queue import DramatiqQueue
 from app_backend.model.graph_model import GraphModel, GraphType
-from app_backend.model.task_model import TaskModel, TaskStatus, TASK_MODEL_ALGORITHM_MAX_LEN
+from app_backend.model.task_model import TaskModel, TaskStatus
 from app_backend.model.user_model import *
 
 setup_logger()
@@ -107,31 +108,32 @@ def _graph(task, result_path):
     from app_backend.jobs.cctraining_job import run_cmd
     task_id = task.task_id
     task.update_task_log("开始生成性能图，请稍候...")
+    assert result_path is not None, "Result path must be provided for graph generation"
 
     throughput_graph_svg = os.path.join(task.task_dir, f"{task.trace_name}.throughput.svg")
-    delay_graph_svg = os.path.join(task.task_dir, f"{task.trace_name}.delay.svg")
-    # delay_graph_png = os.path.join(task.task_dir, f"{task.trace_name}.delay.png")
-    # 另一个画图逻辑
-    # tunnel_graph = TunnelGraph(
-    #     tunnel_log=result_path,
-    #     throughput_graph=task.task_dir + "/" + task.trace_name + ".throughput.png",
-    #     delay_graph=task.task_dir + "/" + task.trace_name + ".delay.png",
-    #     ms_per_bin=500)
-    # tunnel_graph.run()
+    # delay_graph_svg = os.path.join(task.task_dir, f"{task.trace_name}.delay.svg")
+    delay_graph_png = os.path.join(task.task_dir, f"{task.trace_name}.delay.png")
+
     logger.info(f"[task: {task_id}] is generating graphs")
     graph_start_time = time.time()
-
     run_cmd(f'mm-throughput-graph 500 {result_path} > {throughput_graph_svg}', task_id)
-    run_cmd(f'mm-delay-graph {result_path} > {delay_graph_svg}', task_id)
+    # run_cmd(f'mm-delay-graph {result_path} > {delay_graph_svg}', task_id)
+    # 另一个画图逻辑
+    tunnel_graph = TunnelParse(
+        tunnel_log=result_path,
+        throughput_graph=None,
+        delay_graph=delay_graph_png,
+        ms_per_bin=500)
+    tunnel_graph.graph()
     graph_end_time = time.time()
     logger.info(
         f"[task: {task_id}] Graphs generated successfully after {graph_end_time - graph_start_time:.2f} seconds: "
-        f"{throughput_graph_svg}, {delay_graph_svg}")
+        f"{throughput_graph_svg}, {delay_graph_png}")
     throughput_graph = GraphModel(task_id=task_id, graph_type=GraphType.THROUGHPUT,
                                   graph_path=throughput_graph_svg)
     throughput_graph.insert()
     delay_graph = GraphModel(task_id=task_id, graph_type=GraphType.DELAY,
-                             graph_path=delay_graph_svg)
+                             graph_path=delay_graph_png)
     delay_graph.insert()
     os.remove(result_path)
     logger.info(f"[task: {task_id}] Removed result file: {result_path}")
@@ -141,11 +143,11 @@ def _graph(task, result_path):
     logger.info(
         f"[task: {task_id}] Graph task completed successfully, inserted graphs into database")
     # 将delay图转换为PNG任务发送到队列
-    message = run_svg2png_task.send(task_id=task_id, graph_id=delay_graph.graph_id)
-    if not message:
-        logger.error(f"[task: {task_id}] Failed to send svg2png task to queue")
-    else:
-        logger.info(f"[task: {task_id}] Sent svg2png task to queue successfully, message ID: {message.message_id}")
+    # message = run_svg2png_task.send(task_id=task_id, graph_id=delay_graph.graph_id)
+    # if not message:
+    #     logger.error(f"[task: {task_id}] Failed to send svg2png task to queue")
+    # else:
+    #     logger.info(f"[task: {task_id}] Sent svg2png task to queue successfully, message ID: {message.message_id}")
 
 
 def _svg2png(task, graph_id):
@@ -193,7 +195,4 @@ def _handle_exception(task_id, err_msg, task=None):
     logger.error(f"[task: {task_id}] Graph task error: {task_error_log_content}", exc_info=True)
     if task:
         task.update_task_log(task_error_log_content)
-        algorithm = f"{task.algorithm} (Graph Error)"
-        if len(algorithm) > TASK_MODEL_ALGORITHM_MAX_LEN:
-            algorithm = algorithm[:TASK_MODEL_ALGORITHM_MAX_LEN]
-        task.update(algorithm=algorithm)
+        task.update()

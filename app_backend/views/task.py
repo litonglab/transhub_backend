@@ -1,5 +1,4 @@
 import logging
-import os
 import uuid
 from datetime import datetime
 
@@ -96,9 +95,9 @@ def upload_project_file():
         loss = trace_conf['loss_rate']
         buffer_size = trace_conf['buffer_size']
         delay = trace_conf['delay']
-        task = TaskModel(user_id=user.user_id, task_status=TaskStatus.NOT_QUEUED,
-                         task_score=0, created_time=now_str, cname=cname, competition_id=competition_id,
-                         task_dir=os.path.join(upload_dir, f"{trace_name}_{loss}_{buffer_size}_{delay}"),
+        # 同一次上传对应的任务文件放在同一目录
+        task = TaskModel(user_id=user.user_id, task_status=TaskStatus.NOT_QUEUED, created_time=now_str,
+                         cname=cname, competition_id=competition_id, task_dir=upload_dir,
                          algorithm=algorithm, trace_name=trace_name, upload_id=upload_id,
                          loss_rate=loss, buffer_size=buffer_size, delay=delay, error_log='')
 

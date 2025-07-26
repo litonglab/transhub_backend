@@ -479,7 +479,7 @@ def _get_general_stats():
         count = UserModel.count(role=role, is_deleted=False)
         role_stats[role.value] = count
 
-    logger.info("General stats fetched successfully")
+    logger.debug("General stats fetched successfully")
 
     return {
         'user_stats': user_stats,
@@ -523,7 +523,7 @@ def _get_course_specific_stats(cname):
             'count': daily_count
         })
     current_course_task_stats['daily_submissions'] = current_course_daily_submissions
-    logger.info(f"Course-specific stats for {cname} fetched successfully")
+    logger.debug(f"Course-specific stats for {cname} fetched successfully")
     return {
         'current_course_task_stats': current_course_task_stats
     }
@@ -541,7 +541,7 @@ def get_stats():
     course_stats = _get_course_specific_stats(cname)
     # 合并两个统计结果
     stats_data = {**general_stats, **course_stats}
-    logger.info(f"Admin {current_user.username} fetched system stats for course {cname}")
+    logger.debug(f"Admin {current_user.username} fetched system stats for course {cname}")
     return HttpResponse.ok(data=stats_data)
 
 
@@ -577,7 +577,7 @@ def get_system_info():
             logger.error(
                 f"Error accessing process {proc.info['pid']} ({proc.info['name']}): {e}", exc_info=True)
             continue
-    logger.info(f"Found {len(related_processes)} related processes")
+    logger.debug(f"Found {len(related_processes)} related processes")
     return HttpResponse.ok(
         data={
             'system': {

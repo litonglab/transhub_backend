@@ -23,7 +23,7 @@ def return_history_records():
     logger.debug(f"History records query: {query}")
     history_records = query.all()
     records = to_history_dict(history_records)
-    logger.info(f"Found {len(records)} history records for user {user.username}")
+    logger.debug(f"Found {len(records)} history records for user {user.username}")
     return HttpResponse.ok(history=records)
 
 
@@ -46,5 +46,5 @@ def get_record_detail():
         logger.warning(f"No records found for upload {upload_id} in competition {cname}")
         return HttpResponse.not_found("记录不存在或无权限")
     records = [r.to_detail_dict() for r in record]  # 返回的是所有记录，需要前端聚合
-    logger.info(f"Found {len(records)} detailed records for upload {upload_id}")
+    logger.debug(f"Found {len(records)} detailed records for upload {upload_id}")
     return HttpResponse.ok(tasks=records)

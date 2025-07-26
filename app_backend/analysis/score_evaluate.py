@@ -14,10 +14,9 @@ def evaluate_score(task: TaskModel, log_file):
     tunnel_results = tunnel_graph.parse()
     throughput = tunnel_results['throughput']
     queueing_delay = tunnel_results['delay']
-    loss_rate = tunnel_results['loss'] - task.loss_rate
-    if loss_rate < 0:
-        logger.error(f"[task: {task.task_id}] Loss rate({loss_rate}) is negative, is this expected?")
     capacity = tunnel_results['capacity']
+    tunnel_loss = tunnel_results['loss']
+
     # 1. 吞吐量效率评分 (0-100分)
     # 基于理论吞吐量的利用率
     efficiency = 0
@@ -31,6 +30,9 @@ def evaluate_score(task: TaskModel, log_file):
         throughput_score = 0
 
     # 2. 丢包控制评分 (0-100分)
+    loss_rate = tunnel_loss - task.loss_rate
+    if loss_rate < 0:
+        logger.error(f"[task: {task.task_id}] Loss rate({loss_rate}) is negative, is this expected?")
     if loss_rate <= 0.000001:
         loss_score = 100
     elif loss_rate >= 1:
@@ -39,14 +41,17 @@ def evaluate_score(task: TaskModel, log_file):
         loss_score = 100 * (1.0 - loss_rate)
 
     # 3. 延迟控制评分 (0-100分)
-    # 基于RTT膨胀程度
-    rtt_inflation = 2.0
+    # 基于delay膨胀程度
+    # queueing_delay是排队时延，delay是单向传播延迟
+    # 此处计算实际上只考虑的sender出方向
+    delay_inflation = 2.0
     if task.delay > 0:
-        rtt_inflation = (queueing_delay + task.delay) / task.delay
-    if rtt_inflation <= 10:
-        latency_score = 30 + 70 * (10 - rtt_inflation) / 10
+        delay_inflation = queueing_delay / task.delay
+    if delay_inflation <= 10:
+        # delay_inflation at least 0
+        latency_score = 20 + 80 * (10 - delay_inflation) / 10
     else:
-        latency_score = 100 * 3 / rtt_inflation
+        latency_score = 100 * 2 / delay_inflation
 
     # 计算总分
     trace_conf = config.get_course_trace_config(task.cname, task.trace_name)
@@ -54,8 +59,10 @@ def evaluate_score(task: TaskModel, log_file):
         'loss'] * loss_score + trace_conf['score_weights']['delay'] * latency_score
     logger.info(
         f"[task: {task.task_id}] Calculated score: {score} (throughput_score: {throughput_score}, delay_score: {latency_score}, loss_score: {loss_score})" +
-        f"(throughput: {throughput}, delay: {queueing_delay}(set: {task.delay}), loss_rate: {loss_rate}(set: {task.loss_rate})")
+        f"by efficiency: {efficiency}(throughput({throughput})/capacity({capacity})), "
+        f"delay_inflation: {delay_inflation}(queueing_delay({queueing_delay})/delay_conf({task.delay})), "
+        f"loss_rate: {loss_rate}(tunnel_loss({tunnel_loss})-loss_conf({task.loss_rate}))")
     # 更新任务的分数
-    task.update(score=score, loss_score=loss_score, delay_score=latency_score, throughput_score=throughput_score)
+    task.update(task_score=score, loss_score=loss_score, delay_score=latency_score, throughput_score=throughput_score)
 
     return score

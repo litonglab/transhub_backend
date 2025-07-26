@@ -3,6 +3,7 @@ import os
 import shutil
 import signal
 import subprocess
+from time import sleep
 
 import dramatiq
 from dramatiq.brokers.redis import RedisBroker
@@ -34,6 +35,8 @@ def run_cc_training_task(task_id):
     with (app.app_context()):
         try:
             db.session.expire_all()  # 刷新会话
+            # sleep to ensure task status is updated to QUEUED before running
+            sleep(2)
             task = TaskModel.query.filter_by(task_id=task_id).first()
             if not task:
                 logger.error(f"[task: {task_id}] Task not found")
@@ -46,13 +49,12 @@ def run_cc_training_task(task_id):
             # 课程的项目目录，公共目录
             _config = config.get_course_config(task.cname)
             course_project_dir = os.path.join(_config['path'], 'project', 'datagrump')
-            # 本次任务的父级（对应一次提交）目录
-            task_parent_dir = os.path.dirname(task.task_dir)
-            sender_path = os.path.join(task_parent_dir, 'sender')
-            receiver_path = os.path.join(task_parent_dir, 'receiver')
+            # 本次任务的提交目录
+            sender_path = os.path.join(task.task_dir, 'sender')
+            receiver_path = os.path.join(task.task_dir, 'receiver')
 
             # 因为编译需要单独处理任务状态，所以没有直接抛出异常，抛出异常会导致任务状态变为ERROR
-            if not _compile_cc_file(task, course_project_dir, task_parent_dir, sender_path,
+            if not _compile_cc_file(task, course_project_dir, task.task_dir, sender_path,
                                     receiver_path):
                 logger.error(f"[task: {task_id}] compile cc file failed, task will not run")
                 return
@@ -71,50 +73,44 @@ def run_cc_training_task(task_id):
             evaluate_score(task, result_path)
 
             # _graph(task, result_path)
-            # 将图生成任务放入队列，异步执行
-            message = run_graph_task.send(task_id, result_path)
-            if not message:
-                logger.error(f"[task: {task_id}] Failed to enqueue graph task")
-                task.update_task_log("流量图绘制任务无法生成，如有需要请联系管理员。")
-            else:
-                logger.info(f"[task: {task_id}] Graph task enqueued successfully with message ID: {message.message_id}")
-                task.update_task_log(
-                    "流量图绘制任务已生成，请稍后再查询性能图，高峰时期可能需要等待较长时间，等待期间，可从任务日志中查询最新进度。")
 
             task.update(task_status=TaskStatus.FINISHED)
             # 更新完状态后再更新榜单，如果榜单更新失败，任务状态会回退至ERROR
             all_tasks_completed = _update_rank(task, user)
             if all_tasks_completed:
                 _remove_binary_files(task_id, sender_path, receiver_path)
+
+            # 将图生成任务放入队列，异步执行
+            message = run_graph_task.send(task_id, result_path)
+            if not message:
+                logger.error(f"[task: {task_id}] Failed to enqueue graph task")
+                task.update_task_log("性能图绘制任务无法生成，如有需要请联系管理员。")
+            else:
+                logger.info(f"[task: {task_id}] Graph task enqueued successfully with message ID: {message.message_id}")
+                task.update_task_log(
+                    "性能图绘制任务已生成，请稍后再查询，高峰时期可能需要等待较长时间，等待期间，可从任务日志中查询最新进度。")
+            task.update()  # 写入日志
             logger.info(f"[task: {task_id}] Task completed successfully")
         except TimeLimitExceeded as e:
             # 处理 Dramatiq 的超时异常，此异常不在Exception中，需单独处理
             logger.error(f"[task: {task_id}] Task timed out due to Dramatiq TimeLimit middleware")
             err_msg = f"{type(e).__name__}\n{str(e)}\nTask timed out after 20 minutes, this problem shouldn't happen, please contact admin."
 
-            _task = None
-            _sender_path = None
-            _receiver_path = None
-            if 'task' in locals():
-                _task = task
-            if 'sender_path' in locals() and 'receiver_path' in locals():
-                _sender_path = sender_path
-                _receiver_path = receiver_path
-            _handle_exception(task_id, err_msg, _task, _sender_path, _receiver_path)
+            _task = locals().get('task', None)
+            _sender_path = locals().get('sender_path', None)
+            _receiver_path = locals().get('receiver_path', None)
+            _result_path = locals().get('result_path', None)
+            _handle_exception(task_id, err_msg, _task, _sender_path, _receiver_path, _result_path)
 
         except Exception as e:
             # 理论上除了编译失败外，不应出现其他异常，如果出现，需要修复代码相关逻辑
             err_msg = f"{type(e).__name__}\n{str(e)}"
 
-            _task = None
-            _sender_path = None
-            _receiver_path = None
-            if 'task' in locals():
-                _task = task
-            if 'sender_path' in locals() and 'receiver_path' in locals():
-                _sender_path = sender_path
-                _receiver_path = receiver_path
-            _handle_exception(task_id, err_msg, _task, _sender_path, _receiver_path)
+            _task = locals().get('task', None)
+            _sender_path = locals().get('sender_path', None)
+            _receiver_path = locals().get('receiver_path', None)
+            _result_path = locals().get('result_path', None)
+            _handle_exception(task_id, err_msg, _task, _sender_path, _receiver_path, _result_path)
         finally:
             try:
                 db.session.remove()
@@ -127,7 +123,7 @@ def run_cc_training_task(task_id):
                 logger.error(f"[task: {task_id}] Error when finally cleanup: {str(e)}", exc_info=True)
 
 
-def _compile_cc_file(task, course_project_dir, task_parent_dir, sender_path, receiver_path):
+def _compile_cc_file(task, course_project_dir, task_dir, sender_path, receiver_path):
     """
     编译CC文件，在公共目录下编译，编译前对目录上锁。
     由于运行的主要瓶颈在运行评测上，编译一般只需要几秒，所以将编译放在公共目录下，简化代码逻辑，节省空间。
@@ -141,20 +137,20 @@ def _compile_cc_file(task, course_project_dir, task_parent_dir, sender_path, rec
     # 用户目录锁，防止同一用户同一代码下的多个任务同时读写sender和receiver
     # 添加用户锁是因为task会在不同用户之间交替执行，避免同一用户已有编译好的文件时，仍然需要等待公共目录的锁
     # 因为目录路径太长，upload_id等效，upload_id和目录一一对应
-    lock_name = f'task_parent_dir_lock_{task.upload_id}'
+    lock_name = f'task_dir_lock_{task.upload_id}'
     user_lock = Lock(redis_client, lock_name, timeout=300)
     logger.info(
-        f'[task: {task_id}] try to find exist sender and receiver in {task_parent_dir}, attempting to acquire user lock: {lock_name}')
+        f'[task: {task_id}] try to find exist sender and receiver in {task_dir}, attempting to acquire user lock: {lock_name}')
     with user_lock:
         # 判断是否已经存在编译好的文件
         if os.path.exists(sender_path) and os.path.exists(receiver_path):
             logger.info(
-                f"[task: {task_id}] Sender and receiver already exist in {task_parent_dir}, skipping compilation")
+                f"[task: {task_id}] Sender and receiver already exist in {task_dir}, skipping compilation")
             task.update(task_status=TaskStatus.COMPILED)
             return True
 
-        # 判断父级目录是否存在compile_failed，如果有，说明之前编译失败过，直接返回False
-        compile_failed_file = os.path.join(task_parent_dir, 'compile_failed')
+        # 判断任务目录是否存在compile_failed，如果有，说明之前编译失败过，直接返回False
+        compile_failed_file = os.path.join(task_dir, 'compile_failed')
         if os.path.exists(compile_failed_file):
             logger.warning(f"[task: {task_id}] Compilation failed previously, skipping compilation")
             task.update_task_log(
@@ -170,25 +166,25 @@ def _compile_cc_file(task, course_project_dir, task_parent_dir, sender_path, rec
             task.update(task_status=TaskStatus.COMPILING)
             logger.info(f"[task: {task_id}] Acquired lock: {lock_name}, starting compilation")
             assert os.path.exists(course_project_dir) and os.path.exists(
-                task_parent_dir), "Course project directory or task parent directory does not exist"
+                task_dir), "Course project directory or task parent directory does not exist"
 
             # 将用户上传的文件拷贝到course_project_dir中，并直接覆盖已有的 controller.cc
             logger.info(
-                f"[task: {task_id}] Copying files from {task_parent_dir} to {course_project_dir}, starting make with {task.algorithm}.cc")
-            shutil.copy(f'{task_parent_dir}/{task.algorithm}.cc', f'{course_project_dir}/controller.cc')
+                f"[task: {task_id}] Copying files from {task_dir} to {course_project_dir}, starting make with {task.algorithm}.cc")
+            shutil.copy(f'{task_dir}/{task.algorithm}.cc', f'{course_project_dir}/controller.cc')
             # 执行make命令
             result, output = run_cmd(f'cd {course_project_dir} && make clean && make', task_id, raise_exception=False)
             if not result:
                 logger.error(f"[task: {task_id}] make failed in {course_project_dir}, compilation failed")
-                # 如果编译失败，在父级目录创建一个文件，文件名为compile_failed，后续同cc_file的其他trace任务不用再重复编译
+                # 如果编译失败，在任务目录创建一个文件，文件名为compile_failed，后续同cc_file的其他trace任务不用再重复编译
                 with open(compile_failed_file, 'w') as f:
                     pass
                 task.update_task_log(f"Compilation failed, make output:\n\n{output}")
                 task.update(task_status=TaskStatus.COMPILED_FAILED)
                 return False
 
-            # 编译成功后，将sender和receiver移动到父级目录
-            logger.info(f"[task: {task_id}] Moving sender and receiver to parent directory {task_parent_dir}")
+            # 编译成功后，将sender和receiver移动到任务目录
+            logger.info(f"[task: {task_id}] Moving sender and receiver to parent directory {task_dir}")
             shutil.move(os.path.join(course_project_dir, 'sender'), sender_path)
             shutil.move(os.path.join(course_project_dir, 'receiver'), receiver_path)
             task.update(task_status=TaskStatus.COMPILED)
@@ -308,7 +304,7 @@ def _update_rank(task, user):
         return True
 
 
-def _handle_exception(task_id, err_msg, task=None, sender_path=None, receiver_path=None):
+def _handle_exception(task_id, err_msg, task=None, sender_path=None, receiver_path=None, result_path=None):
     """
     处理异常，更新任务状态和错误日志
     :param task: TaskModel对象
@@ -324,6 +320,10 @@ def _handle_exception(task_id, err_msg, task=None, sender_path=None, receiver_pa
     # 删除编译生成的二进制文件，注意不在finally中删除，因为正常结束的任务不一定需要删除，其他任务可能会复用
     if sender_path and receiver_path:
         _remove_binary_files(task_id, sender_path, receiver_path)
+    # 删除结果日志文件
+    if result_path and os.path.exists(result_path):
+        os.remove(result_path)
+        logger.info(f"[task: {task_id}] Removed result file: {result_path} due to exception")
 
 
 def _force_kill_process_group(process, task_id):
@@ -346,7 +346,7 @@ def _force_kill_process_group(process, task_id):
 
 def run_cmd(cmd, task_id, raise_exception=True):
     logger.info(f"[task: {task_id}] Running command: {cmd}")
-    timeout = 600  # 设置超时时间为10分钟（600秒）
+    timeout = 300  # 设置超时时间为5分钟（300秒）
     shell = True
     commands_str = ""
 

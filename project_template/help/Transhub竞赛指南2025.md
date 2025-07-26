@@ -57,32 +57,31 @@ Transhub 运行环境，以下是安装指南（在第二节对 Transhub 代码�
 
 ## 指标定义与数据来源
 
-| 指标名称          | 变量名                    | 描述                             |
-|-------------------|---------------------------|---------------------------------|
-| 吞吐量 | `throughput`             | 平均吞吐量                 |
-| 链路带宽 | `capacity`               | 平均链路带宽                     | 
-| 带宽利用率 | `capacity_utilization` | 吞吐量与链路带宽的比值 |
-| 排队延迟 | `queueing_delay`         | 所有数据包排队延迟的95分位点             |
-| 基础往返延迟| `round-trip_time`             | 没有排队延迟时的链路往返延迟                 |
-| 延迟膨胀率 | `delay_inflation` | 排队延迟与基础往返延迟的比值 |
-| 总丢包数 | `total_lost`              | 丢失的数据包总量                         |
-| 总发包数 | `total_sent`              | 发送的数据包总量                         |
-| 丢包率 | `loss_rate`              | 总丢包数与总发包数的比值                         |
-
+| 指标名称     | 变量名                 | 描述                         |
+| ------------ | ---------------------- | ---------------------------- |
+| 吞吐量       | `throughput`           | 平均吞吐量                   |
+| 链路带宽     | `capacity`             | 平均链路带宽                 |
+| 带宽利用率   | `capacity_utilization` | 吞吐量与链路带宽的比值       |
+| 排队延迟     | `queueing_delay`       | 所有数据包排队延迟的95分位点 |
+| 基础单向延迟 | `one-way_delay`        | 没有排队延迟时的链路单向延迟 |
+| 延迟膨胀率   | `delay_inflation`      | 排队延迟与基础单向延迟的比值 |
+| 总丢包数     | `total_lost`           | 丢失的数据包总量             |
+| 总发包数     | `total_sent`           | 发送的数据包总量             |
+| 丢包率       | `loss_rate`            | 总丢包数与总发包数的比值     |
 
 ## 评分维度与权重
 
-| 评分维度名称      | 变量名         | 权重 | 评分范围 |
-|--------------|------|------|----------|
-| **带宽利用得分**  | `throughput_score` | 35%  | 0-100    |
-| **延迟控制得分**  |    `delay_score` | 35%  | 0-100    |
-| **丢包控制得分**  |   `loss_score`  | 30%  | 0-100    |
-| **总得分**       |   `total_score` | 100% | 0-100    |
-
+| 评分维度名称     | 变量名                | 权重   | 评分范围  |
+|------------|--------------------|------|-------|
+| **带宽利用得分** | `throughput_score` | 35%  | 0-100 |
+| **延迟控制得分** | `delay_score`      | 35%  | 0-100 |
+| **丢包控制得分** | `loss_score`       | 30%  | 0-100 |
+| **总得分**    | `total_score`      | 100% | 0-100 |
 
 ## 详细评分规则
 
 ### 1. 带宽利用得分 (35%)
+
 $$
 \text{capacity\_utilization} = \frac{\text{throughput}}{\text{capacity}}
 $$
@@ -91,21 +90,19 @@ $$
 \text{throughput\_score} = 100 \times \text{capacity\_utilization}
 $$
 
-
 ### 2. 延迟控制得分 (35%)
+
 $$
-\text{delay\_inflation} = \frac{\text{queueing\_delay}}{\text{round-trip\_time}}
+\text{delay\_inflation} = \frac{\text{queueing\_delay}}{\text{one-way\_delay}}
 $$
 
 $$
-\text{delay\_score} = 
-\begin{cases} 
-100 & \text{if } \text{delay\_inflation} \leq 0.01 \\\\ 
-50 + 50 \times \dfrac{20 - \text{delay\_inflation}}{19.99} & \text{if } 0.01 < \text{delay\_inflation} \leq 20 \\\\ 
-\dfrac{1000}{\text{delay\_inflation}} & \text{if } \text{delay\_inflation} > 20 
+\text{delay\_score} =
+\begin{cases}
+20 + 80 \times \dfrac{10 - \text{delay\_inflation}}{10} & \text{if } \text{delay\_inflation} \leq 10 \\\\
+\dfrac{200}{\text{delay\_inflation}} & \text{if } \text{delay\_inflation} > 10
 \end{cases}
 $$
-
 
 ### 3. 丢包控制得分 (30%)
 
@@ -117,12 +114,11 @@ $$
 \text{loss\_score} = 100 \times (1 - \text{loss\_rate})
 $$
 
-
 ### 4. 总得分
+
 $$
 \text{total\_score} = 0.35 \times \text{throughput\_score} + 0.35 \times \text{delay\_score} + 0.30 \times \text{loss\_score}
 $$
-
 
 # Transhub 安装指南 2025 版
 
@@ -132,7 +128,7 @@ Linux 版本要求：Ubuntu GNU/Linux 14.04 以上
 
 **拥塞控制算法的运行示意图如下：**
 
-![image-20250603下午60436103](./images/image-20250603下午60436103.png)
+![transhub_framework](./images/transhub_framework.svg)
 
 本教程提供两种安装方式，两种方式**任选其一**：
 
@@ -259,7 +255,8 @@ Mac 上可安装 Docker Desktop 或者 Orbstack，这里以 Orbstack 为例。
 访问以下链接下载已配置好的 transhub 镜像：
 
 - 百度网盘：通过网盘分享的文件：transhub.tar.zip
-  链接: [https://pan.baidu.com/s/1Lkx7VVvNTCAVaBJozT-8Lg?pwd=wnxf](https://pan.baidu.com/s/1Lkx7VVvNTCAVaBJozT-8Lg?pwd=wnxf) 提取码: wnxf
+  链接: [https://pan.baidu.com/s/1Lkx7VVvNTCAVaBJozT-8Lg?pwd=wnxf](https://pan.baidu.com/s/1Lkx7VVvNTCAVaBJozT-8Lg?pwd=wnxf)
+  提取码: wnxf
 
 在**镜像所在目录**运行终端，执行以下命令导入 transhub 镜像
 
@@ -547,8 +544,10 @@ sysctl net.ipv4.tcp_congestion_control=cubic
 
 ### 5.1. Ubuntu24 版本默认安装 gnuplot 6.0 导致无法正确绘制流量图
 
-对于 Ubuntu 24 版本，可能默认安装的 gnuplot 为 6.0 版本，将导致后续绘制流量图时出错（绘制的流量图无法正常打开），需要将
+对于 Ubuntu 24 版本，可能默认安装的 gnuplot 为 6.0 版本，将导致后续绘制流量图时出错（绘制的流量图无法正常打开，如下图所示），需要将
 gnuplot 降级到 5.4，Ubuntu 22 及以下版本默认安装的是 5.4 版本，不会有此问题。
+
+![svg_error](./images/svg_error.png)
 
 使用以下命令降级到 5.4 版本
 
@@ -593,6 +592,13 @@ Ubuntu20、22 版本也可正常完成 transhub 安装，但在运行实验时�
 ### 5.4. 丢包环境下 mm-throughput-graph 无法绘制
 
 需要修改 `/usr/local/bin/mm-throughput-graph` 文件使得该脚本能对有丢包事件的日志进行画图操作，具体改动如下图所示（改动之处用红框标出）
+
 ![image-20250709214500](./images/image-20250709214500.png)
+
+### 5.5. 竞赛平台日志中显示`terminate called after throwing an instance of 'unix_error'`
+
+此日志为正常现象，只要显示的评测时间正确即可，如下图所示：
+
+![log_error](./images/log_error.png)
 
 本文档更新时间：2025 年 07 月 11 日 星期五
