@@ -82,8 +82,6 @@ def validate_request(schema_class: Type[T]) -> Callable[[Callable[..., Any]], Ca
                 # 将验证后的数据添加到请求对象中，并保持类型信息
                 request.validated_data = validated_data
                 logger.debug("Request data validation successful")
-
-                return f(*args, **kwargs)
             except ValidationError as e:
                 # 处理验证错误
                 logger.warning(f"Validation error in {f.__name__}: {str(e)}")
@@ -96,6 +94,12 @@ def validate_request(schema_class: Type[T]) -> Callable[[Callable[..., Any]], Ca
 
                 error_messages = ', '.join(error_messages[:3])  # 限制错误信息数量，避免过长
                 return HttpResponse.fail(f"参数校验失败: {error_messages}")
+            except Exception as e:
+                logger.error(f"Unexpected error in {f.__name__}: {str(e)}", exc_info=True)
+                # 返回通用错误响应
+                return HttpResponse.internal_error("参数校验失败，请稍后重试")
+
+            return f(*args, **kwargs)
 
         return decorated_function
 
