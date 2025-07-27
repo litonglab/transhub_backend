@@ -16,9 +16,9 @@ logger = logging.getLogger(__name__)
 config = get_default_config()
 
 
-@cache.memoize(timeout=10)
+@cache.memoize(timeout=10 * 60)
 def get_ranks_for_competition(cname, is_admin=False):
-    """获取比赛榜单的缓存函数"""
+    """获取比赛榜单的缓存函数，缓存10分钟"""
     # 使用JOIN查询一次性获取榜单和用户信息
     ranks_with_users = (RankModel.query
                         .join(UserModel, RankModel.user_id == UserModel.user_id)
@@ -37,6 +37,13 @@ def get_ranks_for_competition(cname, is_admin=False):
                                      'rank_id': rank.rank_id, }
         result.append(rank_dict)
     return result
+
+
+def reset_rank_cache(cname):
+    """重置比赛榜单缓存"""
+    cache.delete_memoized(get_ranks_for_competition, cname, True)
+    cache.delete_memoized(get_ranks_for_competition, cname, False)
+    logger.debug(f"Cache for competition {cname} has been reset.")
 
 
 @summary_bp.route("/summary_delete_rank", methods=["DELETE"])
@@ -75,8 +82,7 @@ def delete_rank():
     try:
         rank.delete()
         # 清除榜单缓存
-        cache.delete_memoized(get_ranks_for_competition, cname, True)
-        cache.delete_memoized(get_ranks_for_competition, cname, False)
+        reset_rank_cache(cname)
         logger.warning(
             f"Rank with ID {data.rank_id}, cname {cname}, username {rank.username} deleted by user {user.username}")
         return HttpResponse.ok()
