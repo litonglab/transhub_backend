@@ -140,6 +140,15 @@ class BaseConfig:
         now_time = time.time()
         return now_time > end_time
 
+    def get_competition_remaining_time(self, cname: str) -> int:
+        """获取指定课程距离比赛结束的剩余时间，单位为秒"""
+        if not self.is_competition_ended(cname):
+            _config = self.Course.ALL_CLASS[cname]
+            end_time = time.mktime(time.strptime(_config['end_time'], "%Y-%m-%d %H:%M:%S"))
+            now_time = time.time()
+            return int(end_time - now_time)
+        return 0
+
     def get_course_config(self, cname: str) -> Dict[str, Any]:
         """获取指定课程的配置"""
         if cname not in self.Course.ALL_CLASS:
