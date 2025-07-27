@@ -111,7 +111,7 @@ def get_competition_info():
     return HttpResponse.ok(data=data)
 
 
-@cache.memoize(timeout=2)
+@cache.memoize(timeout=5)
 def _get_system_status():
     """获取系统状态"""
     cpu_percent = psutil.cpu_percent()
