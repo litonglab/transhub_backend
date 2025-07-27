@@ -142,7 +142,6 @@ display_config() {
     echo "  LOG_DIR  = $LOG_DIR"
     echo "  GUNICORN = $GUNICORN_ADDRESS(WORKERS:$GUNICORN_WORKERS, THREADS:$GUNICORN_THREADS)"
     echo "  DRAMATIQ = (CC_TRAINING: P-$DRAMATIQ_PROCESSES T-$DRAMATIQ_THREADS, GRAPH: P-1 T-$DRAMATIQ_THREADS_GRAPH)"
-    # echo "  DRAMATIQ = (CC_TRAINING: P-$DRAMATIQ_PROCESSES T-$DRAMATIQ_THREADS, GRAPH: P-1 T-$DRAMATIQ_THREADS_GRAPH, SVG2PNG: P-1 T-1)"
 
     parse_supervisor_config "$CONFIG"
 }
@@ -384,10 +383,30 @@ case "$1" in
         # 显示进程信息
         echo ""
         echo "🔄 相关进程:"
-        echo "  Gunicorn进程:"
-        pgrep -f "gunicorn.*run:app" -l 2>/dev/null || echo "    未找到gunicorn进程"
-        echo "  Dramatiq进程:"
-        pgrep -f "dramatiq.*app_backend" -l 2>/dev/null || echo "    未找到dramatiq进程"
+
+        if [ ${#FLASK_PROGRAMS[@]} -gt 0 ]; then
+            echo "  Flask进程:"
+            for program in "${FLASK_PROGRAMS[@]}"; do
+                if [[ -n "${PROGRAM_COMMANDS[$program]}" ]]; then
+                    echo "    $program: ${PROGRAM_COMMANDS[$program]}"
+                else
+                    echo "    $program: 命令未解析"
+                fi
+            done
+            pgrep -f "${PROGRAM_COMMANDS[$program]%% *}" -a 2>/dev/null || echo "      进程未运行"
+        fi
+        
+        if [ ${#DRAMATIQ_PROGRAMS[@]} -gt 0 ]; then
+            echo "  Dramatiq进程:"
+            for program in "${DRAMATIQ_PROGRAMS[@]}"; do
+                if [[ -n "${PROGRAM_COMMANDS[$program]}" ]]; then
+                    echo "    $program: ${PROGRAM_COMMANDS[$program]}"
+                else
+                    echo "    $program: 命令未解析"
+                fi
+            done
+            pgrep -f "${PROGRAM_COMMANDS[$program]%% *}" -a 2>/dev/null || echo "      进程未运行"
+        fi
         
         echo "📊 详细状态信息:"
         if ! supervisorctl -c "$CONFIG" status; then
