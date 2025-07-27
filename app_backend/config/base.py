@@ -128,23 +128,31 @@ class BaseConfig:
     def is_now_in_competition(self, cname: str) -> bool:
         """检查当前时间是否在指定课程的比赛时间内"""
         _config = self.Course.ALL_CLASS[cname]
-        start_time = time.mktime(time.strptime(_config['start_time'], "%Y-%m-%d %H:%M:%S"))
-        end_time = time.mktime(time.strptime(_config['end_time'], "%Y-%m-%d %H:%M:%S"))
+        start_time, end_time = self.get_competition_timestamp(cname)
         now_time = time.time()
         return start_time <= now_time <= end_time
 
     def is_competition_ended(self, cname: str) -> bool:
         """检查指定课程的比赛是否已经结束"""
         _config = self.Course.ALL_CLASS[cname]
-        end_time = time.mktime(time.strptime(_config['end_time'], "%Y-%m-%d %H:%M:%S"))
+        end_time = self.get_competition_timestamp(cname)[1]
         now_time = time.time()
         return now_time > end_time
+
+    def get_competition_timestamp(self, cname: str) -> tuple[int, int]:
+        """获取指定课程的比赛开始和结束时间戳"""
+        if cname not in self.Course.ALL_CLASS:
+            raise ValueError(f"课程 {cname} 不存在，请检查配置")
+        _config = self.Course.ALL_CLASS[cname]
+        start_time = int(time.mktime(time.strptime(_config['start_time'], "%Y-%m-%d %H:%M:%S")))
+        end_time = int(time.mktime(time.strptime(_config['end_time'], "%Y-%m-%d %H:%M:%S")))
+        return start_time, end_time
 
     def get_competition_remaining_time(self, cname: str) -> int:
         """获取指定课程距离比赛结束的剩余时间，单位为秒"""
         if not self.is_competition_ended(cname):
             _config = self.Course.ALL_CLASS[cname]
-            end_time = time.mktime(time.strptime(_config['end_time'], "%Y-%m-%d %H:%M:%S"))
+            end_time = self.get_competition_timestamp(cname)[1]
             now_time = time.time()
             return int(end_time - now_time)
         return 0
