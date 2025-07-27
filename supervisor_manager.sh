@@ -4,6 +4,102 @@
 CONFIG="supervisor.ini"
 export APP_ENV="production"
 
+# 解析supervisor.ini配置文件，获取程序列表和日志文件路径
+parse_supervisor_config() {
+    local config_file="$1"
+    
+    if [ ! -f "$config_file" ]; then
+        echo "❌ 配置文件不存在: $config_file"
+        exit 1
+    fi
+    
+    # 定义环境变量替换规则数组
+    local env_vars=(
+        "%(ENV_GUNICORN_WORKERS)s:$GUNICORN_WORKERS"
+        "%(ENV_GUNICORN_THREADS)s:$GUNICORN_THREADS"
+        "%(ENV_GUNICORN_ADDRESS)s:$GUNICORN_ADDRESS"
+        "%(ENV_DRAMATIQ_PROCESSES)s:$DRAMATIQ_PROCESSES"
+        "%(ENV_DRAMATIQ_THREADS)s:$DRAMATIQ_THREADS"
+        "%(ENV_DRAMATIQ_THREADS_GRAPH)s:$DRAMATIQ_THREADS_GRAPH"
+        "%(ENV_LOG_DIR)s:$LOG_DIR"
+    )
+
+    replace_env_vars() {
+        local input="$1"
+        for env_var in "${env_vars[@]}"; do
+            local pattern="${env_var%%:*}"
+            local value="${env_var#*:}"
+            input="${input//$pattern/$value}"
+        done
+        echo "$input"
+    }
+    
+    # 获取所有 [program:xxx] 段的程序名
+    SUPERVISOR_PROGRAMS=($(grep '^\[program:' "$config_file" | sed 's/\[program:\(.*\)\]/\1/' | grep -v '^#'))
+    
+    # 分类程序
+    FLASK_PROGRAMS=()
+    DRAMATIQ_PROGRAMS=()
+    
+    # 创建关联数组存储日志文件路径和命令
+    declare -gA PROGRAM_ERR_LOGS
+    declare -gA PROGRAM_OUT_LOGS
+    declare -gA PROGRAM_ACCESS_LOGS
+    declare -gA PROGRAM_COMMANDS
+    
+    for program in "${SUPERVISOR_PROGRAMS[@]}"; do
+        if [[ "$program" == *"flask"* ]] || [[ "$program" == *"app"* ]]; then
+            FLASK_PROGRAMS+=("$program")
+        elif [[ "$program" == *"dramatiq"* ]] || [[ "$program" == *"worker"* ]]; then
+            DRAMATIQ_PROGRAMS+=("$program")
+        fi
+        
+        # 解析该程序的日志文件路径
+        local program_section_started=false
+        local current_program=""
+        
+        while IFS= read -r line; do
+            # 检查是否进入了当前程序的配置段
+            if [[ "$line" =~ ^\[program:$program\] ]]; then
+                program_section_started=true
+                current_program="$program"
+                continue
+            fi
+            
+            # 如果遇到新的段，停止解析当前程序
+            if [[ "$line" =~ ^\[.*\] ]] && [[ "$program_section_started" == true ]]; then
+                break
+            fi
+            
+            # 在当前程序段内解析日志文件路径和命令
+            if [[ "$program_section_started" == true ]]; then
+                if [[ "$line" =~ ^stderr_logfile[[:space:]]*=[[:space:]]*(.+)$ ]]; then
+                    local err_log_path="${BASH_REMATCH[1]}"
+                    err_log_path=$(replace_env_vars "$err_log_path")
+                    PROGRAM_ERR_LOGS["$program"]="$err_log_path"
+                elif [[ "$line" =~ ^stdout_logfile[[:space:]]*=[[:space:]]*(.+)$ ]]; then
+                    local out_log_path="${BASH_REMATCH[1]}"
+                    out_log_path=$(replace_env_vars "$out_log_path")
+                    PROGRAM_OUT_LOGS["$program"]="$out_log_path"
+                elif [[ "$line" =~ ^command[[:space:]]*=[[:space:]]*(.+)$ ]]; then
+                    local command="${BASH_REMATCH[1]}"
+                    command=$(replace_env_vars "$command")
+                    PROGRAM_COMMANDS["$program"]="$command"
+                elif [[ "$line" =~ --access-logfile[[:space:]]+([^[:space:]]+) ]]; then
+                    local access_log_path="${BASH_REMATCH[1]}"
+                    access_log_path=$(replace_env_vars "$access_log_path")
+                    PROGRAM_ACCESS_LOGS["$program"]="$access_log_path"
+                fi
+            fi
+        done < "$config_file"
+    done
+    
+    # 调试输出
+    echo "🔍 检测到的程序列表:"
+    echo "  Flask程序: ${FLASK_PROGRAMS[*]}"
+    echo "  Dramatiq程序: ${DRAMATIQ_PROGRAMS[*]}"
+}
+
 setup_environment() {
     # 设置环境
     export APP_ENV=${APP_ENV:-"development"}
@@ -47,6 +143,8 @@ display_config() {
     echo "  GUNICORN = $GUNICORN_ADDRESS(WORKERS:$GUNICORN_WORKERS, THREADS:$GUNICORN_THREADS)"
     echo "  DRAMATIQ = (CC_TRAINING: P-$DRAMATIQ_PROCESSES T-$DRAMATIQ_THREADS, GRAPH: P-1 T-$DRAMATIQ_THREADS_GRAPH)"
     # echo "  DRAMATIQ = (CC_TRAINING: P-$DRAMATIQ_PROCESSES T-$DRAMATIQ_THREADS, GRAPH: P-1 T-$DRAMATIQ_THREADS_GRAPH, SVG2PNG: P-1 T-1)"
+
+    parse_supervisor_config "$CONFIG"
 }
 
 check_process_status() {
@@ -55,6 +153,11 @@ check_process_status() {
     local attempt=0
     
     echo "🔍 检查进程启动状态..."
+    
+    # 确保已解析配置文件
+    if [ ${#SUPERVISOR_PROGRAMS[@]} -eq 0 ]; then
+        parse_supervisor_config "$CONFIG"
+    fi
     
     while [ $attempt -lt $max_attempts ]; do
         # 获取当前状态
@@ -65,18 +168,31 @@ check_process_status() {
             return 1
         fi
         
-        # 检查所有程序状态
-        local flask_status=$(echo "$status_output" | grep "flask_app" | awk '{print $2}')
-        local dramatiq_cc_status=$(echo "$status_output" | grep "dramatiq_worker-cc_training" | awk '{print $2}')
-        local dramatiq_graph_status=$(echo "$status_output" | grep "dramatiq_worker-graph" | awk '{print $2}')
-        # local dramatiq_svg2png_status=$(echo "$status_output" | grep "dramatiq_worker-svg2png" | awk '{print $2}')
+        # 动态检查所有程序状态
+        local all_running=true
+        local all_status=""
+        local failed_programs=()
+        local starting_programs=()
         
-        echo "  [$((attempt+1))/$max_attempts] Flask: $flask_status, Dramatiq(cc): $dramatiq_cc_status, Dramatiq(graph): $dramatiq_graph_status"
-        # echo "  [$((attempt+1))/$max_attempts] Flask: $flask_status, Dramatiq(cc): $dramatiq_cc_status, Dramatiq(graph): $dramatiq_graph_status, Dramatiq(svg2png): $dramatiq_svg2png_status"
+        for program in "${SUPERVISOR_PROGRAMS[@]}"; do
+            local program_status=$(echo "$status_output" | grep "^$program" | awk '{print $2}')
+            all_status="$all_status $program:$program_status"
+            
+            if [[ "$program_status" != "RUNNING" ]]; then
+                all_running=false
+                
+                if [[ "$program_status" == "FATAL" ]]; then
+                    failed_programs+=("$program")
+                elif [[ "$program_status" == "STARTING" ]]; then
+                    starting_programs+=("$program")
+                fi
+            fi
+        done
+        
+        echo "  [$((attempt+1))/$max_attempts]$all_status"
         
         # 如果所有进程都在运行，则成功
-        if [[ "$flask_status" == "RUNNING" && "$dramatiq_cc_status" == "RUNNING" && "$dramatiq_graph_status" == "RUNNING" ]]; then
-        # if [[ "$flask_status" == "RUNNING" && "$dramatiq_cc_status" == "RUNNING" && "$dramatiq_graph_status" == "RUNNING" && "$dramatiq_svg2png_status" == "RUNNING" ]]; then
+        if $all_running; then
             echo "✅ 所有进程启动成功！"
             echo "📊 当前状态:"
             supervisorctl -c "$CONFIG" status
@@ -84,9 +200,8 @@ check_process_status() {
         fi
         
         # 检查是否有进程启动失败
-        if [[ "$flask_status" == "FATAL" || "$dramatiq_cc_status" == "FATAL" || "$dramatiq_graph_status" == "FATAL" ]]; then
-        # if [[ "$flask_status" == "FATAL" || "$dramatiq_cc_status" == "FATAL" || "$dramatiq_graph_status" == "FATAL" || "$dramatiq_svg2png_status" == "FATAL" ]]; then
-            echo "❌ 发现进程启动失败！"
+        if [ ${#failed_programs[@]} -gt 0 ]; then
+            echo "❌ 发现进程启动失败: ${failed_programs[*]}"
             echo "📊 详细状态:"
             supervisorctl -c "$CONFIG" status
             show_startup_errors
@@ -94,8 +209,7 @@ check_process_status() {
         fi
         
         # 如果还在启动中，继续等待
-        if [[ "$flask_status" == "STARTING" || "$dramatiq_cc_status" == "STARTING" || "$dramatiq_graph_status" == "STARTING" ]]; then
-        # if [[ "$flask_status" == "STARTING" || "$dramatiq_cc_status" == "STARTING" || "$dramatiq_graph_status" == "STARTING" || "$dramatiq_svg2png_status" == "STARTING" ]]; then
+        if [ ${#starting_programs[@]} -gt 0 ]; then
             sleep $check_interval
             attempt=$((attempt + 1))
             continue
@@ -119,18 +233,34 @@ show_startup_errors() {
     echo "1. 查看supervisor主日志:"
     echo "   tail -f $LOG_DIR/supervisord.log"
     echo ""
-    echo "2. 查看Flask应用日志:"
-    echo "   tail -f $LOG_DIR/flask_app.err.log"
-    echo "   tail -f $LOG_DIR/flask_app.out.log"
-    echo ""
-    echo "3. 查看Dramatiq任务队列日志:"
-    echo "   tail -f $LOG_DIR/dramatiq-cc_training.err.log"
-    echo "   tail -f $LOG_DIR/dramatiq-cc_training.out.log"
-    echo "   tail -f $LOG_DIR/dramatiq-graph.err.log"
-    echo "   tail -f $LOG_DIR/dramatiq-graph.out.log"
-    # echo "   tail -f $LOG_DIR/dramatiq-svg2png.err.log"
-    # echo "   tail -f $LOG_DIR/dramatiq-svg2png.out.log"
-    echo ""
+    
+    # 动态生成日志建议
+    if [ ${#FLASK_PROGRAMS[@]} -gt 0 ]; then
+        echo "2. 查看Flask应用日志:"
+        for program in "${FLASK_PROGRAMS[@]}"; do
+            if [[ -n "${PROGRAM_ERR_LOGS[$program]}" ]]; then
+                echo "   tail -f ${PROGRAM_ERR_LOGS[$program]}"
+            fi
+            if [[ -n "${PROGRAM_OUT_LOGS[$program]}" ]]; then
+                echo "   tail -f ${PROGRAM_OUT_LOGS[$program]}"
+            fi
+        done
+        echo ""
+    fi
+    
+    if [ ${#DRAMATIQ_PROGRAMS[@]} -gt 0 ]; then
+        echo "3. 查看Dramatiq任务队列日志:"
+        for program in "${DRAMATIQ_PROGRAMS[@]}"; do
+            if [[ -n "${PROGRAM_ERR_LOGS[$program]}" ]]; then
+                echo "   tail -f ${PROGRAM_ERR_LOGS[$program]}"
+            fi
+            if [[ -n "${PROGRAM_OUT_LOGS[$program]}" ]]; then
+                echo "   tail -f ${PROGRAM_OUT_LOGS[$program]}"
+            fi
+        done
+        echo ""
+    fi
+    
     echo "4. 检查端口占用情况:"
     echo "   lsof -i :$(echo $GUNICORN_ADDRESS | cut -d':' -f2)"
     echo ""
@@ -139,10 +269,12 @@ show_startup_errors() {
     echo "   pip list | grep -E '(flask|gunicorn|dramatiq)'"
     echo ""
     echo "6. 手动测试启动命令:"
-    echo "   gunicorn run:app -w $GUNICORN_WORKERS --threads $GUNICORN_THREADS -b $GUNICORN_ADDRESS"
-    echo "   dramatiq app_backend.jobs.cctraining_job --processes $DRAMATIQ_PROCESSES --threads $DRAMATIQ_THREADS --queues cc_training"
-    echo "   dramatiq app_backend.jobs.graph_job --processes 1 --threads $DRAMATIQ_THREADS_GRAPH --queues graph"
-    # echo "   dramatiq app_backend.jobs.graph_job --processes 1 --threads 1 --queues svg2png"
+    for program in "${SUPERVISOR_PROGRAMS[@]}"; do
+        if [[ -n "${PROGRAM_COMMANDS[$program]}" ]]; then
+            echo "   # $program"
+            echo "   ${PROGRAM_COMMANDS[$program]}"
+        fi
+    done
 }
 
 case "$1" in
@@ -185,30 +317,38 @@ case "$1" in
     stop)
         echo "🛑 停止服务..."
         
-        # 先停止 dramatiq worker
-        echo "⏳ 正在停止所有 dramatiq worker..."
-        if ! supervisorctl -c "$CONFIG" stop dramatiq_worker-cc_training dramatiq_worker-graph; then
-        # if ! supervisorctl -c "$CONFIG" stop dramatiq_worker-cc_training dramatiq_worker-graph dramatiq_worker-svg2png; then
-            echo "❌ 停止 dramatiq worker 失败"
-            exit 1
+        # 确保已解析配置文件
+        if [ ${#SUPERVISOR_PROGRAMS[@]} -eq 0 ]; then
+            parse_supervisor_config "$CONFIG"
         fi
         
-        # 等待 dramatiq 任务完成
-        echo "⏳ 等待 dramatiq 任务完成..."
-        echo "请等待执行中的任务完成，预计最多需要几分钟，强行停止可能导致任务和成绩异常..."
-        while true; do
-            if ! pgrep -f "dramatiq app_backend.jobs" > /dev/null; then
-                break
+        # 先停止 dramatiq worker
+        if [ ${#DRAMATIQ_PROGRAMS[@]} -gt 0 ]; then
+            echo "⏳ 正在停止所有 dramatiq worker..."
+            if ! supervisorctl -c "$CONFIG" stop "${DRAMATIQ_PROGRAMS[@]}"; then
+                echo "❌ 停止 dramatiq worker 失败"
+                exit 1
             fi
-            sleep 1
-        done
-        echo "✅ 所有 dramatiq worker 已停止"
+            
+            # 等待 dramatiq 任务完成
+            echo "⏳ 等待 dramatiq 任务完成..."
+            echo "请等待执行中的任务完成，预计最多需要几分钟，强行停止可能导致任务和成绩异常..."
+            while true; do
+                if ! pgrep -f "dramatiq" > /dev/null; then
+                    break
+                fi
+                sleep 1
+            done
+            echo "✅ 所有 dramatiq worker 已停止"
+        fi
         
         # 然后停止 flask 应用
-        echo "⏳ 正在停止 flask 应用..."
-        if ! supervisorctl -c "$CONFIG" stop flask_app; then
-            echo "❌ 停止 flask 应用失败"
-            exit 1
+        if [ ${#FLASK_PROGRAMS[@]} -gt 0 ]; then
+            echo "⏳ 正在停止 flask 应用..."
+            if ! supervisorctl -c "$CONFIG" stop "${FLASK_PROGRAMS[@]}"; then
+                echo "❌ 停止 flask 应用失败"
+                exit 1
+            fi
         fi
         
         # 最后关闭 supervisor
@@ -247,7 +387,7 @@ case "$1" in
         echo "  Gunicorn进程:"
         pgrep -f "gunicorn.*run:app" -l 2>/dev/null || echo "    未找到gunicorn进程"
         echo "  Dramatiq进程:"
-        pgrep -f "dramatiq.*app_backend.jobs" -l 2>/dev/null || echo "    未找到dramatiq进程"
+        pgrep -f "dramatiq.*app_backend" -l 2>/dev/null || echo "    未找到dramatiq进程"
         
         echo "📊 详细状态信息:"
         if ! supervisorctl -c "$CONFIG" status; then
@@ -267,54 +407,82 @@ case "$1" in
         ;;
     logs)
         setup_environment
+        
+        # 确保已解析配置文件
+        if [ ${#SUPERVISOR_PROGRAMS[@]} -eq 0 ]; then
+            parse_supervisor_config "$CONFIG"
+        fi
+        
         echo "📋 查看日志文件..."
         echo "请选择要查看的日志:"
-        echo "1) Supervisor主日志"
-        echo "2) App日志"
-        echo "3) Flask应用错误日志"
-        echo "4) Flask应用输出日志"
-        echo "5) Flask access日志"
-        echo "6) Dramatiq(cc_training)错误日志"
-        echo "7) Dramatiq(cc_training)输出日志"
-        echo "8) Dramatiq(graph)错误日志"
-        echo "9) Dramatiq(graph)输出日志"
-        # echo "10) Dramatiq(svg2png)错误日志"
-        # echo "11) Dramatiq(svg2png)输出日志"
-        echo "10) 查看所有最新错误日志"
-
-        read -p "请选择 (1-10): " choice
-
-        case $choice in
-            1) tail -f "$LOG_DIR/supervisord.log" ;;
-            2) tail -f "$LOG_DIR/app.log" ;;
-            3) tail -f "$LOG_DIR/flask_app.err.log" ;;
-            4) tail -f "$LOG_DIR/flask_app.out.log" ;;
-            5) tail -f "$LOG_DIR/flask_app.access.log" ;;
-            6) tail -f "$LOG_DIR/dramatiq-cc_training.err.log" ;;
-            7) tail -f "$LOG_DIR/dramatiq-cc_training.out.log" ;;
-            8) tail -f "$LOG_DIR/dramatiq-graph.err.log" ;;
-            9) tail -f "$LOG_DIR/dramatiq-graph.out.log" ;;
-            # 10) tail -f "$LOG_DIR/dramatiq-svg2png.err.log" ;;
-            # 11) tail -f "$LOG_DIR/dramatiq-svg2png.out.log" ;;
-            10) 
+        
+        menu_index=1
+        declare -a log_options
+        
+        # 添加supervisor主日志
+        echo "$menu_index) Supervisor主日志"
+        log_options[$menu_index]="$LOG_DIR/supervisord.log"
+        menu_index=$((menu_index + 1))
+        
+        # 添加app日志
+        echo "$menu_index) App日志"
+        log_options[$menu_index]="$LOG_DIR/app.log"
+        menu_index=$((menu_index + 1))
+        
+        # 动态添加所有程序的日志选项
+        for program in "${SUPERVISOR_PROGRAMS[@]}"; do
+            if [[ -n "${PROGRAM_ERR_LOGS[$program]}" ]]; then
+                echo "$menu_index) ${program}错误日志"
+                log_options[$menu_index]="${PROGRAM_ERR_LOGS[$program]}"
+                menu_index=$((menu_index + 1))
+            fi
+            
+            if [[ -n "${PROGRAM_OUT_LOGS[$program]}" ]]; then
+                echo "$menu_index) ${program}输出日志"
+                log_options[$menu_index]="${PROGRAM_OUT_LOGS[$program]}"
+                menu_index=$((menu_index + 1))
+            fi
+        done
+        
+        # 添加Flask access日志（如果有Flask程序）
+        if [ ${#FLASK_PROGRAMS[@]} -gt 0 ]; then
+            for program in "${FLASK_PROGRAMS[@]}"; do
+                if [[ -n "${PROGRAM_ACCESS_LOGS[$program]}" ]]; then
+                    echo "$menu_index) ${program} access日志"
+                    log_options[$menu_index]="${PROGRAM_ACCESS_LOGS[$program]}"
+                    menu_index=$((menu_index + 1))
+                fi
+            done
+        fi
+        
+        # 添加查看所有错误日志选项
+        echo "$menu_index) 查看所有最新错误日志"
+        log_options[$menu_index]="all_errors"
+        
+        read -p "请选择 (1-$menu_index): " choice
+        
+        if [ "$choice" -ge 1 ] && [ "$choice" -le "$menu_index" ]; then
+            if [ "${log_options[$choice]}" = "all_errors" ]; then
                 echo "显示所有错误日志的最后20行:"
                 echo "=== Supervisor主日志 ==="
                 tail -20 "$LOG_DIR/supervisord.log" 2>/dev/null || echo "日志文件不存在"
                 echo ""
-                echo "=== Flask应用错误日志 ==="
-                tail -20 "$LOG_DIR/flask_app.err.log" 2>/dev/null || echo "日志文件不存在"
-                echo ""
-                echo "=== Dramatiq(cc_training)错误日志 ==="
-                tail -20 "$LOG_DIR/dramatiq-cc_training.err.log" 2>/dev/null || echo "日志文件不存在"
-                echo ""
-                echo "=== Dramatiq(graph)错误日志 ==="
-                tail -20 "$LOG_DIR/dramatiq-graph.err.log" 2>/dev/null || echo "日志文件不存在"
-                # echo ""
-                # echo "=== Dramatiq(svg2png)错误日志 ==="
-                # tail -20 "$LOG_DIR/dramatiq-svg2png.err.log" 2>/dev/null || echo "日志文件不存在"
-                ;;
-            *) echo "❌ 无效选择" ;;
-        esac
+                
+                for program in "${SUPERVISOR_PROGRAMS[@]}"; do
+                    if [[ -n "${PROGRAM_ERR_LOGS[$program]}" ]]; then
+                        echo "=== ${program}错误日志 ==="
+                        tail -20 "${PROGRAM_ERR_LOGS[$program]}" 2>/dev/null || echo "日志文件不存在"
+                        echo ""
+                    fi
+                done
+            else
+                echo "正在查看日志: ${log_options[$choice]}"
+                echo "按 Ctrl+C 退出日志查看"
+                tail -f "${log_options[$choice]}"
+            fi
+        else
+            echo "❌ 无效选择"
+        fi
         ;;
     *)
         echo "使用方法: $0 {start|stop|status|restart|config|logs}"
