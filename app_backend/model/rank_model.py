@@ -50,6 +50,18 @@ class RankModel(db.Model):
             db.session.rollback()
             raise
 
+    def delete(self):
+        logger.debug(f"Deleting rank for user {self.username}, cname: {self.cname}, rank_id: {self.rank_id}")
+        try:
+            with db.session.begin_nested():
+                db.session.delete(self)
+                db.session.commit()
+            logger.info(f"Rank deleted successfully for user {self.username}")
+        except Exception as e:
+            logger.error(f"Error deleting rank for user {self.username}: {str(e)}", exc_info=True)
+            db.session.rollback()
+            raise
+
     def to_dict(self):
         return {
             'upload_id': self.upload_id,

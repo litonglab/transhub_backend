@@ -19,6 +19,7 @@ from app_backend.model.rank_model import RankModel
 from app_backend.model.task_model import TaskModel, TaskStatus
 from app_backend.model.user_model import UserModel
 from app_backend.utils.utils import get_available_port, release_port, setup_logger
+from app_backend.views.summary import reset_rank_cache
 
 # 设置日志记录器
 setup_logger()
@@ -278,6 +279,7 @@ def _update_rank(task, user):
                     algorithm=task.algorithm,
                     upload_time=task.created_time
                 )
+                reset_rank_cache(task.cname)  # 重置缓存
                 logger.info(
                     f"[task: {task_id}] Updated rank record with higher score: {total_upload_score} (previous: {rank_record.task_score}), user: {user.username}, competition_id: {task.competition_id}")
             else:
@@ -296,6 +298,7 @@ def _update_rank(task, user):
                 cname=task.cname,
                 username=user.username
             ).insert()
+            reset_rank_cache(task.cname)  # 重置缓存
             logger.info(
                 f"[task: {task_id}] Created new rank record for user: {user.username}, score: {total_upload_score}, competition_id: {task.competition_id}")
 

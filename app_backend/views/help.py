@@ -1,6 +1,5 @@
 import logging
 import os
-import time
 
 import psutil
 from flask import Blueprint
@@ -100,8 +99,7 @@ def get_competition_info():
     logger.debug(f"Competition time request for {cname}")
 
     _config = config.get_course_config(cname)
-    time_stmp = [int(time.mktime(time.strptime(_config['start_time'], "%Y-%m-%d %H:%M:%S"))),
-                 int(time.mktime(time.strptime(_config['end_time'], "%Y-%m-%d %H:%M:%S")))]
+    time_stmp = config.get_competition_timestamp(cname)
     data = {
         "time_stmp": time_stmp,
         "max_active_uploads_per_user": _config['max_active_uploads_per_user'],
@@ -111,7 +109,7 @@ def get_competition_info():
     return HttpResponse.ok(data=data)
 
 
-@cache.memoize(timeout=2)
+@cache.memoize(timeout=5)
 def _get_system_status():
     """获取系统状态"""
     cpu_percent = psutil.cpu_percent()

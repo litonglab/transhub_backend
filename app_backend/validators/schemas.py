@@ -212,13 +212,9 @@ class EnqueueTaskSchema(BaseModel):
     task_id: str = Field(..., description="任务ID")
 
 
-class SummaryRanksSchema(BaseModel):
-    """获取排行榜请求参数验证"""
-    cname: str = Field(..., description="比赛名称")
-
-    @field_validator('cname')
-    def validate_cname(cls, v):
-        return CommonValidators.validate_not_empty(v, "比赛名称")
+class DeleteRankSchema(BaseModel):
+    """删除榜单参数验证"""
+    rank_id: int = Field(..., description="榜单ID")
 
 
 class SourceCodeSchema(BaseModel):
@@ -458,7 +454,8 @@ class AdminTaskListSchema(BaseModel):
     @field_validator('sort_by')
     def validate_sort_by(cls, v):
         if v and v not in ['created_time', 'score', 'updated_at', 'delay_score', 'loss_score', 'throughput_score']:
-            raise ValueError('排序字段必须是: created_time, score, updated_at, delay_score, loss_score, throughput_score')
+            raise ValueError(
+                '排序字段必须是: created_time, score, updated_at, delay_score, loss_score, throughput_score')
         return v
 
     @field_validator('sort_order')
