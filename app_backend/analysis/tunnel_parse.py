@@ -448,7 +448,8 @@ class TunnelParse(object):
 
         ax.set_xlim(0, int(math.ceil(max_delay)))
         ax.set_xlabel('Time (s)', fontsize=12)
-        ax.set_ylabel('Per-packet one-way delay (ms)', fontsize=12)
+        # Per-packet one-way delay (ms)
+        ax.set_ylabel('queueing_delay (ms)', fontsize=12)
 
         ax.grid()
         handles, labels = ax.get_legend_handles_labels()
@@ -480,7 +481,8 @@ class TunnelParse(object):
         ret += '\n'
 
         if self.total_percentile_delay is not None:
-            ret += ('95th percentile per-packet one-way delay: %.3f ms\n' %
+            # 95th percentile per-packet one-way delay
+            ret += ('95th percentile queueing_delay: %.3f ms\n' %
                     self.total_percentile_delay)
 
         if self.total_loss_rate is not None:
@@ -496,7 +498,8 @@ class TunnelParse(object):
 
             if (flow_id in self.percentile_delay and
                     self.percentile_delay[flow_id] is not None):
-                ret += ('95th percentile per-packet one-way delay: %.3f ms\n' %
+                # 95th percentile per-packet one-way delay
+                ret += ('95th percentile queueing_delay: %.3f ms\n' %
                         self.percentile_delay[flow_id])
 
             if (flow_id in self.loss_rate and
