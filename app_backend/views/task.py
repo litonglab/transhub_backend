@@ -117,8 +117,6 @@ def upload_project_file():
             failed_tasks.append({
                 'task_id': task.task_id,
                 'trace_name': trace_name,
-                'loss_rate': loss,
-                'buffer_size': buffer_size,
                 'error': enqueue_result['message']
             })
             logger.error(f"[task: {task.task_id}] Failed to enqueue: {enqueue_result['message']}")

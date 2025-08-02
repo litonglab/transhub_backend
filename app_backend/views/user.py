@@ -113,7 +113,7 @@ def user_register():
 @validate_request(ChangePasswordSchema)
 def change_password():
     data = get_validated_data(ChangePasswordSchema)
-    user = current_user
+    user = UserModel.find_by_id_for_update(current_user.user_id)
     old_pwd = data.old_pwd
     new_pwd = data.new_pwd
 
@@ -153,7 +153,7 @@ def check_login():
 @jwt_required()
 @validate_request(UserChangeRealInfoSchema)
 def change_real_info():
-    user = current_user
+    user = UserModel.find_by_id_for_update(current_user.user_id)
     data = get_validated_data(UserChangeRealInfoSchema)
     real_name = data.real_name
 

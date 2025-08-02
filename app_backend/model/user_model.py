@@ -41,13 +41,33 @@ class UserModel(db.Model):
                            onupdate=func.now(), nullable=False)
 
     @staticmethod
-    @cache.memoize(timeout=30 * 60)  # 缓存半小时
+    @cache.memoize(timeout=10 * 60)  # 缓存十分钟
     def find_by_id_for_auth(user_id):
         """
         根据ID查找用户用于认证，此方法会被缓存。
-        此函数主要用于认证流程中快速获取用户信息，如果是获取用户信息或其他操作，请勿使用此方法。
+        此函数主要用于认证流程中快速获取用户信息，使用current_user时返回的对象是被缓存的。
+        current_user应当是只读的，不应直接用于更新操作。
+        如果涉及到用户信息的更新（如密码修改、角色变更等），需要调用find_by_id_for_update方法。
         """
         return UserModel.query.get(user_id)
+
+    @staticmethod
+    def find_by_id_for_update(user_id):
+        """
+        根据ID查找用户用于更新操作，不使用缓存
+        当需要更新用户信息时，使用此方法以确保获取到最新数据。
+        如果直接使用current_user，可能无法正确更新数据库。
+        """
+        return UserModel.query.get(user_id)
+
+    def reset_user_auth_cache(self):
+        """
+        重置用户认证缓存。
+        此函数在用户信息（如密码、角色等）更新后调用（应当仅在UserModel内部方法中调用）。
+        """
+        logger.debug(f"Resetting auth cache for user ID: {self.user_id}, username: {self.username}")
+        cache.delete_memoized(UserModel.find_by_id_for_auth, self.user_id)
+        logger.info(f"Auth cache reset for user ID: {self.user_id}, username: {self.username}")
 
     @classmethod
     def count(cls, **kwargs):
@@ -63,6 +83,7 @@ class UserModel(db.Model):
 
     def set_password(self, raw_password):
         self.password = hashlib.sha256(raw_password.encode('utf-8')).hexdigest()
+        self.reset_user_auth_cache()
 
     def check_password(self, raw_password):
         return self.password == hashlib.sha256(raw_password.encode('utf-8')).hexdigest()
@@ -73,6 +94,7 @@ class UserModel(db.Model):
             db.session.add(self)
             db.session.commit()
             logger.info(f"User saved successfully: {self.username}")
+            self.reset_user_auth_cache()
         except Exception as e:
             logger.error(f"Error saving user {self.username}: {str(e)}", exc_info=True)
             db.session.rollback()
@@ -165,6 +187,7 @@ class UserModel(db.Model):
             self.real_name = real_name
             db.session.commit()
             logger.info(f"Real name updated successfully for user {self.username}")
+            self.reset_user_auth_cache()
         except Exception as e:
             logger.error(f"Error updating real name for user {self.username}: {str(e)}", exc_info=True)
             db.session.rollback()
@@ -194,28 +217,6 @@ class UserModel(db.Model):
                 db.session.rollback()
                 raise
 
-    def lock(self):
-        logger.debug(f"Locking user: {self.username}")
-        try:
-            self.is_locked = True
-            db.session.commit()
-            logger.info(f"User {self.username} locked successfully")
-        except Exception as e:
-            logger.error(f"Error locking user {self.username}: {str(e)}", exc_info=True)
-            db.session.rollback()
-            raise
-
-    def unlock(self):
-        logger.debug(f"Unlocking user: {self.username}")
-        try:
-            self.is_locked = False
-            db.session.commit()
-            logger.info(f"User {self.username} unlocked successfully")
-        except Exception as e:
-            logger.error(f"Error unlocking user {self.username}: {str(e)}", exc_info=True)
-            db.session.rollback()
-            raise
-
     def reset_password(self, new_password="123456"):
         """重置用户密码（加密存储）"""
         logger.debug(f"Resetting password for user: {self.username}")
@@ -223,6 +224,7 @@ class UserModel(db.Model):
             self.set_password(new_password)
             db.session.commit()
             logger.info(f"Password reset successfully for user {self.username}")
+            self.reset_user_auth_cache()
             return True
         except Exception as e:
             logger.error(f"Error resetting password for user {self.username}: {str(e)}", exc_info=True)
@@ -238,6 +240,7 @@ class UserModel(db.Model):
             self.is_locked = True
             db.session.commit()
             logger.info(f"User {self.username} soft deleted successfully")
+            self.reset_user_auth_cache()
         except Exception as e:
             logger.error(f"Error soft deleting user {self.username}: {str(e)}", exc_info=True)
             db.session.rollback()
@@ -258,6 +261,7 @@ class UserModel(db.Model):
             self.is_locked = False
             db.session.commit()
             logger.info(f"User {self.username} restored successfully")
+            self.reset_user_auth_cache()
         except Exception as e:
             logger.error(f"Error restoring user {self.username}: {str(e)}", exc_info=True)
             db.session.rollback()
