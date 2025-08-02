@@ -293,7 +293,7 @@ def _admin_user_common_checks(user_id, forbid_admin_msg=None, forbid_self_msg=No
     """
     通用的管理员用户操作检查，返回 (target_user, error_response)
     """
-    target_user = UserModel.query.get(user_id)
+    target_user = UserModel.find_by_id_for_update(user_id)
     if not target_user:
         logger.warning(f"User operation failed: User with ID {user_id} does not exist")
         return None, HttpResponse.not_found("用户不存在")
