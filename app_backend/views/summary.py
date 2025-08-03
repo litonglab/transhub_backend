@@ -53,6 +53,13 @@ def delete_rank():
     data = get_validated_data(DeleteRankSchema)
     cname = get_jwt().get('cname')
     user = current_user
+
+    if config.is_competition_ended(cname):
+        logger.warning(
+            f"Rank deletion failed: Competition {cname} has ended, "
+            f"cannot delete rank by user {user.username}")
+        return HttpResponse.fail("比赛已截止，无法删除榜单记录")
+
     rank = get_record_by_permission(RankModel,
                                     {'rank_id': data.rank_id, 'cname': cname},
                                     {'cname': cname})
@@ -61,12 +68,6 @@ def delete_rank():
             f"Rank deletion failed: Rank with ID {data.rank_id} not found for competition {cname} by user {user.username}")
         return HttpResponse.not_found("榜单记录不存在或无权限")
 
-    if config.is_competition_ended(cname):
-        logger.warning(
-            f"Rank deletion failed: Competition {cname} has ended, "
-            f"cannot delete rank by user {user.username}")
-        return HttpResponse.fail("比赛已截止，无法删除榜单记录")
-
     # 检查非管理用户的12小时调用限制
     if not user.is_admin():
         if True:
@@ -74,7 +75,7 @@ def delete_rank():
                 f"Rank deletion failed: User {user.username} is not an admin, "
                 f"cannot delete rank with ID {data.rank_id} for competition {cname}")
             return HttpResponse.fail("普通用户已关闭此功能，如需删除榜单记录，请联系管理员")
-        
+
         competition_remaining_time = config.get_competition_remaining_time(cname)
         if competition_remaining_time <= 12 * 60 * 60:
             logger.warning(
