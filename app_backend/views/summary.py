@@ -61,15 +61,27 @@ def delete_rank():
             f"Rank deletion failed: Rank with ID {data.rank_id} not found for competition {cname} by user {user.username}")
         return HttpResponse.not_found("榜单记录不存在或无权限")
 
-    competition_remaining_time = config.get_competition_remaining_time(cname)
-    if config.is_competition_ended(cname) or competition_remaining_time <= 12 * 60 * 60:
+    if config.is_competition_ended(cname):
         logger.warning(
-            f"Rank deletion failed: Competition {cname} has ended, or remaining time(competition_remaining_time) is less than 12 hours, "
+            f"Rank deletion failed: Competition {cname} has ended, "
             f"cannot delete rank by user {user.username}")
-        return HttpResponse.fail("比赛截止前12小时内及截止后，无法删除榜单记录")
+        return HttpResponse.fail("比赛已截止，无法删除榜单记录")
 
     # 检查非管理用户的12小时调用限制
     if not user.is_admin():
+        if True:
+            logger.warning(
+                f"Rank deletion failed: User {user.username} is not an admin, "
+                f"cannot delete rank with ID {data.rank_id} for competition {cname}")
+            return HttpResponse.fail("普通用户已关闭此功能，如需删除榜单记录，请联系管理员")
+        
+        competition_remaining_time = config.get_competition_remaining_time(cname)
+        if competition_remaining_time <= 12 * 60 * 60:
+            logger.warning(
+                f"Rank deletion failed: Competition {cname} remaining time({competition_remaining_time}) is less than 12 hours, "
+                f"cannot delete rank by user {user.username}")
+            return HttpResponse.fail("比赛截止前12小时内，无法删除榜单记录")
+
         cache_key = f"rank_delete_limit:{cname}:{user.user_id}"
         result = redis_client.set(cache_key, "0", nx=True, ex=12 * 60 * 60)
         if not result:
