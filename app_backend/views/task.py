@@ -1,4 +1,5 @@
 import logging
+import time
 import uuid
 from datetime import datetime
 
@@ -216,6 +217,10 @@ def enqueue_task():
         logger.warning(
             f"Enqueue task rejected: Outside competition period. User {user.username}, competition {task.cname}.")
         return HttpResponse.fail(f"比赛尚未开始或已截止，不允许执行此操作。")
+    time_diff = time.time() - task.created_time.timestamp()
+    if time_diff > 12 * 60 * 60:
+        logger.warning(f"Enqueue task rejected: Task {task_id} created more than 12 hours ago")
+        return HttpResponse.fail("任务已过期，仅允许入队最近12小时内创建的任务")
     if task.task_status != TaskStatus.NOT_QUEUED:
         logger.info(f"Enqueue task: Task {task_id} status is {task.task_status}, not NOT_QUEUED")
         return HttpResponse.fail("该任务已入队或已运行，无需重复入队")

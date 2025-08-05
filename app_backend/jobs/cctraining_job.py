@@ -3,6 +3,7 @@ import os
 import shutil
 import signal
 import subprocess
+import time
 from time import sleep
 
 import dramatiq
@@ -45,6 +46,8 @@ def run_cc_training_task(task_id):
 
             logger.info(f"[task: {task_id}] Start task")
             assert task.task_status == TaskStatus.QUEUED, "Task status must be QUEUED to run"
+            time_diff = time.time() - task.created_time.timestamp()
+            assert time_diff < 24 * 60 * 60, "Task is expired, must start within 24 hours of creation"
             user = UserModel.query.filter_by(user_id=task.user_id).first()
 
             # 课程的项目目录，公共目录
