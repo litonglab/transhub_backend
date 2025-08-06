@@ -20,6 +20,7 @@ class ExampleConfig(BaseConfig):
                 "max_active_uploads_per_user": 3,
                 "allow_login": True,  # 是否允许登录，禁止后用户将无法登录此课程，管理员不受限制
                 "allow_rank_delete": False,  # 是否允许用户删除自己的榜单记录，禁止后用户将无法删除自己的榜单记录，管理员不受限制，不配置默认为False
+                "force_all_traces_before_seconds": 3 * 24 * 60 * 60,  # 在比赛截止前一段时间（秒），强制评测所有Trace。不配置默认为3天
                 "start_time": "2025-01-01 00:00:00",  # 课程开始时间，只有在此时间内才能提交，登录不受限制，管理员不受限制
                 "end_time": "2025-01-01 21:00:00",  # 课程结束时间，超过此时间将无法提交，管理员不受限制
                 "trace": {  # trace配置
@@ -52,6 +53,7 @@ class ExampleConfig(BaseConfig):
                 "max_active_uploads_per_user": 3,
                 "allow_login": True,
                 "allow_rank_delete": False,  # 是否允许用户删除自己的榜单记录，禁止后用户将无法删除自己的榜单记录，管理员不受限制，不配置默认为False
+                "force_all_traces_before_seconds": 3 * 24 * 60 * 60,  # 在比赛截止前一段时间（秒），强制评测所有Trace。不配置默认为3天
                 "start_time": "2025-01-01 00:00:00",
                 "end_time": "2025-01-01 21:00:00",
                 "trace": {

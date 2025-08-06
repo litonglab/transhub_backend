@@ -93,7 +93,8 @@ def upload_project_file():
     _config = config.get_course_config(cname)
     # 比赛截止前5天内，默认评测所有trace
     competition_remaining_time = config.get_competition_remaining_time(cname)
-    allow_select_trace = (competition_remaining_time >= 5 * 24 * 60 * 60)
+    allow_select_trace = (
+            competition_remaining_time >= _config.get("force_all_traces_before_seconds", 3 * 24 * 60 * 60))
     for trace_name, trace_conf in _config['trace'].items():
         loss = trace_conf['loss_rate']
         buffer_size = trace_conf['buffer_size']
