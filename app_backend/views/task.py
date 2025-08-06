@@ -91,7 +91,7 @@ def upload_project_file():
         f"Starting task creation for upload {upload_id}, user {user.username}, cname {cname}, competition_id {competition_id}")
 
     _config = config.get_course_config(cname)
-    # 比赛截止前5天内，默认评测所有trace
+    # 比赛截止前一段时间内，默认评测所有trace
     competition_remaining_time = config.get_competition_remaining_time(cname)
     allow_select_trace = (
             competition_remaining_time >= _config.get("force_all_traces_before_seconds", 3 * 24 * 60 * 60))
