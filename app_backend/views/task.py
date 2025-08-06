@@ -216,10 +216,10 @@ def enqueue_task():
     if not config.is_now_in_competition(task.cname):
         logger.warning(
             f"Enqueue task rejected: Outside competition period. User {user.username}, competition {task.cname}.")
-        return HttpResponse.fail(f"比赛尚未开始或已截止，不允许执行此操作。")
+        return HttpResponse.fail(f"比赛尚未开始或已截止，不允许执行此操作")
     if not task.can_enqueue():
         logger.warning(f"Enqueue task rejected: Task {task_id} created more than 12 hours ago")
-        return HttpResponse.fail(f"任务已过期，仅允许入队最近{(TASK_ENQUEUE_TIME / 3600):.1f}小时内创建的任务")
+        return HttpResponse.fail(f"操作失败，仅允许重新入队最近{(TASK_ENQUEUE_TIME / 3600):.1f}小时内创建的任务")
     if task.task_status != TaskStatus.NOT_QUEUED:
         logger.info(f"Enqueue task: Task {task_id} status is {task.task_status}, not NOT_QUEUED")
         return HttpResponse.fail("该任务已入队或已运行，无需重复入队")

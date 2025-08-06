@@ -16,7 +16,7 @@ from app_backend.analysis.score_evaluate import evaluate_score
 from app_backend.jobs.dramatiq_queue import DramatiqQueue
 from app_backend.jobs.graph_job import run_graph_task
 from app_backend.model.rank_model import RankModel
-from app_backend.model.task_model import TaskModel, TaskStatus
+from app_backend.model.task_model import TaskModel, TaskStatus, TASK_EXPIRE_TIME
 from app_backend.model.user_model import UserModel
 from app_backend.utils.utils import get_available_port, release_port, setup_logger
 from app_backend.views.summary import reset_rank_cache
@@ -126,7 +126,7 @@ def run_cc_training_task(task_id):
 
 def _check_if_task_can_run(task: TaskModel):
     assert task.task_status == TaskStatus.QUEUED, "Task status must be QUEUED to run"
-    assert not task.is_expired(), f"Task {task.task_id} is expired, cannot run"
+    assert not task.is_expired(), f"Task {task.task_id} is expired, task must run within {(TASK_EXPIRE_TIME / 3600):.1f} hours of creation"
 
 
 def _compile_cc_file(task, course_project_dir, task_dir, sender_path, receiver_path):
