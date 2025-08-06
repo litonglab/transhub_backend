@@ -1,5 +1,6 @@
 import logging
 import re
+import time
 import uuid
 from datetime import datetime
 from enum import Enum
@@ -70,6 +71,8 @@ class TaskStatus(Enum):
 # Define the maximum length, also used in the validator schema
 TASK_MODEL_ALGORITHM_MAX_LEN = 50
 TASK_MODEL_ERROR_LOG_MAX_LEN = 16777215  # 16MB, MySQL MEDIUMTEXT max length
+TASK_EXPIRE_TIME = 24 * 60 * 60  # 24 hours in seconds, used to check if task is expired
+TASK_ENQUEUE_TIME = 12 * 60 * 60  # 12 hours in seconds, used to check if task can be re-enqueued
 
 
 def _sanitize_sensitive(_text):
@@ -229,6 +232,22 @@ class TaskModel(db.Model):
             'log': self.log_permission(),  # 返回用户是否具有权限，用于前端显示日志按钮
         }
         return res
+
+    def get_time_since_created_seconds(self):
+        """获取任务创建以来的秒数"""
+        if not self.created_time:
+            return 0
+        return time.time() - self.created_time.timestamp()
+
+    def is_expired(self):
+        """检查任务是否过期，任务过期后不可再执行"""
+        time_diff = self.get_time_since_created_seconds()
+        return time_diff > TASK_EXPIRE_TIME
+
+    def can_enqueue(self):
+        """检查任务是否可以重新入队，任务创建后一段时间内可以重新入队"""
+        time_diff = self.get_time_since_created_seconds()
+        return time_diff < TASK_ENQUEUE_TIME
 
 
 def to_history_dict(tasks: list):

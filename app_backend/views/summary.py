@@ -69,8 +69,9 @@ def delete_rank():
         return HttpResponse.not_found("榜单记录不存在或无权限")
 
     # 检查非管理用户的12小时调用限制
+    _config = config.get_course_config(cname)
     if not user.is_admin():
-        if True:
+        if not _config.get('allow_rank_delete', False):
             logger.warning(
                 f"Rank deletion failed: User {user.username} is not an admin, "
                 f"cannot delete rank with ID {data.rank_id} for competition {cname}")

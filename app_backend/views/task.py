@@ -8,7 +8,7 @@ from flask_jwt_extended import jwt_required, get_jwt, current_user
 from app_backend import get_default_config, cache
 from app_backend.jobs.cctraining_job import enqueue_cc_task
 from app_backend.model.competition_model import CompetitionModel
-from app_backend.model.task_model import TaskModel, TaskStatus
+from app_backend.model.task_model import TaskModel, TaskStatus, TASK_ENQUEUE_TIME
 from app_backend.security.bypass_decorators import admin_bypass
 from app_backend.utils.utils import generate_random_string
 from app_backend.utils.utils import get_record_by_permission
@@ -54,7 +54,7 @@ def upload_project_file():
     # 检查当前时间是否在比赛时间范围内
     if not config.is_now_in_competition(cname):
         logger.warning(
-            f"Upload rejected: Outside competition period.")
+            f"Upload rejected: Outside competition period. User {user.username}, competition {cname}.")
         return HttpResponse.fail(f"比赛尚未开始或已截止，请在比赛时间内上传代码。")
 
     # 查询用户当前课程处于运行中或者队列中的任务数量，同一个upload_id只算一次
@@ -91,6 +91,10 @@ def upload_project_file():
         f"Starting task creation for upload {upload_id}, user {user.username}, cname {cname}, competition_id {competition_id}")
 
     _config = config.get_course_config(cname)
+    # 比赛截止前一段时间内，默认评测所有trace
+    competition_remaining_time = config.get_competition_remaining_time(cname)
+    allow_select_trace = (
+            competition_remaining_time >= _config.get("force_all_traces_before_seconds", 3 * 24 * 60 * 60))
     for trace_name, trace_conf in _config['trace'].items():
         loss = trace_conf['loss_rate']
         buffer_size = trace_conf['buffer_size']
@@ -108,7 +112,7 @@ def upload_project_file():
             f"[task: {task.task_id}] Created task for trace {trace_name}, loss {loss}, buffer {buffer_size}")
 
         # 发送任务到队列并检查结果
-        if trace_name not in trace_list:
+        if allow_select_trace and trace_name not in trace_list:
             continue  # 如果trace不在用户选择的列表中，跳过此trace
         enqueue_result = enqueue_cc_task(task.task_id)
         enqueue_results.append(enqueue_result)
@@ -137,6 +141,8 @@ def upload_project_file():
         logger.error(f"Upload {upload_id} : some tasks failed to enqueue")
     else:
         message = f"上传成功，{total_tasks}个任务已入队。"
+        if not allow_select_trace:
+            message += "注意：当前比赛已进入最后阶段，系统默认评测所有用例。"
     return HttpResponse.ok(
         message=message,
         tasks=task_ids,
@@ -200,11 +206,20 @@ def get_trace_list():
 def enqueue_task():
     data = get_validated_data(EnqueueTaskSchema)
     task_id = data.task_id
+    user = current_user
     # 确保只能操作自己的任务
     task = get_record_by_permission(TaskModel, {"task_id": task_id})
     if not task:
         logger.warning(f"Enqueue task: Task {task_id} not found or no permission")
         return HttpResponse.not_found("任务不存在或无权限")
+    # 检查当前时间是否在比赛时间范围内
+    if not config.is_now_in_competition(task.cname):
+        logger.warning(
+            f"Enqueue task rejected: Outside competition period. User {user.username}, competition {task.cname}.")
+        return HttpResponse.fail(f"比赛尚未开始或已截止，不允许执行此操作")
+    if not task.can_enqueue():
+        logger.warning(f"Enqueue task rejected: Task {task_id} created more than 12 hours ago")
+        return HttpResponse.fail(f"操作失败，仅允许重新入队最近{(TASK_ENQUEUE_TIME / 3600):.1f}小时内创建的任务")
     if task.task_status != TaskStatus.NOT_QUEUED:
         logger.info(f"Enqueue task: Task {task_id} status is {task.task_status}, not NOT_QUEUED")
         return HttpResponse.fail("该任务已入队或已运行，无需重复入队")
