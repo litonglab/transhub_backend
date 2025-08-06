@@ -247,7 +247,7 @@ class TaskModel(db.Model):
     def can_enqueue(self):
         """检查任务是否可以重新入队，任务创建后一段时间内可以重新入队"""
         time_diff = self.get_time_since_created_seconds()
-        return time_diff > TASK_ENQUEUE_TIME
+        return time_diff < TASK_ENQUEUE_TIME
 
 
 def to_history_dict(tasks: list):
