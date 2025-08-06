@@ -3,7 +3,6 @@ import os
 import shutil
 import signal
 import subprocess
-import time
 from time import sleep
 
 import dramatiq
@@ -45,9 +44,7 @@ def run_cc_training_task(task_id):
                 return
 
             logger.info(f"[task: {task_id}] Start task")
-            assert task.task_status == TaskStatus.QUEUED, "Task status must be QUEUED to run"
-            time_diff = time.time() - task.created_time.timestamp()
-            assert time_diff < 24 * 60 * 60, "Task is expired, must start within 24 hours of creation"
+            _check_if_task_can_run(task)
             user = UserModel.query.filter_by(user_id=task.user_id).first()
 
             # 课程的项目目录，公共目录
@@ -125,6 +122,11 @@ def run_cc_training_task(task_id):
                 logger.error(f"[task: {task_id}] Error when finally cleanup: Dramatiq TimeLimitExceeded", exc_info=True)
             except Exception as e:
                 logger.error(f"[task: {task_id}] Error when finally cleanup: {str(e)}", exc_info=True)
+
+
+def _check_if_task_can_run(task: TaskModel):
+    assert task.task_status == TaskStatus.QUEUED, "Task status must be QUEUED to run"
+    assert not task.is_expired(), f"Task {task.task_id} is expired, cannot run"
 
 
 def _compile_cc_file(task, course_project_dir, task_dir, sender_path, receiver_path):
