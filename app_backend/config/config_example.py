@@ -29,7 +29,8 @@ class ExampleConfig(BaseConfig):
                     # score_weights表示各项分数占比，计入总分时会根据此权重计算。
                     # 时延配置是单向时延，前端显示的是往返时延（RTT），即2倍的单向时延。
                     # buffer是缓冲区大小，单位为字节，应根据BDP设置。丢包率设置为0-1.0之间的浮点数。
-                    "trace_a": {"block": False, "loss_rate": 0.0, "buffer_size": 20, "delay": 20,
+                    # buffer过低会导致无法正常发包，无实际流量产生，无法评测。
+                    "trace_a": {"block": False, "loss_rate": 0.0, "buffer_size": 50000, "delay": 20,
                                 "downlink_file": "Verizon-LTE-short.down", "uplink_file": "Verizon-LTE-short.up",
                                 "score_weights": {"loss": 0.3, "delay": 0.35, "throughput": 0.35}},
                     "Verizon-LTE-example": {"block": False, "loss_rate": 0.0, "buffer_size": 250, "delay": 20,
@@ -57,7 +58,7 @@ class ExampleConfig(BaseConfig):
                 "start_time": "2025-01-01 00:00:00",
                 "end_time": "2025-01-01 21:00:00",
                 "trace": {
-                    "trace_a": {"block": False, "loss_rate": 0.0, "buffer_size": 20, "delay": 20,
+                    "trace_a": {"block": False, "loss_rate": 0.0, "buffer_size": 50000, "delay": 20,
                                 "downlink_file": "Verizon-LTE-short.down", "uplink_file": "Verizon-LTE-short.up",
                                 "score_weights": {"loss": 0.3, "delay": 0.35, "throughput": 0.35}},
                     "Verizon-LTE-example": {"block": False, "loss_rate": 0.0, "buffer_size": 250, "delay": 20,

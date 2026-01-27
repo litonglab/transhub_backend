@@ -17,6 +17,11 @@ def evaluate_score(task: TaskModel, log_file):
     capacity = tunnel_results['capacity']
     tunnel_loss = tunnel_results['loss']
 
+    # 如果缓冲区配置过低，可能导致无流量通过，无法正常解析日志评分
+    if queueing_delay is None or tunnel_loss is None:
+        logger.error(f"[task: {task.task_id}] Invalid tunnel results: delay({queueing_delay}), loss({tunnel_loss})")
+        raise ValueError("未检测到任何流量，请检查代码或联系管理员确认评测用例配置是否正确。")
+
     # 1. 吞吐量效率评分 (0-100分)
     # 基于理论吞吐量的利用率
     efficiency = 0
