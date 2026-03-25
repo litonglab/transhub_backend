@@ -10,7 +10,7 @@
 - **Python**: 3.8+
 - **数据库**: MySQL 5.7+ 或 MariaDB 10.3+
 - **缓存**: Redis 5.0+
-- **操作系统**: Linux/macOS/Windows
+- **操作系统**: Linux
 
 ### 2. 安装依赖
 
@@ -23,29 +23,20 @@ cd transhub_backend
 pip install -r requirements.txt
 ```
 
-### ~~3. 配置环境~~
-#### ~~方法一：使用配置管理脚本（推荐）~~
+### 3. 系统配置
+#### 环境配置
 
 ```bash
-# 创建开发环境配置
-python manage_config.py create --env development
-
-# 创建生产环境配置
-python manage_config.py create --env production
-
-# 编辑配置文件
-vim .env.development  # 或 .env.production
-```
-
-#### 方法二：手动创建配置文件
-
-```bash
-# 复制模板文件
+# 复制模板文件（开发环境）
 cp .env.example .env.development
 
 # 编辑配置文件
 vim .env.development
 ```
+
+#### 课程配置
+
+将`app_backend/config/config_example.py`复制为`development.py` （开发环境）或 `production.py` （生产环境），复制文件后，需要修改类名为对应的`DevelopmentConfig`和`ProductionConfig`，并根据需要修改配置。
 
 ### 4. 配置数据库和Redis
 
@@ -67,17 +58,7 @@ REDIS_DB=1
 BASEDIR=/path/to/your/transhub/data
 ```
 
-### ~~5. 验证配置~~
-
-```bash
-# 验证配置文件
-python manage_config.py validate --env development
-
-# 查看配置信息
-python manage_config.py show --env development
-```
-
-### 6. 启动应用
+### 5. 启动应用
 
 #### 开发环境
 
@@ -90,10 +71,6 @@ python run.py
 ```bash
 # 使用 Supervisor 管理（推荐）
 bash supervisor_manager.sh start
-
-# 或直接使用 Gunicorn
-export APP_ENV=production
-gunicorn run:app -w 4 --threads 2 -b 127.0.0.1:54321
 ```
 
 ## 📁 项目结构
@@ -156,42 +133,18 @@ mysql_user = config.Database.MYSQL_USERNAME
 redis_host = config.Cache.REDIS_HOST
 ```
 
-也可以通过展平后的属性访问（向后兼容）：
-```python
-debug_mode = config.DEBUG
-mysql_user = config.MYSQL_USERNAME
-redis_host = config.REDIS_HOST
-```
-
 ### 主要配置项
 
 | 配置项 | 说明 | 开发环境默认值 | 生产环境建议值 |
 |--------|------|----------------|----------------|
 | `APP_ENV` | 环境名称 | development | production |
 | `DEBUG` | 调试模式 | true | false |
-| `BASEDIR` | 数据目录 | ./project/Transhub_data_dev | /var/lib/transhub |
+| `BASEDIR` | 数据目录 | ./project/Transhub_data_dev | /path/to/your/transhub/data |
 | `MYSQL_DBNAME` | 数据库名 | transhub_dev | transhub_prod |
-| `REDIS_DB` | Redis数据库 | 1 | 0 |
+| `REDIS_DB` | Redis数据库 | 0 | 0 |
 | `LOG_LEVEL` | 日志级别 | DEBUG | INFO |
-| `CORS_ORIGINS` | 跨域设置 | * | https://yourdomain.com |
-| `GUNICORN_WORKERS` | 工作进程数 | 2 | 8 |
 
-## 🔧 配置管理命令
 
-```bash
-# 创建配置文件
-python manage_config.py create --env development
-python manage_config.py create --env production
-
-# 验证配置
-python manage_config.py validate --env development
-
-# 查看配置
-python manage_config.py show --env development
-
-# 生成安全密钥
-python manage_config.py generate-key
-```
 
 ## 🚀 部署方式
 
@@ -199,22 +152,26 @@ python manage_config.py generate-key
 
 ```bash
 # 1. 创建开发环境配置
-python manage_config.py create --env development
+cp .env.example .env.development
 
 # 2. 编辑配置文件
 vim .env.development
 
 # 3. 启动开发服务器
-python start.py --env development
+# 启动Flask
+python run.py
+# 任务队列
+dramatiq app_backend.jobs.cctraining_job --processes 2 --threads 2 --queues cc_training   （评测任务）
+dramatiq app_backend.jobs.graph_job --processes 1 --threads 2 --queues graph  （绘图任务）
 ```
 
 ### 生产环境部署
 
-#### 方式一：使用 Supervisor（推荐）
+#### 使用 Supervisor脚本
 
 ```bash
 # 1. 创建生产环境配置
-python manage_config.py create --env production
+cp .env.example .env.production
 
 # 2. 编辑配置文件
 vim .env.production
@@ -229,40 +186,12 @@ bash supervisor_manager.sh status
 bash supervisor_manager.sh stop
 ```
 
-#### ~~方式二：使用 Systemd~~
 
-创建服务文件 `/etc/systemd/system/transhub.service`:
-
-```ini
-[Unit]
-Description=Transhub Backend
-After=network.target
-
-[Service]
-Type=forking
-User=www-data
-Group=www-data
-WorkingDirectory=/path/to/transhub_backend
-Environment=APP_ENV=production
-ExecStart=/path/to/transhub_backend/supervisor_manager.sh start
-ExecStop=/path/to/transhub_backend/supervisor_manager.sh stop
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-# 启用并启动服务
-sudo systemctl enable transhub
-sudo systemctl start transhub
-```
 
 ## 🔍 监控和日志
 
 ### 应用监控
 
-- **Dramatiq Dashboard**: http://your-server:54321/admin/dramatiq
 - **应用日志**: `{BASEDIR}/logs/app.log`
 - **Supervisor日志**: `{LOG_DIR}/supervisord.log`
 
@@ -287,11 +216,12 @@ sudo systemctl start transhub
    - 定期更新依赖
 
 2. **文件权限**
+   
    ```bash
    chmod 600 .env.production  # 限制配置文件权限
    chown app:app -R /var/lib/transhub  # 设置正确的文件所有者
    ```
-
+   
 3. **防火墙配置**
    ```bash
    # 只允许必要的端口
@@ -305,51 +235,37 @@ sudo systemctl start transhub
 
 ### 常见问题
 
-1. **配置文件不存在**
-   ```bash
-   python manage_config.py create --env development
-   ```
-
-2. **数据库连接失败**
+1. **数据库连接失败**
    - 检查数据库服务是否运行
    - 验证连接信息
    - 确保数据库已创建
 
-3. **Redis连接失败**
+2. **Redis连接失败**
+
    - 检查Redis服务状态
    - 验证端口和密码配置
 
-4. **权限问题**
+3. **权限问题**
+
    ```bash
    sudo chown -R $USER:$USER /path/to/transhub_backend
-   chmod +x manage_config.py start.py supervisor_manager.sh
    ```
 
 ### 日志查看
 
 ```bash
-# 查看应用日志
-tail -f {BASEDIR}/logs/app.log
-
 # 查看Supervisor状态
 bash supervisor_manager.sh status
 
-# 查看系统服务状态
-sudo systemctl status transhub
+# 查看日志
+bash supervisor_manager.sh logs
 ```
 
-## 📚 更多文档
+## 📚 更多文档及后续开发
 
-- [配置指南](docs/CONFIGURATION_GUIDE.md)
-- [嵌套类配置指南](docs/NESTED_CONFIG_GUIDE.md)
-- [Dramatiq Dashboard指南](docs/DRAMATIQ_DASHBOARD_GUIDE.md)
-- [改进说明](docs/IMPROVEMENTS.md)
-- [迁移指南](MIGRATION_GUIDE.md)
+- 请参见docs目录下的文档
 
 ## 🤝 贡献
 
 欢迎提交 Issue 和 Pull Request！
 
-## 📄 许可证
-
-[MIT License](LICENSE)
