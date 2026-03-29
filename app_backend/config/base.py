@@ -51,15 +51,6 @@ class BaseConfig:
         # 检查是否配置了必要的超级管理员信息
         ENABLED = USERNAME and PASSWORD and len(USERNAME) > 0 and len(PASSWORD) > 0
 
-    class Guest:
-        """访客配置"""
-        USERNAME = os.getenv('GUEST_USERNAME')
-        PASSWORD = os.getenv('GUEST_PASSWORD')
-        REAL_NAME = os.getenv('GUEST_REAL_NAME', '访客')
-
-        # 检查是否配置了必要的访客信息
-        ENABLED = USERNAME and PASSWORD and len(USERNAME) > 0 and len(PASSWORD) > 0
-
     class Logging:
         """日志配置"""
         # 开发环境使用更详细的日志

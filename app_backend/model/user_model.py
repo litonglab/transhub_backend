@@ -19,7 +19,6 @@ class UserRole(Enum):
     STUDENT = "student"
     ADMIN = "admin"
     SUPER_ADMIN = "super_admin"
-    GUEST = "guest"
 
 
 # Define the maximum length, also used in the validator schema
