@@ -1,7 +1,6 @@
 import logging
 import uuid
 from datetime import datetime
-
 from flask import Blueprint
 from flask_jwt_extended import jwt_required, get_jwt, current_user
 
