@@ -1,7 +1,6 @@
 import logging
 import uuid
 from datetime import datetime
-
 from flask import Blueprint
 from flask_jwt_extended import jwt_required, get_jwt, current_user
 
@@ -9,8 +8,6 @@ from app_backend import get_default_config, cache
 from app_backend.jobs.cctraining_job import enqueue_cc_task
 from app_backend.model.competition_model import CompetitionModel
 from app_backend.model.task_model import TaskModel, TaskStatus, TASK_ENQUEUE_TIME
-from app_backend.model.user_model import UserRole
-from app_backend.security.admin_decorators import role_required
 from app_backend.security.bypass_decorators import admin_bypass
 from app_backend.utils.utils import generate_random_string
 from app_backend.utils.utils import get_record_by_permission
@@ -47,7 +44,6 @@ def _check_upload_not_exceeds_limit(user, cname, max_active_uploads_per_user):
 
 @task_bp.route("/task_upload", methods=["POST"])
 @jwt_required()
-@role_required([UserRole.STUDENT, UserRole.ADMIN, UserRole.SUPER_ADMIN])
 @validate_request(FileUploadSchema)
 def upload_project_file():
     user = current_user
