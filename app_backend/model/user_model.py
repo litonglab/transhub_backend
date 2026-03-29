@@ -25,6 +25,9 @@ class UserRole(Enum):
 # Define the maximum length, also used in the validator schema
 USER_MODEL_USERNAME_MAX_LEN = 50
 USER_MODEL_REAL_NAME_MAX_LEN = 50
+GUEST_USERNAME="guest"
+GUEST_PASSWORD="guestguest123"
+GUEST_REAL_NAME="访客"
 
 
 class UserModel(db.Model):

@@ -305,17 +305,12 @@ def _create_super_admin(app):
 def _create_guest(app):
     """Create guest user if configured in environment variables."""
 
-    from app_backend.model.user_model import UserModel, UserRole
-
+    from app_backend.model.user_model import UserModel, UserRole, GUEST_USERNAME, GUEST_PASSWORD, GUEST_REAL_NAME
+    
     # 获取访客配置
-    guest_username = config.Guest.USERNAME
-    guest_password = config.Guest.PASSWORD
-    guest_real_name = config.Guest.REAL_NAME
-
-    # 如果没有配置访客信息，跳过创建
-    if not config.Guest.ENABLED:
-        logger.info('Guest credentials not configured, skipping auto-creation')
-        return
+    guest_username = GUEST_USERNAME
+    guest_password = GUEST_PASSWORD
+    guest_real_name = GUEST_REAL_NAME
 
     existing_guest = UserModel.query.filter_by(username=guest_username).first()
     if existing_guest:
