@@ -5,7 +5,8 @@ from flask_jwt_extended import jwt_required, get_jwt, current_user
 
 from app_backend import cache, get_default_config, redis_client
 from app_backend.model.rank_model import RankModel
-from app_backend.model.user_model import UserModel
+from app_backend.model.user_model import UserModel, UserRole
+from app_backend.security.admin_decorators import role_excluded
 from app_backend.utils.utils import get_record_by_permission
 from app_backend.validators.decorators import validate_request, get_validated_data
 from app_backend.validators.schemas import DeleteRankSchema
@@ -48,6 +49,7 @@ def reset_rank_cache(cname):
 
 @summary_bp.route("/summary_delete_rank", methods=["DELETE"])
 @jwt_required()
+@role_excluded(UserRole.GUEST)
 @validate_request(DeleteRankSchema)
 def delete_rank():
     data = get_validated_data(DeleteRankSchema)
