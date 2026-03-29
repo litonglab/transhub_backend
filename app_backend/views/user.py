@@ -1,4 +1,5 @@
 import logging
+
 from flask import Blueprint
 from flask_jwt_extended import jwt_required, get_jwt, current_user
 
@@ -110,7 +111,7 @@ def user_register():
 
 @user_bp.route("/user_change_password", methods=['POST'])
 @jwt_required()
-@role_excluded([UserRole.GUEST])
+@role_excluded(UserRole.GUEST)
 @validate_request(ChangePasswordSchema)
 def change_password():
     data = get_validated_data(ChangePasswordSchema)
@@ -152,7 +153,7 @@ def check_login():
 
 @user_bp.route("/user_set_real_info", methods=["POST"])
 @jwt_required()
-@role_excluded([UserRole.GUEST])
+@role_excluded(UserRole.GUEST)
 @validate_request(UserChangeRealInfoSchema)
 def change_real_info():
     user = UserModel.find_by_id_for_update(current_user.user_id)
