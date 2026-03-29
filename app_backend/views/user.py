@@ -5,7 +5,8 @@ from flask_jwt_extended import jwt_required, get_jwt, current_user
 
 from app_backend import get_default_config
 from app_backend.model.competition_model import CompetitionModel
-from app_backend.model.user_model import UserModel
+from app_backend.model.user_model import UserModel, UserRole
+from app_backend.security.admin_decorators import role_required
 from app_backend.validators.decorators import validate_request, get_validated_data
 from app_backend.validators.schemas import UserLoginSchema, UserRegisterSchema, ChangePasswordSchema, \
     UserChangeRealInfoSchema
@@ -110,6 +111,7 @@ def user_register():
 
 @user_bp.route("/user_change_password", methods=['POST'])
 @jwt_required()
+@role_required([UserRole.STUDENT, UserRole.ADMIN, UserRole.SUPER_ADMIN])
 @validate_request(ChangePasswordSchema)
 def change_password():
     data = get_validated_data(ChangePasswordSchema)
@@ -151,6 +153,7 @@ def check_login():
 
 @user_bp.route("/user_set_real_info", methods=["POST"])
 @jwt_required()
+@role_required([UserRole.STUDENT, UserRole.ADMIN, UserRole.SUPER_ADMIN])
 @validate_request(UserChangeRealInfoSchema)
 def change_real_info():
     user = UserModel.find_by_id_for_update(current_user.user_id)

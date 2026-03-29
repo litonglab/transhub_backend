@@ -302,6 +302,43 @@ def _create_super_admin(app):
         logger.info(f'Super admin {admin_username} created successfully')
 
 
+def _create_guest(app):
+    """Create guest user if configured in environment variables."""
+
+    from app_backend.model.user_model import UserModel, UserRole
+
+    # 获取访客配置
+    guest_username = config.Guest.USERNAME
+    guest_password = config.Guest.PASSWORD
+    guest_real_name = config.Guest.REAL_NAME
+
+    # 如果没有配置访客信息，跳过创建
+    if not config.Guest.ENABLED:
+        logger.info('Guest credentials not configured, skipping auto-creation')
+        return
+
+    existing_guest = UserModel.query.filter_by(username=guest_username).first()
+    if existing_guest:
+        # 确保现有用户是访客角色
+        if existing_guest.role != UserRole.GUEST:
+            existing_guest.role = UserRole.GUEST
+            existing_guest.save()
+            logger.info(f'Updated existing user {guest_username} to guest role')
+        else:
+            logger.info(f'Guest {guest_username} already exists')
+    else:
+        # 创建新的访客
+        guest = UserModel(
+            username=guest_username,
+            real_name=guest_real_name,
+            role=UserRole.GUEST,
+            sno="Guest",
+        )
+        guest.set_password(guest_password)
+        guest.save()
+        logger.info(f'Guest {guest_username} created successfully')
+
+
 def _register_blueprints(app):
     """Register all application blueprints."""
     from app_backend.views.user import user_bp
@@ -373,6 +410,8 @@ def create_app():
         _create_tables(app)
         # Create super admin user if configured
         _create_super_admin(app)
+        # Create guest if configured
+        _create_guest(app)
         # Create the necessary directories
         _make_dir()
         # Register blueprints
