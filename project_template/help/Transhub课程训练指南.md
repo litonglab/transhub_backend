@@ -223,7 +223,7 @@ window_size = f(bandwidth);
 
 
 
-# Transhub 安装指南 2025 版
+# Transhub 安装指南
 
 硬件环境：一台 Linux 主机（在本文中，Linux 主机包括运行 Linux 系统的实体机、虚拟机或云服务器）
 
