@@ -344,8 +344,8 @@ exit
 #退出mahimahi目录，回到用户目录
 cd ..
 #下载transhub代码
-git clone https://git.ruc.edu.cn/akth/cc-training
-cd cc-training
+git clone https://github.com/litonglab/transhub_local_env.git
+cd transhub_local_env
 #按常规方式编译代码
 ./autogen.sh && ./configure && make
 ```
