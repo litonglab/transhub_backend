@@ -1,4 +1,4 @@
-# 2025 计算机网络校内赛
+# Transhub竞赛指南
 
 本次竞赛最终结果需要提交在本网站 “算法提交” 处并查看排名。但为了方便参赛者修改和调试自己的拥塞控制算法代码，需要各位在本地配置
 Transhub 运行环境，可阅读本文“Transhub 代码框架”和 “安装指南” 部分。
@@ -344,8 +344,8 @@ exit
 #退出mahimahi目录，回到用户目录
 cd ..
 #下载transhub代码
-git clone https://git.ruc.edu.cn/akth/cc-training
-cd cc-training
+git clone https://github.com/litonglab/transhub_local_env.git
+cd transhub_local_env
 #按常规方式编译代码
 ./autogen.sh && ./configure && make
 ```
