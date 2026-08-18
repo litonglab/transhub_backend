@@ -466,7 +466,7 @@ queueing delay 和 throughput 随时间变化的折线图。
 
 ```bash
 sudo sysctl -w net.ipv4.ip_forward=1 #（必须启用Linux的IP转发才能使mahimahi工作）
-cd datagrump #（前提已经在cc-training目录下）
+cd datagrump #（前提已经在transhub_local_env目录下）
 ./run-contest [scheme_name] #（scheme_name就是你给自己文件命名的名称，第一次使用时可以将[scheme_name] 替换为controller.cc）
 ```
 
@@ -721,4 +721,4 @@ Ubuntu20、22 版本也可正常完成 transhub 安装，但在运行实验时�
 
 ------
 
-本文档更新时间：2025 年 07 月 28日 星期一
+本文档更新时间：2026 年 08 月 18日
