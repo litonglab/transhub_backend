@@ -33,39 +33,21 @@ else:
 # 默认配置实例
 _default_config = None
 
-# import必须在加载环境变量之后
-from .development import DevelopmentConfig
-from .production import ProductionConfig
 
-# 配置映射
-CONFIG_MAP: Dict[str, Type[Union[DevelopmentConfig, ProductionConfig]]] = {
-    'development': DevelopmentConfig,
-    'production': ProductionConfig,
-}
+from .base import BaseConfig
 
+def get_config(env: str = None) -> BaseConfig:
+    env = (env or os.getenv("APP_ENV", "development")).lower()
 
-def get_config(env: str = None) -> Union[DevelopmentConfig, ProductionConfig]:
-    """
-    获取配置对象
+    if env == "development":
+        from .development import DevelopmentConfig
+        return DevelopmentConfig()
 
-    Args:
-        env: 环境名称，如果不提供则从环境变量 APP_ENV 读取
+    if env == "production":
+        from .production import ProductionConfig
+        return ProductionConfig()
 
-    Returns:
-        配置对象实例
-
-    Raises:
-        ValueError: 当环境名称无效时
-    """
-    if env is None:
-        env = os.getenv('APP_ENV', 'development')
-
-    config_class = CONFIG_MAP.get(env.lower())
-    if config_class is None:
-        available_envs = ', '.join(CONFIG_MAP.keys())
-        raise ValueError(f"无效的环境名称: {env}. 可用环境: {available_envs}")
-
-    return config_class()
+    raise ValueError(f"无效的环境名称: {env}")
 
 
 def get_config_dict(env: str = None) -> Dict[str, Any]:
@@ -82,7 +64,7 @@ def get_config_dict(env: str = None) -> Dict[str, Any]:
     return config.to_dict()
 
 
-def get_default_config() -> Union[DevelopmentConfig, ProductionConfig]:
+def get_default_config() -> BaseConfig:
     """获取默认配置实例（单例模式）"""
     global _default_config
     if _default_config is None:
