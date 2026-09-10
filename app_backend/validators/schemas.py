@@ -156,9 +156,9 @@ class UserRegisterSchema(BaseModel):
     @field_validator('sno')
     def validate_sno(cls, v):
         logger.debug(f"Validating student number: {v}")
-        if not v.isdecimal():
+        if not v.isalnum():
             logger.warning(f"Invalid student number format: {v}")
-            raise ValueError('学号必须是数字')
+            raise ValueError('学号必须是数字和字符的组合')
         if len(v) < FieldRules.STUDENT_ID_MIN_LEN or len(v) > FieldRules.STUDENT_ID_MAX_LEN:
             logger.warning(f"Invalid student number length: {len(v)}")
             raise ValueError(f'学号必须是{FieldRules.STUDENT_ID_MIN_LEN}-{FieldRules.STUDENT_ID_MAX_LEN}个字符')
