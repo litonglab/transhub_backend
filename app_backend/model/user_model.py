@@ -112,6 +112,10 @@ class UserModel(db.Model):
         """检查用户是否为超级管理员"""
         return self.role == UserRole.SUPER_ADMIN
 
+    def is_guest(self) -> bool:
+        """检查用户是否为访客"""
+        return self.role == UserRole.GUEST
+
     def to_dict(self):
         """转换为字典，包含角色信息"""
         return {

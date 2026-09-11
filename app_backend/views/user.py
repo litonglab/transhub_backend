@@ -49,7 +49,7 @@ def user_login():
         return HttpResponse.fail("当前课程（比赛）暂未开放登录，请稍后再试。")
     # 检查学生用户是否在课程（比赛）名单中，管理员可以绕过此检查
     class_student_list = _config['student_list']
-    if len(class_student_list) > 0 and user.sno not in class_student_list and not user.is_admin():
+    if len(class_student_list) > 0 and user.sno not in class_student_list and not user.is_admin() and not user.is_guest():
         logger.warning(f"Login failed: Student {user.sno} not in class list for {cname}")
         return HttpResponse.fail("该学号不在此课程（比赛）的名单中，请确认你已选课或报名竞赛。")
     # 检测用户是否已经参加了比赛
