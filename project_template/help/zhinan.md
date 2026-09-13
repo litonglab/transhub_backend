@@ -322,7 +322,7 @@ git clone https://github.com/ravinet/mahimahi
 ```bash
 cd mahimahi
 
-# （用make工具编译mahimahi）
+# （用make工具编译mahimahi，如果遇到g++版本问题，参考后文常见问题3）
 ./autogen.sh && ./configure && make
 
 # 安装
@@ -617,6 +617,30 @@ Ubuntu20、22 版本也可正常完成 transhub 安装，但在运行实验时�
 
 ![image-20250709214500](./images/image-20250709214500.png)
 
+## 3.mahimahi安装问题
+
+### 3.1 由于g++版本问题无法编译mahimahi（ubuntu18、20版本）
+
+最新的mahimahi官方仓库的g++版本高于ubuntu18、20版本自带的g++
+
+![g++version](.\images\g++version.jpg)
+
+需要回退mahimahi版本
+
+```sh
+   cd mahimahi
+   
+   # 1. 删除编译文件
+   git clean -fdx
+   
+   # 2. 更换mahimahi版本
+   git fetch origin pull/148/head:mahimahi-gcc7-gcc9
+   git checkout mahimahi-gcc7-gcc9
+   
+   # 3. 重新编译
+   ./autogen.sh && ./configure && make
+```
+
 ------
 
-本文档更新时间：2026 年 09 月 03日 星期四
+本文档更新时间：2026 年 09 月 13日 星期六
